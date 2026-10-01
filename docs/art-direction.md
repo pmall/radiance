@@ -30,6 +30,12 @@ is a single tweakable parameter, default ≈ 20 minutes.
 
 ## Light plants
 
+**Flowers are the light sources, not whole plants.** A bush, vine or climber is foliage; the small
+flowers or buds growing on it emit the light. Each light sits at its flower, takes the flower's
+color, has a visible glowing source (halo) and stays small and tightly tied to it, so the viewer can
+see which flower casts which light.
+
 Light plants are actual light sources affecting their surroundings. There are many small lights, so
-lighting must scale (e.g. clustered/tiled forward or deferred light accumulation). The dev GPU is an
-Intel Arrow Lake-U iGPU; target a smooth framerate on a mid-range GPU.
+lighting must scale (e.g. clustered/tiled forward or deferred light accumulation). The dev machine
+now has an RTX 3060 (previously an Intel Arrow Lake-U iGPU); still target a smooth framerate on a
+mid-range GPU, and keep the render-scale option for weaker ones.

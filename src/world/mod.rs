@@ -1,7 +1,9 @@
-//! World geometry and generation. For milestone 1 this is a seeded test scene;
-//! it becomes the chunked city generator later.
+//! World geometry and generation: the city skeleton plus a spatial index for collision.
 
-pub mod test_scene;
+pub mod city;
+pub mod growth;
+
+use std::collections::HashMap;
 
 use glam::Vec3;
 use sola_raylib::prelude::Color;
@@ -18,10 +20,6 @@ impl Aabb {
             min: center - size * 0.5,
             max: center + size * 0.5,
         }
-    }
-
-    pub fn center(&self) -> Vec3 {
-        (self.min + self.max) * 0.5
     }
 
     pub fn size(&self) -> Vec3 {
@@ -48,24 +46,107 @@ pub struct Block {
     pub color: Color,
 }
 
+/// Lots kept loaded around the player (Chebyshev distance, in lots) and the distance at which
+/// they are dropped; the gap avoids thrashing at the boundary.
+const LOAD_RADIUS: i32 = 7;
+const UNLOAD_RADIUS: i32 = 9;
+
+type LotKey = (i32, i32);
+
+/// A vertex of decorative plant geometry (no collision).
+pub struct PlantVert {
+    pub pos: Vec3,
+    pub normal: Vec3,
+    pub color: Color,
+    /// Outline id, 1..=255.
+    pub id: u8,
+    /// Emission strength, 0..=255; scaled by the time of day in the shader.
+    pub glow: u8,
+}
+
+/// A point light from a luminous plant.
+#[derive(Clone, Copy)]
+pub struct Light {
+    pub pos: Vec3,
+    pub radius: f32,
+    /// Linear color with intensity baked in.
+    pub color: Vec3,
+}
+
+/// Everything generated for one lot.
+pub struct Lot {
+    pub blocks: Vec<Block>,
+    pub plants: Vec<PlantVert>,
+    pub lights: Vec<Light>,
+}
+
 pub struct World {
     pub seed: u64,
-    pub blocks: Vec<Block>,
+    lots: HashMap<LotKey, Lot>,
+}
+
+fn lot_of(v: f32) -> i32 {
+    (v / city::LOT).floor() as i32
 }
 
 impl World {
-    pub fn generate(seed: u64) -> Self {
+    pub fn new(seed: u64) -> Self {
         Self {
             seed,
-            blocks: test_scene::generate(seed),
+            lots: HashMap::new(),
         }
     }
 
-    pub fn colliders(&self) -> impl Iterator<Item = &Aabb> {
-        self.blocks.iter().map(|b| &b.aabb)
+    /// Loads lots around `center` (nearest first, at most `budget` per call) and drops far ones.
+    pub fn stream(&mut self, center: Vec3, budget: usize) {
+        let (cx, cz) = (lot_of(center.x), lot_of(center.z));
+        self.lots
+            .retain(|&(x, z), _| (x - cx).abs().max((z - cz).abs()) <= UNLOAD_RADIUS);
+
+        let mut missing = Vec::new();
+        for x in cx - LOAD_RADIUS..=cx + LOAD_RADIUS {
+            for z in cz - LOAD_RADIUS..=cz + LOAD_RADIUS {
+                if !self.lots.contains_key(&(x, z)) {
+                    missing.push((x, z));
+                }
+            }
+        }
+        missing.sort_by_key(|&(x, z)| (x - cx).pow(2) + (z - cz).pow(2));
+        for (x, z) in missing.into_iter().take(budget) {
+            let mut blocks = Vec::new();
+            city::generate_lot(self.seed, x, z, &mut blocks);
+            let growth::Growth { plants, lights } = growth::grow_lot(self.seed, x, z, &blocks);
+            self.lots.insert(
+                (x, z),
+                Lot {
+                    blocks,
+                    plants,
+                    lights,
+                },
+            );
+        }
+    }
+
+    pub fn lots(&self) -> impl Iterator<Item = (LotKey, &Lot)> {
+        self.lots.iter().map(|(&k, v)| (k, v))
+    }
+
+    pub fn block_count(&self) -> usize {
+        self.lots.values().map(|l| l.blocks.len()).sum()
+    }
+
+    /// Colliders in the lots touched by `b` (a superset of the ones overlapping it).
+    pub fn colliders_near<'a>(&'a self, b: &Aabb) -> impl Iterator<Item = &'a Aabb> + 'a {
+        let (x0, x1) = (lot_of(b.min.x), lot_of(b.max.x));
+        let (z0, z1) = (lot_of(b.min.z), lot_of(b.max.z));
+        (x0..=x1)
+            .flat_map(move |x| (z0..=z1).map(move |z| (x, z)))
+            .filter_map(|k| self.lots.get(&k))
+            .flat_map(|l| l.blocks.iter())
+            .map(|blk| &blk.aabb)
     }
 
     pub fn collides(&self, b: &Aabb) -> bool {
-        self.colliders().any(|c| c.overlaps(b))
+        self.colliders_near(b).any(|c| c.overlaps(b))
     }
 }

@@ -4,6 +4,10 @@ Explorable artistic proof of concept: a procedurally generated, infinite cyberpu
 overgrown by bioluminescent plant life, rendered in 3D but reading like a **2D illustration**.
 The player moves freely through it in first person.
 
+**The final render is the goal.** The world is always procedurally generated from the seed; how its
+surfaces are dressed (procedural shaders, authored textures, external assets) is secondary to how
+good it looks.
+
 It's a mood and rendering prototype: **no gameplay systems** (no objectives, no NPCs, no UI beyond
 debug tools).
 
