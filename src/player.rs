@@ -67,6 +67,8 @@ pub struct Player {
     jump_buffer: f32,
     /// Smooths the camera over step-ups so they don't snap.
     eye_offset: f32,
+    /// Camera dip after a hard landing, easing back out.
+    landing_dip: f32,
     bob_phase: f32,
     bob_amount: f32,
     pub fov: f32,
@@ -84,6 +86,7 @@ impl Player {
             coyote: 0.0,
             jump_buffer: 0.0,
             eye_offset: 0.0,
+            landing_dip: 0.0,
             bob_phase: 0.0,
             bob_amount: 0.0,
             fov: BASE_FOV,
@@ -127,7 +130,7 @@ impl Player {
 
     pub fn eye(&self) -> Vec3 {
         let bob = (self.bob_phase).sin() * 0.045 * self.bob_amount;
-        self.pos + Vec3::Y * (EYE_HEIGHT + self.eye_offset + bob)
+        self.pos + Vec3::Y * (EYE_HEIGHT + self.eye_offset - self.landing_dip + bob)
     }
 
     fn aabb_at(pos: Vec3) -> Aabb {
@@ -156,6 +159,7 @@ impl Player {
         }
 
         self.eye_offset *= (-14.0 * dt).exp();
+        self.landing_dip *= (-8.0 * dt).exp();
         let running = input.run && input.wish.y > 0.1 && self.mode == Mode::Walk;
         let target_fov = BASE_FOV + if running { RUN_FOV_KICK } else { 0.0 };
         self.fov += (target_fov - self.fov) * (1.0 - (-6.0 * dt).exp());
@@ -267,7 +271,8 @@ impl Player {
         let dy = self.vel.y * dt;
         self.pos.y += dy;
         let me = Self::aabb_at(self.pos);
-        for c in world.colliders() {
+        let impact = -self.vel.y;
+        for c in world.colliders_near(&me) {
             if !me.overlaps(c) {
                 continue;
             }
@@ -278,6 +283,9 @@ impl Player {
                 self.pos.y = c.min.y - HEIGHT - 1e-4;
             }
             self.vel.y = 0.0;
+        }
+        if self.grounded && !was_grounded && impact > 6.0 {
+            self.landing_dip = (impact * 0.012).min(0.3);
         }
         // Stick to the ground when walking down small steps.
         if was_grounded && !self.grounded && self.vel.y <= 0.0 {
@@ -313,7 +321,7 @@ impl Player {
             }
             self.pos[axis] += d;
             let me = Self::aabb_at(self.pos);
-            for c in world.colliders() {
+            for c in world.colliders_near(&me) {
                 if me.overlaps(c) {
                     self.pos[axis] = if d > 0.0 {
                         c.min[axis] - RADIUS - 1e-4
@@ -335,7 +343,7 @@ impl Player {
             max: self.pos + vec3(RADIUS, 0.01, RADIUS),
         };
         let top = world
-            .colliders()
+            .colliders_near(&probe)
             .filter(|c| c.overlaps(&probe) && c.max.y <= self.pos.y + 0.01)
             .map(|c| c.max.y)
             .fold(f32::NEG_INFINITY, f32::max);
@@ -348,8 +356,12 @@ impl Player {
     fn try_ledge_grab(&mut self, world: &World) {
         let fwd = self.forward_flat();
         let probe = self.pos + fwd * (RADIUS + LEDGE_PROBE);
+        let probe_box = Aabb {
+            min: probe - Vec3::splat(0.01),
+            max: probe + Vec3::splat(0.01),
+        };
         let ledge = world
-            .colliders()
+            .colliders_near(&probe_box)
             .filter(|c| c.contains_xz(probe))
             .map(|c| c.max.y)
             .filter(|&top| top >= self.pos.y + LEDGE_MIN && top <= self.pos.y + LEDGE_MAX)

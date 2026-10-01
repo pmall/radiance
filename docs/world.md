@@ -22,5 +22,7 @@ drifting particles, flickering signs).
   from time or global state.
 - Organic elements use growth-inspired techniques (L-systems, space colonization, noise-driven
   growth), layered on top of a generated architectural skeleton.
-- Geometry is generated in code; no external modeling pipeline. Free low-poly kit placeholders only
+- The world itself (layout, architecture, plant placement and growth) is always procedural. Textures
+  and other external assets are welcome to dress that geometry whenever they make the render better;
+  they are materials and building blocks, not a replacement for generation.
   if truly needed.

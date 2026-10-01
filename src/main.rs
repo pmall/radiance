@@ -1,21 +1,66 @@
+mod daycycle;
 mod debug;
 mod player;
+mod render;
 mod rng;
 mod world;
 
 use glam::{Vec2, Vec3, vec3};
 use sola_raylib::prelude::*;
 
+use daycycle::DayCycle;
 use debug::Debug;
 use player::{Input, Player};
+use render::look::{PRESET_TIMES, Sky};
+use render::{EFFECTS, Renderer, View};
 use world::World;
 
 const DEFAULT_SEED: u64 = 1;
 const SIM_STEP: f32 = 1.0 / 120.0;
+/// Lots generated per frame while streaming, to keep frame times even.
+const STREAM_BUDGET: usize = 4;
 const SPAWN: Vec3 = vec3(0.0, 0.5, 0.0);
+/// Late afternoon: a few minutes before dusk starts.
+const START_TIME: f32 = 0.66;
+/// Time scrub speed with the arrow keys, in days per second.
+const SCRUB_SPEED: f32 = 0.08;
 
-fn rv(v: Vec3) -> Vector3 {
-    Vector3::new(v.x, v.y, v.z)
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png]`.
+/// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
+struct Args {
+    seed: u64,
+    time: Option<f32>,
+    view: Option<[f32; 5]>,
+    shot: Option<String>,
+}
+
+fn parse_args() -> Args {
+    let mut args = Args {
+        seed: DEFAULT_SEED,
+        time: None,
+        view: None,
+        shot: None,
+    };
+    let mut it = std::env::args().skip(1);
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
+            "--shot" => args.shot = it.next(),
+            "--view" => {
+                let v: Vec<f32> = it
+                    .next()
+                    .map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect())
+                    .unwrap_or_default();
+                args.view = v.try_into().ok();
+            }
+            _ => {
+                if let Ok(s) = a.parse() {
+                    args.seed = s;
+                }
+            }
+        }
+    }
+    args
 }
 
 fn random_seed() -> u64 {
@@ -28,12 +73,15 @@ fn random_seed() -> u64 {
 
 fn read_input(rl: &RaylibHandle) -> Input {
     use KeyboardKey::*;
-    let axis = |pos: KeyboardKey, neg: KeyboardKey| {
-        rl.is_key_down(pos) as i32 as f32 - rl.is_key_down(neg) as i32 as f32
-    };
+    // QWERTY (WASD), AZERTY (ZQSD) and arrow keys all work.
+    let any = |keys: &[KeyboardKey]| keys.iter().any(|&k| rl.is_key_down(k)) as i32 as f32;
+    let axis = |pos: &[KeyboardKey], neg: &[KeyboardKey]| any(pos) - any(neg);
     let d = rl.get_mouse_delta();
     Input {
-        wish: Vec2::new(axis(KEY_D, KEY_A), axis(KEY_W, KEY_S)),
+        wish: Vec2::new(
+            axis(&[KEY_D, KEY_RIGHT], &[KEY_A, KEY_Q, KEY_LEFT]),
+            axis(&[KEY_W, KEY_Z, KEY_UP], &[KEY_S, KEY_DOWN]),
+        ),
         look: Vec2::new(d.x, d.y),
         jump_pressed: rl.is_key_pressed(KEY_SPACE),
         jump_held: rl.is_key_down(KEY_SPACE),
@@ -42,31 +90,52 @@ fn read_input(rl: &RaylibHandle) -> Input {
     }
 }
 
+fn spawn_player(view: Option<[f32; 5]>) -> Player {
+    match view {
+        Some([x, y, z, yaw, pitch]) => {
+            let mut p = Player::new(vec3(x, y, z));
+            p.toggle_fly();
+            p.yaw = yaw.to_radians();
+            p.pitch = pitch.to_radians();
+            p
+        }
+        None => Player::new(SPAWN),
+    }
+}
+
 fn main() {
-    let seed = std::env::args()
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_SEED);
+    let args = parse_args();
 
     let (mut rl, thread) = sola_raylib::init()
         .size(1600, 900)
         .title("Radiance")
         .resizable()
-        .msaa_4x()
         .vsync()
         .build();
     rl.set_exit_key(None);
-    rl.disable_cursor();
+    if args.shot.is_none() {
+        rl.disable_cursor();
+    }
 
-    let mut world = World::generate(seed);
-    let mut player = Player::new(SPAWN);
+    let mut player = spawn_player(args.view);
+    let mut world = World::new(args.seed);
+    world.stream(player.pos, usize::MAX);
+    let mut renderer = Renderer::new();
+    renderer.sync_world(&world);
+    let mut cycle = DayCycle::new(args.time.unwrap_or(START_TIME));
     let mut debug = Debug::new();
     let mut accumulator = 0.0;
+    let mut frame = 0u32;
+    if args.shot.is_some() {
+        cycle.running = false;
+        debug.show_overlay = false;
+    }
 
     while !rl.window_should_close() {
         use KeyboardKey::*;
+        let dt = rl.get_frame_time();
         let ctrl = rl.is_key_down(KEY_LEFT_CONTROL) || rl.is_key_down(KEY_RIGHT_CONTROL);
-        if ctrl && rl.is_key_pressed(KEY_Q) {
+        if ctrl && (rl.is_key_pressed(KEY_Q) || rl.is_key_pressed(KEY_A)) {
             break;
         }
 
@@ -86,21 +155,65 @@ fn main() {
         if rl.is_key_pressed(KEY_F2) {
             player.toggle_fly();
         }
+        for (i, key) in [KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F11]
+            .into_iter()
+            .enumerate()
+        {
+            if rl.is_key_pressed(key) {
+                renderer.effects ^= EFFECTS[i].0;
+            }
+        }
+        if rl.is_key_pressed(KEY_F9) {
+            renderer.cycle_render_scale();
+        }
+        if rl.is_key_pressed(KEY_F10) {
+            renderer.reload_shaders();
+        }
         let new_seed = if rl.is_key_pressed(KEY_R) {
             Some(random_seed())
-        } else if rl.is_key_pressed(KEY_RIGHT_BRACKET) {
+        } else if rl.is_key_pressed(KEY_RIGHT_BRACKET) || rl.is_key_pressed(KEY_KP_ADD) {
             Some(world.seed.wrapping_add(1))
-        } else if rl.is_key_pressed(KEY_LEFT_BRACKET) {
+        } else if rl.is_key_pressed(KEY_LEFT_BRACKET) || rl.is_key_pressed(KEY_KP_SUBTRACT) {
             Some(world.seed.wrapping_sub(1))
         } else {
             None
         };
         if let Some(s) = new_seed {
-            world = World::generate(s);
+            world = World::new(s);
+            renderer.clear_world();
             if !player.is_flying() {
                 player = Player::new(SPAWN);
             }
+            world.stream(player.pos, usize::MAX);
         }
+
+        // Time of day.
+        if rl.is_key_pressed(KEY_T) {
+            cycle.running = !cycle.running;
+        }
+        if rl.is_key_pressed(KEY_PAGE_UP) {
+            cycle.speed = (cycle.speed * 2.0).min(256.0);
+        }
+        if rl.is_key_pressed(KEY_PAGE_DOWN) {
+            cycle.speed = (cycle.speed * 0.5).max(1.0);
+        }
+        let scrub = rl.is_key_down(KEY_END) as i32 - rl.is_key_down(KEY_HOME) as i32;
+        cycle.advance(scrub as f32 * SCRUB_SPEED * dt);
+        for (i, keys) in [
+            [KEY_ONE, KEY_KP_1],
+            [KEY_TWO, KEY_KP_2],
+            [KEY_THREE, KEY_KP_3],
+            [KEY_FOUR, KEY_KP_4],
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if keys.iter().any(|&k| rl.is_key_pressed(k)) {
+                cycle.t = PRESET_TIMES[i];
+            }
+        }
+        cycle.update(dt);
+        renderer.update(dt);
 
         // Simulation: fixed sub-steps for stable collisions; look applied per frame.
         let mut input = if captured {
@@ -109,7 +222,7 @@ fn main() {
             Input::default()
         };
         player.apply_look(input.look);
-        accumulator = (accumulator + rl.get_frame_time()).min(0.1);
+        accumulator = (accumulator + dt).min(0.1);
         while accumulator >= SIM_STEP {
             player.update(SIM_STEP, &input, &world);
             input.jump_pressed = false;
@@ -118,27 +231,34 @@ fn main() {
         if player.pos.y < -100.0 {
             player = Player::new(SPAWN);
         }
+        world.stream(player.pos, STREAM_BUDGET);
+        renderer.sync_world(&world);
 
-        // Rendering (placeholder until the stylized pipeline lands in milestone 2).
-        let eye = player.eye();
-        let camera = Camera3D::perspective(
-            rv(eye),
-            rv(eye + player.look_dir()),
-            Vector3::new(0.0, 1.0, 0.0),
-            player.fov,
-        );
+        let sky = Sky::from_cycle(&cycle);
+        let view = View {
+            pos: player.eye(),
+            dir: player.look_dir(),
+            fovy: player.fov,
+        };
+        let time = rl.get_time() as f32;
         let mut d = rl.begin_drawing(&thread);
-        d.clear_background(Color::new(150, 170, 185, 255));
+        renderer.draw(&view, &sky, time);
+
+        frame += 1;
+        if let Some(path) = &args.shot
+            && frame == 5
         {
-            let mut d3 = d.begin_mode3D(camera);
-            for b in &world.blocks {
-                let (c, s) = (b.aabb.center(), b.aabb.size());
-                d3.draw_cube(rv(c), s.x, s.y, s.z, b.color);
-                d3.draw_cube_wires(rv(c), s.x, s.y, s.z, Color::new(20, 22, 30, 255));
+            let c = std::ffi::CString::new(path.as_str()).unwrap();
+            unsafe {
+                let img = sola_raylib::ffi::LoadImageFromScreen();
+                sola_raylib::ffi::ExportImage(img, c.as_ptr());
+                sola_raylib::ffi::UnloadImage(img);
             }
+            break;
         }
-        debug.draw(&mut d, &world, &player);
-        if !captured {
+
+        debug.draw(&mut d, &world, &player, &renderer, &cycle);
+        if !captured && args.shot.is_none() {
             d.draw_text(
                 "click to capture mouse",
                 16,
