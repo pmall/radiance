@@ -1,0 +1,34 @@
+# Vision and scope
+
+Explorable artistic proof of concept: a procedurally generated, infinite cyberpunk megacity
+overgrown by bioluminescent plant life, rendered in 3D but reading like a **2D illustration**.
+The player moves freely through it in first person.
+
+It's a mood and rendering prototype: **no gameplay systems** (no objectives, no NPCs, no UI beyond
+debug tools).
+
+## Definition of done
+
+- Launch → seed-generated city → walk through it in first person.
+- The city streams endlessly in every horizontal direction and has real vertical depth.
+- The rendering clearly reads as stylized illustration, not default 3D.
+- Bioluminescent plants light their surroundings and play a soft piano-like note when approached.
+- Time of day evolves continuously through a full day/night cycle.
+- The same seed always produces the same city.
+
+## Player
+
+- First person, no visible body. The city should feel immense through the scale of its architecture.
+- Walk, run, jump, with **generous ledge-grabbing** so vertical navigation is possible.
+  Movement should feel smooth and pleasant.
+
+## References
+
+| Work | What to take from it |
+| --- | --- |
+| *Firewatch* | Colored fog, painted depth layers, limited palettes |
+| *Sable* | Flat, illustrative shading of 3D scenes |
+| *Gris* | Softness, melancholy, color as emotion |
+| *Stray* | Dense, abandoned cyberpunk urban atmosphere |
+| *No Man's Sky* | Procedural scale, sense of being small |
+| *Mirror's Edge* | Clean first-person movement through architecture |
