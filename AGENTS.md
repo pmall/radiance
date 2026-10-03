@@ -12,6 +12,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `docs/audio.md`: piano notes, ambient soundscape.
 - `docs/roadmap.md`: milestones, current status, debug tooling.
 - `docs/biome-ideas.md`: brainstormed biomes (not implemented), for inspiration.
+- `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.
 - `docs/feedback.md`: owner feedback and decisions so far; read it before visual or control changes.
 
 ## Hard constraints
