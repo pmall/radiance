@@ -8,6 +8,11 @@ what the city looks like and sounds like.
   taller: construction never stopped, nobody ever told it to.
 - **Each glowing flower is a human soul.** Flowers are the only light sources, and the piano note a
   flower plays when approached (see `docs/audio.md`) is that soul's voice.
+- **Humanity rose with the city.** As machines built upward, people moved up to the new levels and
+  abandoned the depths long before the end. So the depths are the oldest and emptiest part, and the
+  top is where humans lived last. This is why there are more flowers (souls) high up than deep down,
+  which is also the biologically accurate direction (sunlight). It matches `bloom()` in
+  `src/world/biome.rs` (canopy > middle > depths).
 - Plants overgrow everything: nature took the abandoned city back.
 
 ## What it means for the graphics (working notes)
@@ -19,7 +24,10 @@ what the city looks like and sounds like.
   upper floors with an open structure, stacked materials, tall masts. They stay still (no moving
   machines on screen, see `docs/vision.md`), as if paused or seen between shifts.
 - Flowers are souls, so they should feel special next to ordinary plants: they are the only things
-  that glow and the only things that sing. Where souls gather could follow where people lived,
-  worked or died: windows, benches, street corners, rooftops.
-- Newer, taller parts of the city are machine architecture (colder, more regular, less human);
-  older low levels carry the human world (shops, signage, balconies, fire escapes).
+  that glow and the only things that sing. Their density follows altitude (many in the canopy, few in
+  the depths), not building details.
+- The depths are the oldest, longest-abandoned layer: most decayed and overgrown, darkest, with few
+  souls, so each one stands out. The upper levels are the most recent human world, brighter and
+  better kept, with the most souls.
+- The tall, newest parts are machine-built, so they can be colder and more regular, while the human
+  touches (shops, signage, balconies, fire escapes) belong to where people last lived, high up.
