@@ -24,6 +24,39 @@ const SALT_BIOME: i32 = 4;
 /// Side, in lots, of the grid cell holding one zone site. Typical zones span about twice this.
 pub const SITE_LOTS: i32 = 6;
 
+/// Colors the scene shader uses for a biome's architecture (linear RGB). Index in `BIOMES` selects
+/// the palette (`render` uploads them all as one uniform array).
+pub struct Palette {
+    /// Neon strips over storefronts and vertical signs.
+    pub neon: [[f32; 3]; 3],
+    /// Light of lit windows: warm white, cool white, then two rarer tints.
+    pub windows: [[f32; 3]; 4],
+    /// Colored cladding panels on facades.
+    pub accents: [[f32; 3]; 4],
+    /// Billboard backgrounds.
+    pub signs: [[f32; 3]; 5],
+    /// Multiplies the base color of facades and pavement.
+    pub tint: [f32; 3],
+}
+
+/// Vec3 entries per biome in the palette uniform.
+pub const PALETTE_VEC3S: usize = 3 + 4 + 4 + 5 + 1;
+/// Most biomes the shader's palette array has room for.
+pub const MAX_BIOMES: usize = 8;
+
+impl Palette {
+    fn flat(&self) -> impl Iterator<Item = f32> + '_ {
+        self.neon
+            .iter()
+            .chain(&self.windows)
+            .chain(&self.accents)
+            .chain(&self.signs)
+            .chain(std::iter::once(&self.tint))
+            .flatten()
+            .copied()
+    }
+}
+
 /// Everything generation reads from a biome. `DEFAULT` holds the original values of the city.
 pub struct Biome {
     pub name: &'static str,
@@ -51,6 +84,8 @@ pub struct Biome {
     pub stair_chance: f32,
     /// Chance that two neighboring towers are linked by a bridge.
     pub bridge_chance: f32,
+
+    pub palette: Palette,
 }
 
 /// The original look of the city: cyan and magenta flowers with some green, violet and amber,
@@ -75,10 +110,52 @@ pub const DEFAULT: Biome = Biome {
     deck_keep: [0.85, 0.6],
     stair_chance: 0.7,
     bridge_chance: 0.35,
+    palette: Palette {
+        neon: [[0.1, 0.9, 1.0], [1.0, 0.2, 0.75], [1.0, 0.65, 0.2]],
+        windows: [
+            [1.0, 0.84, 0.58],
+            [0.72, 0.86, 1.0],
+            [0.45, 0.9, 0.95],
+            [1.0, 0.45, 0.7],
+        ],
+        accents: [
+            [0.75, 0.22, 0.03],
+            [0.85, 0.6, 0.04],
+            [0.04, 0.4, 0.45],
+            [0.8, 0.8, 0.78],
+        ],
+        signs: [
+            [0.9, 0.62, 0.04],
+            [0.9, 0.3, 0.05],
+            [0.05, 0.55, 0.7],
+            [0.75, 0.1, 0.45],
+            [0.85, 0.85, 0.82],
+        ],
+        tint: [1.0, 1.0, 1.0],
+    },
 };
 
 /// Every biome the map can hold. Only the default exists for now.
 pub const BIOMES: &[&Biome] = &[&DEFAULT];
+
+/// Index of `biome` in `BIOMES`: the material variant its lots are drawn with.
+pub fn variant_of(biome: &Biome) -> usize {
+    BIOMES
+        .iter()
+        .position(|b| std::ptr::eq(*b, biome))
+        .unwrap_or(0)
+}
+
+/// All palettes packed for the shader (`MAX_BIOMES` x `PALETTE_VEC3S` vec3s, unused ones zero).
+pub fn palette_uniform() -> Vec<f32> {
+    let mut v: Vec<f32> = BIOMES
+        .iter()
+        .take(MAX_BIOMES)
+        .flat_map(|b| b.palette.flat())
+        .collect();
+    v.resize(MAX_BIOMES * PALETTE_VEC3S * 3, 0.0);
+    v
+}
 
 /// The biome of a lot.
 pub fn biome_at(seed: u64, lx: i32, lz: i32) -> &'static Biome {

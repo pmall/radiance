@@ -123,6 +123,8 @@ pub struct Lot {
     pub blocks: Vec<Block>,
     pub plants: Vec<PlantVert>,
     pub lights: Vec<Light>,
+    /// Material variant (palette index) of the lot's biome.
+    pub variant: u8,
 }
 
 pub struct World {
@@ -167,6 +169,7 @@ impl World {
                     blocks,
                     plants,
                     lights,
+                    variant: biome::variant_of(biome::biome_at(self.seed, x, z)) as u8,
                 },
             );
         }

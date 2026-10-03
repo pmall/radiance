@@ -23,6 +23,7 @@ uniform sampler2D texture2;  // plant light grid (see src/render/lights.rs)
 uniform sampler2D texture4;  // photo detail 2: R roof, G foliage, B rust, A plaster
 uniform sampler2D texture3;  // photo detail: R pavement, G asphalt, B concrete wall, A metal (src/render/surfaces.rs)
 uniform vec3 uGridOrigin;
+uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 signs, 1 tint
 uniform float uGlow;         // plant emission and light strength for the time of day
 
 layout(location = 0) out vec4 outColor;
@@ -148,16 +149,22 @@ float boxMask(vec2 q, vec2 h, float aa)
     return 1.0 - smoothstep(-aa, aa, max(d.x, d.y));
 }
 
+int gVariant = 0;   // palette (biome) of the fragment's lot, set in main()
+
+vec3 pal(int slot)
+{
+    return uPalette[gVariant * 17 + slot];
+}
+
 vec3 neonColor(float r)
 {
-    return r < 0.4 ? vec3(0.1, 0.9, 1.0) : (r < 0.75 ? vec3(1.0, 0.2, 0.75) : vec3(1.0, 0.65, 0.2));
+    return r < 0.4 ? pal(0) : (r < 0.75 ? pal(1) : pal(2));
 }
 
 vec3 windowLight(float r)
 {
     // Mostly plain indoor light, warm or cool white; a few tinted ones.
-    return r < 0.55 ? vec3(1.0, 0.84, 0.58) : (r < 0.88 ? vec3(0.72, 0.86, 1.0)
-         : (r < 0.95 ? vec3(0.45, 0.9, 0.95) : vec3(1.0, 0.45, 0.7)));
+    return r < 0.55 ? pal(3) : (r < 0.88 ? pal(4) : (r < 0.95 ? pal(5) : pal(6)));
 }
 
 // Tower walls: stories of windows between piers, storefronts with neon on the street levels,
@@ -199,8 +206,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     float ph = H * floor(mix(2.0, 5.0, hash11(fid * 11.7)));
     float inP = hasP * step(pu, loc.x) * step(loc.x, pu + pw) * step(py0, p.y) * step(p.y, py0 + ph) * (1.0 - shop);
     float pr = hash11(fid * 12.9);
-    vec3 pcol = pr < 0.4 ? vec3(0.75, 0.22, 0.03) : pr < 0.7 ? vec3(0.85, 0.6, 0.04)
-              : pr < 0.9 ? vec3(0.04, 0.4, 0.45) : vec3(0.8, 0.8, 0.78);
+    vec3 pcol = pr < 0.4 ? pal(7) : pr < 0.7 ? pal(8) : pr < 0.9 ? pal(9) : pal(10);
 
     float fr = style == 4 ? 0.05 : 0.14;
     float win = boxMask(q, halfw, px) * inCols * (1.0 - inP);
@@ -209,7 +215,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
 
     // Wall: concrete with soft blotches, darker slab band at the foot of every story.
     float blotch = 0.88 + 0.24 * fbm(vec2(loc.x * 0.6, p.y * 0.25));
-    vec3 col = base * blotch * mix(1.0, grit(vec2(loc.x, p.y) / 4.5).b, 0.5) * mix(1.0, grit2(vec2(loc.x, p.y) / 7.3).a, 0.5);
+    vec3 col = base * pal(16) * blotch * mix(1.0, grit(vec2(loc.x, p.y) / 4.5).b, 0.5) * mix(1.0, grit2(vec2(loc.x, p.y) / 7.3).a, 0.5);
     col *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.5, vy * H));
     // Rain streaks running down from the sills, heavier lower down.
     float streak = vnoise(vec2(loc.x * 6.0 + floor(cu) * 3.0, p.y * 0.1));
@@ -280,7 +286,7 @@ vec3 pavement(vec3 base, vec3 p, float px)
     vec2 f = fract(g);
     float dj = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * 4.0;
     float joint = (1.0 - smoothstep(0.02, 0.05 + px, dj)) * (1.0 - street);
-    vec3 walk = base * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
+    vec3 walk = base * pal(16) * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
     walk *= mix(1.0, grit(uv / 2.4).r, 0.85) * mix(1.0, grit2(uv / 5.7).a, 0.4);
     // Road: dark asphalt.
     vec3 road = base * 0.5 * (0.85 + 0.3 * fbm(uv * 0.12)) * mix(1.0, grit(uv / 1.7).g, 0.9);
@@ -393,8 +399,7 @@ vec3 equipment(vec3 base, vec3 p, vec3 n, vec2 loc, float px)
 vec3 billboard(vec2 uv, float fid, float px, out vec3 emit)
 {
     float h = hash11(fid * 3.3);
-    vec3 bg = h < 0.3 ? vec3(0.9, 0.62, 0.04) : h < 0.55 ? vec3(0.9, 0.3, 0.05)
-            : h < 0.75 ? vec3(0.05, 0.55, 0.7) : h < 0.9 ? vec3(0.75, 0.1, 0.45) : vec3(0.85, 0.85, 0.82);
+    vec3 bg = h < 0.3 ? pal(11) : h < 0.55 ? pal(12) : h < 0.75 ? pal(13) : h < 0.9 ? pal(14) : pal(15);
     vec3 fg = h >= 0.9 ? vec3(0.05, 0.06, 0.08) : vec3(0.95, 0.95, 0.92);
     vec2 q = vec2((uv.x - 0.5) * 2.4, uv.y - 0.5);
     float aa = max(fwidth(q.x), 1e-3);
@@ -496,7 +501,9 @@ void main()
     bool textured = (uEffects & FX_TEXTURE) != 0;
     // Flowers (emissive) stay clean and graphic.
     bool painted = textured && fragColor.a < 0.01;
-    int kind = int(fragKind + 0.5);
+    int kindCode = int(fragKind + 0.5);
+    int kind = kindCode % 16;
+    gVariant = kindCode / 16;
     vec3 emit = vec3(0.0);
     if (painted) {
         float px = max(length(fwidth(fragWorldPos)), 1e-4);

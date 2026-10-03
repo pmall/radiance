@@ -262,6 +262,7 @@ impl Renderer {
         s.set_mat4("uLightVP", light_vp);
         s.set_i32("uShadows", shadows as i32);
         s.set_f32("uShadowTexel", self.shadow.texel());
+        s.set_vec3_array("uPalette", &crate::world::biome::palette_uniform());
         s.set_vec3("uLightDir", sky.light_dir);
         s.set_vec3("uLight", look.light);
         s.set_vec3("uAmbientSky", look.ambient_sky);
