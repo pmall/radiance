@@ -24,7 +24,8 @@ debug tools).
 
 The city is huge and has no UI. Like the wind in *Ghost of Tsushima*, a guiding wind (sound first,
 pollen and spores drifting the same way as its visual twin) leads the player toward points of
-interest. See `docs/audio.md`.
+interest. See `docs/audio.md`; the brainstormed, less obvious options are in
+`docs/guidance-ideas.md`.
 
 ## Player
 
