@@ -2,6 +2,7 @@
 
 pub mod biome;
 pub mod city;
+pub mod facade;
 pub mod growth;
 pub mod roof;
 
@@ -68,6 +69,8 @@ pub enum BlockKind {
     Solar,
     /// Rooftop skylight.
     Skylight,
+    /// Steel: fire escape platforms, rails and ladders, sign brackets.
+    Steel,
     /// Street lamp post (unlit: the city is dead, only flowers glow).
     Lamp,
 }
