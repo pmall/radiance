@@ -20,9 +20,10 @@ what the city looks like and sounds like.
 - Lit windows and neon are the machines' doing: building systems still running on automatic power.
   Keep them plain, cold or warm white, sparse and mechanical, never "someone is home". Neon signs are
   old advertising still powered.
-- The city is still being built. Good signs of that: cranes and scaffolding on roofs, unfinished
-  upper floors with an open structure, stacked materials, tall masts. They stay still (no moving
-  machines on screen, see `docs/vision.md`), as if paused or seen between shifts.
+- The city is still being built. *(done: some towers end in a bare skeleton of slabs, columns and
+  rebar with a frozen tower crane on top, `src/world/construction.rs`.)* Still possible: scaffolding
+  on walls, stacked materials. Everything stays still (no moving machines on screen, see
+  `docs/vision.md`), as if paused or seen between shifts.
 - Flowers are souls, so they should feel special next to ordinary plants: they are the only things
   that glow and the only things that sing. Their density follows altitude (many in the canopy, few in
   the depths), not building details.

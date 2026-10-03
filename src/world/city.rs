@@ -293,15 +293,21 @@ fn push_spiral_stair(rng: &mut Rng, mid: Vec3, out: &mut Vec<Block>) {
     }
 }
 
-/// A tower is a body plus an optional narrower setback tier on top.
+/// A tower is a body plus an optional narrower setback tier on top. Some towers are still being
+/// built: their upper tier is a bare skeleton of slabs and columns with a crane on it.
 fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
-    push_tower_body(rng, t, out);
-    if let Some(roof) = out.last().map(|b| b.aabb) {
-        super::roof::push_roof(rng, &roof, out);
+    match push_tower_body(rng, t, out) {
+        Some(top_slab) => super::construction::push_crane(rng, &top_slab, out),
+        None => {
+            if let Some(roof) = out.last().map(|b| b.aabb) {
+                super::roof::push_roof(rng, &roof, out);
+            }
+        }
     }
 }
 
-fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
+/// Pushes the tower's blocks. Returns the top slab if the tower ends in an unfinished skeleton.
+fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) -> Option<Aabb> {
     let color = tint(rng, 92, 190);
     let top = t.top();
     let tall = top > UPPER_DECK + 30.0;
@@ -322,6 +328,23 @@ fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
         });
         let shrink = rng.range(0.55, 0.8);
         let base_y = t.center.y - t.size.y * 0.5 + body_h;
+        if rng.chance(0.4) {
+            let min = vec3(
+                t.center.x - t.size.x * 0.5 * shrink,
+                base_y,
+                t.center.z - t.size.z * 0.5 * shrink,
+            );
+            let max = vec3(
+                t.center.x + t.size.x * 0.5 * shrink,
+                top,
+                t.center.z + t.size.z * 0.5 * shrink,
+            );
+            return Some(super::construction::push_skeleton(
+                rng,
+                &Aabb { min, max },
+                out,
+            ));
+        }
         out.push(Block {
             kind: BlockKind::Tower,
             aabb: Aabb {
@@ -345,6 +368,7 @@ fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
             color,
         });
     }
+    None
 }
 
 /// A walkway with low parapets between two towers. `along_x` is the direction from `a` to `b`.
