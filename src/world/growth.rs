@@ -11,7 +11,7 @@ use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::{Biome, biome_at, pick_color};
-use super::{Aabb, Block, BlockKind, Light, PlantVert};
+use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert};
 use crate::rng::{Rng, hash_coords, mix64};
 
 const SALT_GROWTH: i32 = 3;
@@ -175,27 +175,37 @@ impl Builder<'_> {
     }
 
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color) {
-        for p in [a, b, c] {
+        self.tri_uv(a, b, c, n, color, [NO_UV; 3]);
+    }
+
+    fn tri_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color, uv: [[f32; 2]; 3]) {
+        for (p, uv) in [a, b, c].into_iter().zip(uv) {
             self.out.push(PlantVert {
                 pos: p,
                 normal: n,
                 color,
                 id: self.id,
                 glow: self.glow,
+                uv,
             });
         }
     }
 
     /// A quad visible from both sides.
     fn quad2(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Color) {
+        self.quad2_uv(a, b, c, d, color, [NO_UV; 4]);
+    }
+
+    /// A quad visible from both sides, with leaf coordinates at its corners.
+    fn quad2_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Color, uv: [[f32; 2]; 4]) {
         let n = (b - a).cross(c - a).normalize_or_zero();
         if n == Vec3::ZERO {
             return;
         }
-        self.tri(a, b, c, n, color);
-        self.tri(a, c, d, n, color);
-        self.tri(a, c, b, -n, color);
-        self.tri(a, d, c, -n, color);
+        self.tri_uv(a, b, c, n, color, [uv[0], uv[1], uv[2]]);
+        self.tri_uv(a, c, d, n, color, [uv[0], uv[2], uv[3]]);
+        self.tri_uv(a, c, b, -n, color, [uv[0], uv[2], uv[1]]);
+        self.tri_uv(a, d, c, -n, color, [uv[0], uv[3], uv[2]]);
     }
 
     /// A triangle facing away from `inside`.
@@ -260,7 +270,14 @@ impl Builder<'_> {
         {
             return;
         }
-        self.quad2(base, mid + side, tip, mid - side, color);
+        self.quad2_uv(
+            base,
+            mid + side,
+            tip,
+            mid - side,
+            color,
+            [[0.5, 0.0], [1.0, 0.45], [0.5, 1.0], [0.0, 0.45]],
+        );
     }
 
     /// A low-poly ellipsoid.
@@ -306,13 +323,13 @@ impl Builder<'_> {
     }
 
     /// A double-sided triangle.
-    fn tri2(&mut self, a: Vec3, b: Vec3, c: Vec3, color: Color) {
+    fn tri2_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, color: Color, uv: [[f32; 2]; 3]) {
         let n = (b - a).cross(c - a).normalize_or_zero();
         if n == Vec3::ZERO {
             return;
         }
-        self.tri(a, b, c, n, color);
-        self.tri(a, c, b, -n, color);
+        self.tri_uv(a, b, c, n, color, uv);
+        self.tri_uv(a, c, b, -n, color, [uv[0], uv[2], uv[1]]);
     }
 
     /// An arching blade from `base`, folded along its midrib, pointed at the tip and darker toward
@@ -338,10 +355,12 @@ impl Builder<'_> {
                 pts[i + 1] + Vec3::Y * w1 * 0.15,
             );
             let c = shade(color, 0.65 + 0.5 * (i as f32 + 0.5) / SEGS as f32);
+            let (t0, t1) = (i as f32 / SEGS as f32, (i + 1) as f32 / SEGS as f32);
             for s in [-0.5, 0.5] {
                 let (e0, e1) = (pts[i] + side * w0 * s, pts[i + 1] + side * w1 * s);
-                self.tri2(e0, m0, m1, c);
-                self.tri2(e0, m1, e1, c);
+                let u = s + 0.5;
+                self.tri2_uv(e0, m0, m1, c, [[u, t0], [0.5, t0], [0.5, t1]]);
+                self.tri2_uv(e0, m1, e1, c, [[u, t0], [0.5, t1], [u, t1]]);
             }
         }
         pts[SEGS]

@@ -443,6 +443,22 @@ vec3 lamp(vec3 base, vec3 p)
     return base * (0.8 + 0.4 * fbm(vec2(p.x + p.z, p.y) * 1.3)) * grit(vec2(p.x + p.z, p.y)).a;
 }
 
+// Leaf and frond painting from leaf coordinates (across with the midrib at 0.5, along from the
+// root): lighter midrib, side veins slanting toward the tip, darker root, lighter edge and tip.
+vec3 leaf(vec3 base, vec2 lc)
+{
+    float u = abs(lc.x - 0.5) * 2.0;
+    float aa = max(fwidth(u), 1e-3);
+    float rib = 1.0 - smoothstep(0.04, 0.04 + aa * 1.5, u);
+    float slant = lc.y * 7.0 - u * 1.6;
+    float veins = (1.0 - smoothstep(0.03, 0.03 + fwidth(slant) * 1.5, abs(fract(slant) - 0.5)))
+                * (1.0 - smoothstep(0.75, 1.0, u)) * step(0.1, lc.y) * step(0.12, u);
+    vec3 col = base * mix(0.62, 1.15, smoothstep(0.0, 0.8, lc.y)) * (1.0 + 0.18 * u * u);
+    col = mix(col, base * 1.55, rib * 0.7);
+    col = mix(col, base * 1.3, veins * 0.35);
+    return col;
+}
+
 // Painted foliage: soft blotches of two greens, finer brush flecks.
 float paintPlant(vec3 p)
 {
@@ -465,6 +481,7 @@ void main()
         bool vertical = abs(n.y) < 0.5;
         if (kind == 1) {
             albedo *= paintPlant(fragWorldPos);
+            if (fragLoc.x >= 0.0) albedo = leaf(albedo, fragLoc);
         } else if (kind == 0) {
             if (vertical) albedo = facade(albedo, fragWorldPos, fragLoc, fid, px, emit);
             else if (n.y > 0.0) albedo = roof(albedo, fragWorldPos, px);
@@ -475,7 +492,11 @@ void main()
             else albedo = concrete(albedo, fragWorldPos, n, fragLoc);
         } else if (kind == 3) {
             albedo = bridgeMetal(albedo, fragWorldPos, n, px);
-        } else if (kind == 4 || kind == 6) {
+        } else if (kind == 4) {
+            // Stone steps.
+            vec2 suv = abs(n.y) > 0.5 ? fragWorldPos.xz : vec2(fragWorldPos.x + fragWorldPos.z, fragWorldPos.y);
+            albedo *= (0.8 + 0.4 * fbm(suv * 1.5)) * grit(suv / 1.4).r;
+        } else if (kind == 6) {
             albedo = concrete(albedo, fragWorldPos, n, fragLoc);
         } else if (kind == 7) {
             albedo = equipment(albedo, fragWorldPos, n, fragLoc, px);

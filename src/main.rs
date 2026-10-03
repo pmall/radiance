@@ -25,7 +25,7 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
@@ -34,6 +34,8 @@ struct Args {
     shot: Option<String>,
     /// Effect bit mask override (see `render::EFFECTS`), for comparing looks in shots.
     fx: Option<i32>,
+    /// Render this many frames without vsync, print the average frame time and exit.
+    bench: Option<u32>,
 }
 
 fn parse_args() -> Args {
@@ -43,12 +45,14 @@ fn parse_args() -> Args {
         view: None,
         shot: None,
         fx: None,
+        bench: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
             "--shot" => args.shot = it.next(),
+            "--bench" => args.bench = it.next().and_then(|s| s.parse().ok()),
             "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
             "--view" => {
                 let v: Vec<f32> = it
@@ -119,9 +123,17 @@ fn main() {
         .vsync()
         .build();
     rl.set_exit_key(None);
-    if args.shot.is_none() {
+    if args.shot.is_none() && args.bench.is_none() {
         rl.disable_cursor();
     }
+    if args.bench.is_some() {
+        unsafe {
+            sola_raylib::ffi::ClearWindowState(
+                sola_raylib::ffi::ConfigFlags::FLAG_VSYNC_HINT as u32,
+            )
+        };
+    }
+    let mut bench_start = None;
 
     let mut player = spawn_player(args.view);
     let mut world = World::new(args.seed);
@@ -256,6 +268,21 @@ fn main() {
         renderer.draw(&view, &sky, time);
 
         frame += 1;
+        if let Some(n) = args.bench {
+            // Skip a warm-up (shader compile, streaming) before timing.
+            if frame == 60 {
+                bench_start = Some(std::time::Instant::now());
+            }
+            if frame == 60 + n {
+                let ms = bench_start.map_or(0.0, |t| t.elapsed().as_secs_f64() * 1000.0 / n as f64);
+                println!(
+                    "BENCH {ms:.2} ms/frame ({:.0} fps), {} tris",
+                    1000.0 / ms,
+                    renderer.triangles()
+                );
+                break;
+            }
+        }
         if let Some(path) = &args.shot
             && frame == 5
         {

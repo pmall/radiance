@@ -95,7 +95,12 @@ pub struct PlantVert {
     pub id: u8,
     /// Emission strength, 0..=255; scaled by the time of day in the shader.
     pub glow: u8,
+    /// Leaf coordinates (across 0..1 with the midrib at 0.5, along 0..1 from root to tip), or
+    /// `NO_UV` where the surface has none. Used by the shader to paint veins.
+    pub uv: [f32; 2],
 }
+
+pub const NO_UV: [f32; 2] = [-1.0, -1.0];
 
 /// A point light from a luminous plant.
 #[derive(Clone, Copy)]
