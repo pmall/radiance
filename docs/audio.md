@@ -20,3 +20,17 @@ silent; `--no-audio` mutes a run, `M` toggles mute in game).
 - **Reverb** (Freeverb, about a 3 s tail) on the whole mix, so every note rings into the empty city.
 - Tests check the synthesis (no NaN, no clipping, seamless loops), that the reverb decays, and that
   notes stay in the scale and follow height.
+
+## Future: a synthesized piano (owner's idea)
+
+The sampled piano is fine for now. Someday the souls' voice should be synthesized, because that makes
+the timbre adjustable on the fly:
+
+- **Per-biome voice:** brightness, detune, decay and inharmonicity change with the biome (glassy and
+  long in one, dull and short in another), blending across zone borders.
+- **Sound as guidance:** a sound that reshapes as the player moves toward a place or object (rising
+  pitch or brightness, faster pulse, direction by stereo and muffling), to lead through the vast city
+  without any UI.
+- Suggested approach: modal/additive string model with a short hammer noise burst, possibly layered
+  over the recorded attack to keep the realism; runs in an audio-stream callback like the reverb.
+  Only `piano.rs` would be replaced. It needs the owner's ears to judge against the recorded notes.
