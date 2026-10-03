@@ -15,8 +15,10 @@ silent; `--no-audio` mutes a run, `M` toggles mute in game).
   playback speed. Credits in `assets/audio/README.md`.
 - **Ambience**, synthesized in code at startup (no samples): a machinery hum (detuned bass partials
   and rumble, loud in the depths, quieter up high), breathing wind (band-passed noise swelling every
-  8 s, strongest in the open sky), and distant metal creaks (stick-slip pulses through two
-  resonances) every 9 to 26 s at random pitch and pan.
+  8 s, strongest in the open sky), and distant metal groans (inharmonic partials of a struck bar sliding
+  down, with a faint high scrape, shaken by slow random chatter) every 9 to 26 s at random pitch and
+  pan. Not a pulse train through vocal-like resonances: that version sounded like an animal growling
+  (measured: much more amplitude modulation in the 12 to 80 Hz growl band) and was replaced.
 - **Reverb** (Freeverb, about a 3 s tail) on the whole mix, so every note rings into the empty city.
 - Tests check the synthesis (no NaN, no clipping, seamless loops), that the reverb decays, and that
   notes stay in the scale and follow height.

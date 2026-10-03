@@ -165,32 +165,69 @@ fn air(rng: &mut Rng) -> Vec<f32> {
     out
 }
 
-/// A metal creak: a stick-slip pulse train gliding down in rate, ringing two resonances.
+/// A slowly wandering level for stick-slip chatter: it holds a random level for 70 to 220 ms, then
+/// glides to the next one over about 30 ms. Nothing in it repeats faster than about 14 times a
+/// second, so it never turns into a pitched buzz (a pulse train in that range sounds like a growl).
+struct Chatter {
+    level: f32,
+    target: f32,
+    left: usize,
+}
+
+impl Chatter {
+    fn new() -> Self {
+        Self {
+            level: 0.5,
+            target: 0.5,
+            left: 0,
+        }
+    }
+
+    fn next(&mut self, rng: &mut Rng) -> f32 {
+        if self.left == 0 {
+            self.target = rng.range(0.3, 1.0);
+            self.left = (rng.range(0.07, 0.22) * RATE as f32) as usize;
+        }
+        self.left -= 1;
+        self.level += (self.target - self.level) * (1.0 / (0.03 * RATE as f32));
+        self.level
+    }
+}
+
+/// A distant metal groan, like a girder shifting in the cold: a few inharmonic partials (the
+/// ratios of a struck bar) sliding slowly down, with a faint scrape of high noise, both shaken by
+/// slow random chatter. No pulse train, no vocal-like resonance, so it reads as steel, not animal.
 fn creak(rng: &mut Rng) -> Vec<f32> {
-    let seconds = rng.range(1.3, 2.6);
+    let seconds = rng.range(1.6, 3.4);
     let frames = (seconds * RATE as f32) as usize;
-    let (f1, f2) = (rng.range(260.0, 420.0), rng.range(700.0, 1100.0));
-    let (mut r1, mut r2) = (BandPass::new(f1, 14.0), BandPass::new(f2, 18.0));
-    let (rate0, rate1) = (rng.range(40.0, 70.0), rng.range(14.0, 28.0));
+    let f0 = rng.range(150.0, 330.0);
+    let end_ratio = rng.range(0.8, 0.95);
+    const RATIOS: [f32; 4] = [1.0, 2.76, 5.4, 8.93];
+    const AMPS: [f32; 4] = [1.0, 0.5, 0.28, 0.14];
+    let mut phases = [rng.range(0.0, TAU); 4];
+    let mut chatter = Chatter::new();
+    let mut scrape = BandPass::new(rng.range(1800.0, 2800.0), 1.2);
+    let mut soften = LowPass::new(2500.0);
+    let vibrato_hz = rng.range(3.5, 6.0);
     let mut out = Vec::with_capacity(frames);
-    let mut phase = 0.0f32;
     for i in 0..frames {
         let t = i as f32 / frames as f32;
-        // Pulses at a falling rate, each with a little jitter.
-        let rate = rate0 + (rate1 - rate0) * t;
-        phase += rate / RATE as f32;
-        let pulse = if phase >= 1.0 {
-            phase -= 1.0 + rng.range(-0.15, 0.15);
-            rng.range(0.4, 1.0)
-        } else {
-            0.0
-        };
-        let env = (t * 9.0).min(1.0) * (1.0 - t).powf(1.5);
-        out.push((r1.process(pulse) * 1.6 + r2.process(pulse) * 0.9) * env);
+        let secs = i as f32 / RATE as f32;
+        let f =
+            f0 * (1.0 + (end_ratio - 1.0) * t) * (1.0 + 0.004 * (TAU * vibrato_hz * secs).sin());
+        let gate = chatter.next(rng);
+        let mut tone = 0.0;
+        for k in 0..4 {
+            phases[k] = (phases[k] + TAU * f * RATIOS[k] / RATE as f32) % TAU;
+            tone += AMPS[k] * phases[k].sin();
+        }
+        let env = (std::f32::consts::PI * t).sin().powf(1.5);
+        let x = tone * 0.3 * (0.4 + 0.6 * gate) + scrape.process(noise(rng)) * 6.0 * gate * gate;
+        out.push(soften.process(x) * env);
     }
-    // The resonators are narrow and ring quietly: bring the creak to a fixed loudness.
+    // Bring the creak to a fixed loudness.
     let peak = out.iter().fold(1e-6_f32, |m, v| m.max(v.abs()));
-    out.iter_mut().for_each(|v| *v *= 0.6 / peak);
+    out.iter_mut().for_each(|v| *v *= 0.5 / peak);
     out
 }
 
@@ -270,7 +307,7 @@ impl Ambient {
             let s = self.creaks[i];
             unsafe {
                 ffi::SetSoundPitch(s, self.rng.range(0.7, 1.25));
-                ffi::SetSoundVolume(s, self.rng.range(0.1, 0.3) * master);
+                ffi::SetSoundVolume(s, self.rng.range(0.07, 0.2) * master);
                 ffi::SetSoundPan(s, self.rng.range(-0.9, 0.9));
                 ffi::PlaySound(s);
             }
@@ -335,6 +372,27 @@ mod tests {
             let (peak, rms) = stats(&c);
             assert!(peak < 1.0 && rms > 0.001, "creak peak {peak} rms {rms}");
         }
+    }
+
+    /// The chatter that shakes a creak must not repeat fast enough to be heard as a pitch or a
+    /// growl: its level may only change on a time scale of tens of milliseconds.
+    #[test]
+    fn creak_chatter_is_slow() {
+        let mut rng = Rng::new(3);
+        let mut c = Chatter::new();
+        let levels: Vec<f32> = (0..RATE as usize * 5).map(|_| c.next(&mut rng)).collect();
+        // Count direction reversals (peaks and troughs) per second.
+        let mut turns = 0;
+        for w in levels.windows(3) {
+            if (w[1] - w[0]) * (w[2] - w[1]) < 0.0 {
+                turns += 1;
+            }
+        }
+        assert!(
+            turns as f32 / 5.0 < 14.0,
+            "{} turns per second",
+            turns as f32 / 5.0
+        );
     }
 
     #[test]
