@@ -1,7 +1,22 @@
 # Audio
 
-- **Piano notes:** approaching a light plant triggers a single soft, piano-like note with spatial
-  audio. Notes come from a consonant scale (e.g. pentatonic) so walking through a cluster produces an
-  emergent, gentle melody. Synthesized or sampled, whichever sounds better.
-- **Ambient soundscape:** a low bed of machinery hum mixed with organic creaks and breathing-like
-  textures.
+Implemented in `src/audio/`. Sound is for interactive runs only (screenshots and benchmarks are
+silent; `--no-audio` mutes a run, `M` toggles mute in game).
+
+- **Souls sing.** Each light flower is a human soul (see `docs/lore.md`). When the player comes
+  within 6.5 m of one in the same open space (not through a deck) it plays a single soft piano note,
+  then stays quiet for 45 s. Notes come from A minor pentatonic, so walking through a cluster plays
+  a gentle, slightly arpeggiated melody (notes of one step are staggered by 0.2 s). Pitch follows
+  height: souls in the depths sing low, souls in the canopy sing high. A soul always sings the same
+  note (a function of seed, lot and index). Volume and stereo pan follow distance and direction. The
+  soul's light swells and fades over a few seconds when it sings.
+- **Piano samples.** CC0 "Upright Piano KW" from FreePats (a living-room upright, mono, one
+  velocity, a sample every minor third from D#2 to C7), pitched by at most two semitones with
+  playback speed. Credits in `assets/audio/README.md`.
+- **Ambience**, synthesized in code at startup (no samples): a machinery hum (detuned bass partials
+  and rumble, loud in the depths, quieter up high), breathing wind (band-passed noise swelling every
+  8 s, strongest in the open sky), and distant metal creaks (stick-slip pulses through two
+  resonances) every 9 to 26 s at random pitch and pan.
+- **Reverb** (Freeverb, about a 3 s tail) on the whole mix, so every note rings into the empty city.
+- Tests check the synthesis (no NaN, no clipping, seamless loops), that the reverb decays, and that
+  notes stay in the scale and follow height.

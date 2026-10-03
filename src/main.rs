@@ -1,3 +1,4 @@
+mod audio;
 mod daycycle;
 mod debug;
 mod player;
@@ -25,7 +26,7 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
@@ -36,6 +37,8 @@ struct Args {
     fx: Option<i32>,
     /// Render this many frames without vsync, print the average frame time and exit.
     bench: Option<u32>,
+    /// Start without sound.
+    no_audio: bool,
 }
 
 fn parse_args() -> Args {
@@ -46,12 +49,14 @@ fn parse_args() -> Args {
         shot: None,
         fx: None,
         bench: None,
+        no_audio: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
             "--shot" => args.shot = it.next(),
+            "--no-audio" => args.no_audio = true,
             "--bench" => args.bench = it.next().and_then(|s| s.parse().ok()),
             "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
             "--view" => {
@@ -143,6 +148,12 @@ fn main() {
         renderer.effects = fx;
     }
     renderer.sync_world(&world);
+    // Sound only for interactive runs: screenshots and benchmarks stay silent.
+    let mut audio = if args.shot.is_none() && args.bench.is_none() && !args.no_audio {
+        audio::Audio::new(args.seed)
+    } else {
+        None
+    };
     let mut cycle = DayCycle::new(args.time.unwrap_or(START_TIME));
     let mut debug = Debug::new();
     let mut accumulator = 0.0;
@@ -189,6 +200,11 @@ fn main() {
         if rl.is_key_pressed(KEY_F9) {
             renderer.cycle_render_scale();
         }
+        if rl.is_key_pressed(KEY_M)
+            && let Some(a) = audio.as_mut()
+        {
+            a.toggle_mute();
+        }
         if rl.is_key_pressed(KEY_F10) {
             renderer.reload_shaders();
         }
@@ -203,6 +219,9 @@ fn main() {
         };
         if let Some(s) = new_seed {
             world = World::new(s);
+            if let Some(a) = audio.as_mut() {
+                a.reseed(s);
+            }
             renderer.clear_world();
             if !player.is_flying() {
                 player = Player::new(SPAWN);
@@ -258,6 +277,11 @@ fn main() {
         renderer.sync_world(&world);
 
         let sky = Sky::from_cycle(&cycle);
+        if let Some(a) = audio.as_mut() {
+            let day = ((cycle.sun_dir().y + 0.1) / 0.4).clamp(0.0, 1.0);
+            let souls = a.update(dt, player.eye(), player.right(), day, &world);
+            renderer.pulse(&souls);
+        }
         let view = View {
             pos: player.eye(),
             dir: player.look_dir(),
@@ -295,7 +319,7 @@ fn main() {
             break;
         }
 
-        debug.draw(&mut d, &world, &player, &renderer, &cycle);
+        debug.draw(&mut d, &world, &player, &renderer, &cycle, audio.as_ref());
         if !captured && args.shot.is_none() {
             d.draw_text(
                 "click to capture mouse",

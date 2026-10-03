@@ -98,6 +98,8 @@ pub struct Renderer {
     targets: Option<SceneTargets>,
     meshes: HashMap<(i32, i32), WorldMesh>,
     lots_lights: HashMap<(i32, i32), Vec<Light>>,
+    /// Souls that are singing: their lights swell and fade back (1 = just started).
+    pulses: HashMap<crate::audio::Soul, f32>,
     light_grid: LightGrid,
     particles: Particles,
     halos: Halos,
@@ -145,6 +147,7 @@ impl Renderer {
             targets: None,
             meshes: HashMap::new(),
             lots_lights: HashMap::new(),
+            pulses: HashMap::new(),
             light_grid,
             particles: Particles::new(),
             halos,
@@ -155,7 +158,15 @@ impl Renderer {
         }
     }
 
+    /// Makes the lights of souls that just started to sing swell.
+    pub fn pulse(&mut self, souls: &[crate::audio::Soul]) {
+        for s in souls {
+            self.pulses.insert(*s, 1.0);
+        }
+    }
+
     pub fn clear_world(&mut self) {
+        self.pulses.clear();
         self.meshes.clear();
         self.lots_lights.clear();
     }
@@ -197,6 +208,10 @@ impl Renderer {
 
     /// Polls shader files for changes.
     pub fn update(&mut self, dt: f32) {
+        self.pulses.retain(|_, b| {
+            *b -= dt / 3.5;
+            *b > 0.0
+        });
         self.reload_timer -= dt;
         if self.reload_timer <= 0.0 {
             self.reload_timer = RELOAD_POLL;
@@ -268,9 +283,22 @@ impl Renderer {
         s.set_vec3("uAmbientSky", look.ambient_sky);
         s.set_vec3("uAmbientGround", look.ambient_ground);
         s.set_i32("uEffects", self.effects);
-        self.lights_in_use = self
-            .light_grid
-            .update(self.lots_lights.values().flatten(), view.pos);
+        // A singing soul's light swells and fades over a few seconds.
+        let pulses = &self.pulses;
+        let lights = self.lots_lights.iter().flat_map(|(key, ls)| {
+            ls.iter().enumerate().map(move |(index, l)| {
+                let b = pulses
+                    .get(&crate::audio::Soul { lot: *key, index })
+                    .copied()
+                    .unwrap_or(0.0);
+                Light {
+                    color: l.color * (1.0 + 1.8 * b),
+                    radius: l.radius * (1.0 + 0.35 * b),
+                    ..*l
+                }
+            })
+        });
+        self.lights_in_use = self.light_grid.update(lights, view.pos);
         let s = &mut self.scene;
         s.set_vec3("uGridOrigin", self.light_grid.origin);
         s.set_f32("uGlow", look.plant_glow);

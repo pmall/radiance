@@ -19,7 +19,7 @@ pub const HELP: &[&str] = &[
     "F1 overlay  F2 free-fly (Space/Ctrl up/down)",
     "F3-F8/F11/X toggle effects  F9 render scale  F10 reload shaders  F12 screenshot",
     "T pause time  Home/End scrub  PgUp/PgDn speed  1-4 (or numpad) dawn/day/dusk/night",
-    "R random seed  [ ] or numpad -/+ previous/next seed  Esc release mouse  Ctrl+Q quit",
+    "R random seed  [ ] or numpad -/+ previous/next seed  M mute  Esc release mouse  Ctrl+Q quit",
 ];
 
 impl Debug {
@@ -34,6 +34,7 @@ impl Debug {
         player: &Player,
         renderer: &Renderer,
         cycle: &DayCycle,
+        audio: Option<&crate::audio::Audio>,
     ) {
         if !self.show_overlay {
             return;
@@ -66,6 +67,14 @@ impl Debug {
                 p.z,
                 player.state_name()
             ),
+            match audio {
+                Some(a) => format!(
+                    "sound {}  {} notes",
+                    if a.muted { "muted (M)" } else { "on (M mutes)" },
+                    a.notes_played
+                ),
+                None => "sound off".to_string(),
+            },
             format!(
                 "speed {:.1} m/s",
                 glam::vec2(player.vel.x, player.vel.z).length()
