@@ -39,6 +39,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `particles.rs` drifting motes and spores). `look.rs` holds the per-time-of-day palettes.
 - `assets/textures/`: CC0 photo textures and the packed `detail.png` (see its README); `tools/pack_textures.py` rebuilds it.
 - `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback).
+- `src/audio/`: sound. `piano.rs` (sampled upright piano, one note per soul/flower), `ambient.rs` (synthesized hum, wind, creaks), `reverb.rs` (Freeverb on the master bus). Samples in `assets/audio/`.
 - `src/daycycle.rs`: time-of-day clock and sun direction.
 - `src/rng.rs`: seeded RNG and coordinate hashing.
 - `src/debug.rs`: overlay and debug key help.
@@ -48,7 +49,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `cargo run -- <seed>`: run (seed optional).
 - `cargo run -- <seed> --time 0.5 --view x,y,z,yaw,pitch --shot out.png`: render one frame at a
   given time of day (0 = midnight, 0.5 = noon) and camera, save it and exit. Use it to check looks.
-- `--fx <mask>` sets effect bits for a shot, `--bench <frames>` prints ms/frame (no vsync).
+- `--fx <mask>` sets effect bits for a shot, `--bench <frames>` prints ms/frame (no vsync). Shots and benchmarks are silent; `--no-audio` mutes a normal run, `RADIANCE_AUDIO_LOG=1` prints each note.
 - `cargo check` / `cargo clippy`: verify.
 - Rust lives in `~/.cargo/bin`; it may need adding to `PATH` in non-login shells.
 - If bindgen fails with `'stdarg.h' file not found`, the clang builtin headers are missing

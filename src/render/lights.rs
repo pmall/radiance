@@ -50,11 +50,11 @@ impl LightGrid {
     }
 
     /// Bins the nearest lights around `cam` and uploads the result. Returns lights used.
-    pub fn update<'a>(&mut self, lights: impl Iterator<Item = &'a Light>, cam: Vec3) -> usize {
+    pub fn update(&mut self, lights: impl Iterator<Item = Light>, cam: Vec3) -> usize {
         let half = Vec3::new(GRID[0] as f32, GRID[1] as f32, GRID[2] as f32) * CELL * 0.5;
         self.origin = ((cam - half) / CELL).floor() * CELL;
 
-        let mut near: Vec<&Light> = lights.collect();
+        let mut near: Vec<Light> = lights.collect();
         if near.len() > MAX_LIGHTS {
             near.select_nth_unstable_by(MAX_LIGHTS, |a, b| {
                 a.pos
