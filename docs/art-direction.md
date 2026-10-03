@@ -15,6 +15,15 @@ not detail.
 - **Chrome vs. life:** cold reflective metal and neon against soft, glowing organic forms. This
   contrast is the visual identity.
 
+## Architecture and materials
+
+Reference: Mirror's Edge (dense city, no people). Architecture is dressed by block kind in
+`shaders/scene.fs` (procedural so far): tower facades in five window styles (windows between piers,
+ribbons, slits, punched grid, glass curtain wall) with storefronts and neon at street levels, colored
+accent panels and vertical neon signs; paved streets with joints, cracks, dust and lane markings;
+roofs with a parapet, machinery (air conditioners with fans, vents, tanks, housings), antenna masts
+and backlit billboards, all real blocks (`src/world/roof.rs`) so rooftops can be run across.
+
 ## Day/night cycle
 
 Time of day evolves continuously. Sun direction, sky, fog color, palette and grading all follow it,

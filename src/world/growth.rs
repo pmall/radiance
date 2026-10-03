@@ -11,7 +11,7 @@ use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::{Biome, biome_at, pick_color};
-use super::{Aabb, Block, Light, PlantVert};
+use super::{Aabb, Block, BlockKind, Light, PlantVert};
 use crate::rng::{Rng, hash_coords, mix64};
 
 const SALT_GROWTH: i32 = 3;
@@ -128,10 +128,11 @@ impl Builder<'_> {
             })
             .collect();
         // A flower whose petals would touch a block is not planted.
-        if quads
-            .iter()
-            .any(|q| (0..4).any(|e| !self.clear(q[e], q[(e + 1) % 4])))
-        {
+        if quads.iter().any(|q| {
+            !self.clear(q[0], q[2])
+                || !self.clear(q[1], q[3])
+                || (0..4).any(|e| !self.clear(q[e], q[(e + 1) % 4]))
+        }) {
             return;
         }
         let saved = std::mem::replace(&mut self.glow, FLOWER_GLOW);
@@ -232,10 +233,16 @@ impl Builder<'_> {
 
     /// Whether the segment a-b stays out of every block.
     fn clear(&self, a: Vec3, b: Vec3) -> bool {
+        self.clear_by(a, b, 0.02)
+    }
+
+    /// Whether the segment a-b stays at least `margin` away from every block (room for a stem's
+    /// width).
+    fn clear_by(&self, a: Vec3, b: Vec3, margin: f32) -> bool {
         !self
             .solids
             .iter()
-            .any(|o| segment_crosses(a, b, &o.aabb, -0.02))
+            .any(|o| segment_crosses(a, b, &o.aabb, -margin))
     }
 
     /// A diamond leaf pointing along `dir`, tilted by `up`. Dropped if it would touch a block.
@@ -244,7 +251,9 @@ impl Builder<'_> {
         let lift = Vec3::Y * size * 0.12;
         let mid = base + dir * size * 0.45 + lift;
         let tip = base + dir * size + lift * 0.5;
-        if !(self.clear(base, mid + side)
+        if !(self.clear(base, tip)
+            && self.clear(mid + side, mid - side)
+            && self.clear(base, mid + side)
             && self.clear(base, mid - side)
             && self.clear(mid + side, tip)
             && self.clear(mid - side, tip))
@@ -478,7 +487,7 @@ impl Builder<'_> {
                 // the stem and its leaves would otherwise run through it.
                 let last = *pts.last().unwrap();
                 let ahead = p + (p - last).normalize_or_zero() * 1.2;
-                if !self.clear(last, ahead) {
+                if !self.clear_by(last, ahead, 0.4) {
                     break;
                 }
                 pts.push(p);
@@ -567,9 +576,17 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         b.dens = dens;
         b.bloom = b.biome.bloom[layer];
 
-        // Bushes on top surfaces.
+        // Bushes on top surfaces (not on parapets, machinery or signs).
+        let plantable = matches!(
+            blk.kind,
+            BlockKind::Floor | BlockKind::Deck | BlockKind::Tower | BlockKind::Bridge
+        );
         let area = size.x * size.z;
-        let mut n = area * 0.04 * dens * b.biome.bush_rate;
+        let mut n = if plantable {
+            area * 0.04 * dens * b.biome.bush_rate
+        } else {
+            0.0
+        };
         while n > 0.0 {
             if n >= 1.0 || b.rng.chance(n) {
                 let p = vec3(
@@ -585,7 +602,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         }
 
         // Hanging vines from the edges of decks and bridges.
-        if size.y < MAX_SLAB && a.min.y > super::city::DEEP_FLOOR + 3.0 {
+        if plantable && size.y < MAX_SLAB && a.min.y > super::city::DEEP_FLOOR + 3.0 {
             let perimeter = 2.0 * (size.x + size.z);
             let mut n = perimeter * 0.3 * dens * b.biome.vine_rate;
             while n > 0.0 {

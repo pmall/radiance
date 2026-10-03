@@ -25,13 +25,15 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
     time: Option<f32>,
     view: Option<[f32; 5]>,
     shot: Option<String>,
+    /// Effect bit mask override (see `render::EFFECTS`), for comparing looks in shots.
+    fx: Option<i32>,
 }
 
 fn parse_args() -> Args {
@@ -40,12 +42,14 @@ fn parse_args() -> Args {
         time: None,
         view: None,
         shot: None,
+        fx: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
             "--shot" => args.shot = it.next(),
+            "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
             "--view" => {
                 let v: Vec<f32> = it
                     .next()
@@ -123,6 +127,9 @@ fn main() {
     let mut world = World::new(args.seed);
     world.stream(player.pos, usize::MAX);
     let mut renderer = Renderer::new();
+    if let Some(fx) = args.fx {
+        renderer.effects = fx;
+    }
     renderer.sync_world(&world);
     let mut cycle = DayCycle::new(args.time.unwrap_or(START_TIME));
     let mut debug = Debug::new();
@@ -157,9 +164,11 @@ fn main() {
         if rl.is_key_pressed(KEY_F2) {
             player.toggle_fly();
         }
-        for (i, key) in [KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F11]
-            .into_iter()
-            .enumerate()
+        for (i, key) in [
+            KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F11, KEY_X,
+        ]
+        .into_iter()
+        .enumerate()
         {
             if rl.is_key_pressed(key) {
                 renderer.effects ^= EFFECTS[i].0;
