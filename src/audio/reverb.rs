@@ -4,6 +4,7 @@
 
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use sola_raylib::ffi;
 
@@ -95,17 +96,94 @@ struct Reverb {
 
 static REVERB: OnceLock<Mutex<Reverb>> = OnceLock::new();
 
+/// A copy of the final mix, kept while a recording runs (see `crate::recorder`).
+struct Capture {
+    on: bool,
+    /// Interleaved stereo f32 frames not yet taken.
+    samples: Vec<f32>,
+    frames: u64,
+    first: Option<Instant>,
+    last: Option<Instant>,
+}
+
+static CAPTURE: Mutex<Capture> = Mutex::new(Capture {
+    on: false,
+    samples: Vec::new(),
+    frames: 0,
+    first: None,
+    last: None,
+});
+
+/// Starts keeping a copy of everything that goes to the speakers.
+pub fn start_capture() {
+    if let Ok(mut c) = CAPTURE.lock() {
+        *c = Capture {
+            on: true,
+            samples: Vec::new(),
+            frames: 0,
+            first: None,
+            last: None,
+        };
+    }
+}
+
+/// Takes the samples captured since the last call (interleaved stereo f32).
+pub fn take_capture() -> Vec<f32> {
+    CAPTURE
+        .lock()
+        .map(|mut c| std::mem::take(&mut c.samples))
+        .unwrap_or_default()
+}
+
+/// Stops capturing. Returns the device's real sample rate, measured from how many frames it asked
+/// for over the capture's wall-clock time (the device rate is not exposed by raylib).
+pub fn stop_capture() -> Option<f32> {
+    let mut c = CAPTURE.lock().ok()?;
+    c.on = false;
+    let (first, last) = (c.first?, c.last?);
+    let secs = last.duration_since(first).as_secs_f32();
+    (secs > 0.5).then(|| c.frames as f32 / secs)
+}
+
 /// Called by raylib's audio thread with interleaved stereo f32 frames.
 unsafe extern "C" fn process(buffer: *mut c_void, frames: u32) {
     let Some(lock) = REVERB.get() else { return };
-    let Ok(mut r) = lock.try_lock() else { return };
     let data = unsafe { std::slice::from_raw_parts_mut(buffer as *mut f32, frames as usize * 2) };
+    if let Ok(mut r) = lock.try_lock() {
+        reverberate(&mut r, data);
+    }
+    // A blocking lock: the main thread only holds it for an instant, and skipping would leave a
+    // hole in the recording.
+    if let Ok(mut c) = CAPTURE.lock()
+        && c.on
+    {
+        let now = Instant::now();
+        c.first.get_or_insert(now);
+        c.last = Some(now);
+        c.frames += frames as u64;
+        c.samples.extend_from_slice(data);
+    }
+}
+
+fn reverberate(r: &mut Reverb, data: &mut [f32]) {
     for frame in data.as_chunks_mut::<2>().0 {
         let mono = (frame[0] + frame[1]) * 0.5;
         // Left and right tanks share the input and differ by their delay spread.
         let (l, rr) = (r.left.process(mono), r.right.process(mono));
-        frame[0] += l * WET * 3.0;
-        frame[1] += rr * WET * 3.0;
+        frame[0] = soft_limit(frame[0] + l * WET * 3.0);
+        frame[1] = soft_limit(frame[1] + rr * WET * 3.0);
+    }
+}
+
+/// Keeps loud moments (several notes ringing at once) under 1.0 without harsh clipping: linear
+/// up to 0.8, then a smooth knee toward 1.
+fn soft_limit(x: f32) -> f32 {
+    const KNEE: f32 = 0.8;
+    let a = x.abs();
+    if a <= KNEE {
+        x
+    } else {
+        x.signum() * (KNEE + (1.0 - KNEE) * ((a - KNEE) / (1.0 - KNEE)).tanh())
     }
 }
 
@@ -128,6 +206,19 @@ pub fn detach() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn soft_limit_is_transparent_below_the_knee_and_bounded_above() {
+        for x in [-0.8, -0.3, 0.0, 0.5, 0.8] {
+            assert_eq!(soft_limit(x), x);
+        }
+        let mut last = 0.0;
+        for i in 0..=400 {
+            let y = soft_limit(i as f32 * 0.01);
+            assert!(y >= last && y < 1.0 + 1e-6, "{y}");
+            last = y;
+        }
+    }
 
     #[test]
     fn impulse_response_rings_then_decays_and_stays_bounded() {

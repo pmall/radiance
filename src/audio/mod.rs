@@ -8,6 +8,8 @@ mod ambient;
 mod piano;
 mod reverb;
 
+pub use reverb::{start_capture, stop_capture, take_capture};
+
 use std::collections::HashMap;
 
 use glam::Vec3;

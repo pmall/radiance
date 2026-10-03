@@ -2,6 +2,7 @@ mod audio;
 mod daycycle;
 mod debug;
 mod player;
+mod recorder;
 mod render;
 mod rng;
 mod world;
@@ -26,7 +27,7 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
@@ -39,6 +40,8 @@ struct Args {
     bench: Option<u32>,
     /// Start without sound.
     no_audio: bool,
+    /// Record this many seconds of the run to `recordings/`, then exit (to test the recorder).
+    record_for: Option<f32>,
 }
 
 fn parse_args() -> Args {
@@ -50,6 +53,7 @@ fn parse_args() -> Args {
         fx: None,
         bench: None,
         no_audio: false,
+        record_for: None,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -57,6 +61,7 @@ fn parse_args() -> Args {
             "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
             "--shot" => args.shot = it.next(),
             "--no-audio" => args.no_audio = true,
+            "--record-for" => args.record_for = it.next().and_then(|s| s.parse().ok()),
             "--bench" => args.bench = it.next().and_then(|s| s.parse().ok()),
             "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
             "--view" => {
@@ -158,12 +163,18 @@ fn main() {
     let mut debug = Debug::new();
     let mut accumulator = 0.0;
     let mut frame = 0u32;
+    // Recording (V): `start_recording` is picked up after the next draw, when the screen size is
+    // known; finished files are written in the background.
+    let mut recorder: Option<recorder::Recorder> = None;
+    let mut saving: Vec<recorder::Saving> = Vec::new();
+    let mut start_recording = args.record_for.is_some();
+    let mut toast: Option<(String, f32)> = None;
     if args.shot.is_some() {
         cycle.running = false;
         debug.show_overlay = false;
     }
 
-    while !rl.window_should_close() {
+    'run: while !rl.window_should_close() {
         use KeyboardKey::*;
         let dt = rl.get_frame_time();
         let ctrl = rl.is_key_down(KEY_LEFT_CONTROL) || rl.is_key_down(KEY_RIGHT_CONTROL);
@@ -204,6 +215,15 @@ fn main() {
             && let Some(a) = audio.as_mut()
         {
             a.toggle_mute();
+        }
+        if rl.is_key_pressed(KEY_V) {
+            match recorder.take() {
+                Some(r) => {
+                    saving.push(r.stop());
+                    toast = Some(("saving the recording...".into(), 4.0));
+                }
+                None => start_recording = true,
+            }
         }
         if rl.is_key_pressed(KEY_F10) {
             renderer.reload_shaders();
@@ -291,6 +311,42 @@ fn main() {
         let mut d = rl.begin_drawing(&thread);
         renderer.draw(&view, &sky, time);
 
+        // Recording: the world as drawn, without the overlay.
+        if let Some(r) = recorder.as_mut() {
+            r.frame();
+            if args.record_for.is_some_and(|s| r.seconds() >= s) {
+                saving.push(recorder.take().unwrap().stop());
+            }
+        } else if start_recording {
+            start_recording = false;
+            let (_, w, h) = recorder::grab_screen();
+            match recorder::Recorder::start(world.seed, (w, h), audio.is_some()) {
+                Ok(r) => recorder = Some(r),
+                Err(e) => toast = Some((format!("cannot record: {e}"), 6.0)),
+            }
+        }
+        let mut pending = Vec::new();
+        for s in saving.drain(..) {
+            match s.poll() {
+                Ok(Ok(path)) => {
+                    println!("RECORDED {}", path.display());
+                    toast = Some((format!("saved {}", path.display()), 8.0));
+                    if args.record_for.is_some() {
+                        break 'run;
+                    }
+                }
+                Ok(Err(e)) => {
+                    eprintln!("recording failed: {e}");
+                    toast = Some((format!("recording failed: {e}"), 8.0));
+                    if args.record_for.is_some() {
+                        break 'run;
+                    }
+                }
+                Err(s) => pending.push(s),
+            }
+        }
+        saving = pending;
+
         frame += 1;
         if let Some(n) = args.bench {
             // Skip a warm-up (shader compile, streaming) before timing.
@@ -320,6 +376,24 @@ fn main() {
         }
 
         debug.draw(&mut d, &world, &player, &renderer, &cycle, audio.as_ref());
+        if let Some(r) = recorder.as_ref() {
+            let secs = r.seconds() as u32;
+            d.draw_circle(d.get_screen_width() - 120, 24, 8.0, Color::RED);
+            d.draw_text(
+                &format!("REC {:02}:{:02}", secs / 60, secs % 60),
+                d.get_screen_width() - 104,
+                14,
+                20,
+                Color::RAYWHITE,
+            );
+        }
+        if let Some((text, left)) = toast.as_mut() {
+            *left -= dt;
+            d.draw_text(text, 16, d.get_screen_height() - 60, 20, Color::RAYWHITE);
+            if *left <= 0.0 {
+                toast = None;
+            }
+        }
         if !captured && args.shot.is_none() {
             d.draw_text(
                 "click to capture mouse",
@@ -328,6 +402,28 @@ fn main() {
                 20,
                 Color::RAYWHITE,
             );
+        }
+    }
+
+    // Leaving while recording (or saving): finish the files before exiting.
+    if let Some(r) = recorder.take() {
+        saving.push(r.stop());
+    }
+    for mut s in saving {
+        loop {
+            match s.poll() {
+                Ok(result) => {
+                    match result {
+                        Ok(path) => println!("RECORDED {}", path.display()),
+                        Err(e) => eprintln!("recording failed: {e}"),
+                    }
+                    break;
+                }
+                Err(back) => {
+                    s = back;
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
         }
     }
 }
