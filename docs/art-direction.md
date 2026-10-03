@@ -21,8 +21,13 @@ Reference: Mirror's Edge (dense city, no people). Architecture is dressed by blo
 `shaders/scene.fs` (procedural so far): tower facades in five window styles (windows between piers,
 ribbons, slits, punched grid, glass curtain wall) with storefronts and neon at street levels, colored
 accent panels and vertical neon signs; paved streets with joints, cracks, dust and lane markings;
-roofs with a parapet, machinery (air conditioners with fans, vents, tanks, housings), antenna masts
-and backlit billboards, all real blocks (`src/world/roof.rs`) so rooftops can be run across.
+roofs with a parapet, machinery (air conditioners with fans, vents, solar arrays, skylights, pipes),
+antenna masts and backlit billboards, all real blocks (`src/world/roof.rs`) so rooftops can be run
+across; street lamp posts (dead, only flowers glow) along the sidewalks.
+
+Working method: get the look as far as possible with code, then add a layer of real photo detail.
+The second layer is `assets/textures/detail.png` (CC0 concrete, asphalt, wall, metal), sampled in the
+scene shader in world space and multiplied over the procedural colors.
 
 ## Day/night cycle
 

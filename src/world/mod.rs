@@ -64,6 +64,12 @@ pub enum BlockKind {
     Sign,
     /// Antenna mast.
     Mast,
+    /// Rooftop solar panel array.
+    Solar,
+    /// Rooftop skylight.
+    Skylight,
+    /// Street lamp post (unlit: the city is dead, only flowers glow).
+    Lamp,
 }
 
 /// A solid, drawable box.
