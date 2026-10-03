@@ -149,7 +149,9 @@ vec3 neonColor(float r)
 
 vec3 windowLight(float r)
 {
-    return r < 0.55 ? vec3(1.0, 0.68, 0.34) : (r < 0.85 ? vec3(0.35, 0.85, 1.0) : vec3(1.0, 0.35, 0.8));
+    // Mostly plain indoor light, warm or cool white; a few tinted ones.
+    return r < 0.55 ? vec3(1.0, 0.84, 0.58) : (r < 0.88 ? vec3(0.72, 0.86, 1.0)
+         : (r < 0.95 ? vec3(0.45, 0.9, 0.95) : vec3(1.0, 0.45, 0.7)));
 }
 
 // Tower walls: stories of windows between piers, storefronts with neon on the street levels,
@@ -210,7 +212,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
 
     // Glass: dark, a little lighter toward the top of each pane; some panes are lit.
     float r = hash12(vec2(cell + fid * 13.0, story));
-    float litP = style == 4 ? 0.04 : mix(0.07, 0.4, shop);
+    float litP = style == 4 ? 0.04 : mix(0.07, 0.12, shop);
     float lit = step(1.0 - litP, r);
     float shade = clamp(q.y / halfw.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 glass = mix(vec3(0.012, 0.02, 0.028), vec3(0.05, 0.1, 0.12), shade);
@@ -539,7 +541,7 @@ void main()
     float glow = mix(uGlow, max(uGlow, 0.85), 1.0 - smoothstep(-60.0, -10.0, fragWorldPos.y));
     vec3 lit = albedo * (ambient * grad + uLight * direct + plantLights(fragWorldPos, n) * glow);
     lit += albedo * fragColor.a * glow * 2.5;
-    lit += emit * glow * 0.5;
+    lit += emit * glow * 0.32;
     outColor = vec4(lit, 1.0);
     outNormal = vec4(n * 0.5 + 0.5, fragId);
 }
