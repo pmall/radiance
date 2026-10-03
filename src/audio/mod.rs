@@ -20,9 +20,9 @@ use crate::rng::{Rng, hash_coords};
 use crate::world::World;
 use crate::world::city::LOT;
 
-/// The synthesized background (machinery hum, wind, metal groans) is switched off: the owner found
-/// it unpleasant. The code stays in `ambient.rs`, so it can come back reworked.
-const AMBIENCE: bool = false;
+/// The synthesized background is just the machinery hum: the owner likes it. The wind and the
+/// metal groans are off (see `ambient.rs`).
+const AMBIENCE: bool = true;
 
 /// Distance at which a soul starts to sing.
 const REACH: f32 = 6.5;

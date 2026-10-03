@@ -13,14 +13,11 @@ silent; `--no-audio` mutes a run, `M` toggles mute in game).
 - **Piano samples.** CC0 "Upright Piano KW" from FreePats (a living-room upright, mono, one
   velocity, a sample every minor third from D#2 to C7), pitched by at most two semitones with
   playback speed. Credits in `assets/audio/README.md`.
-- **Ambience: currently switched off** (`AMBIENCE` in `src/audio/mod.rs`; the owner found it
-  unpleasant). Only the piano and its reverb play. What the code in `ambient.rs` does when enabled:
-  it is synthesized in code at startup (no samples): a machinery hum (detuned bass partials
-  and rumble, loud in the depths, quieter up high), breathing wind (band-passed noise swelling every
-  8 s, strongest in the open sky), and distant metal groans (inharmonic partials of a struck bar sliding
-  down, with a faint high scrape, shaken by slow random chatter) every 9 to 26 s at random pitch and
-  pan. Not a pulse train through vocal-like resonances: that version sounded like an animal growling
-  (measured: much more amplitude modulation in the 12 to 80 Hz growl band) and was replaced.
+- **Ambience: only the machinery hum plays** (the owner likes it). It is synthesized in code at
+  startup (no samples): detuned bass partials and a low rumble, loud in the depths and quieter up
+  high. Two more layers exist in `ambient.rs` but are off (`WIND`, `GROANS`): breathing wind (a
+  swell every 8 s that can sound like pumping) and distant metal groans (the first version, a pulse
+  train through resonances, sounded like an animal growling and was rebuilt, but both were disliked).
 - **Reverb** (Freeverb, about a 3 s tail) on the whole mix, so every note rings into the empty city.
 - Tests check the synthesis (no NaN, no clipping, seamless loops), that the reverb decays, and that
   notes stay in the scale and follow height.

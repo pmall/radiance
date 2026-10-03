@@ -231,9 +231,14 @@ fn creak(rng: &mut Rng) -> Vec<f32> {
     out
 }
 
+/// Which layers play. The owner likes the hum; the wind (breathing swell) and the metal groans were
+/// disliked, so they are off. Switch them on to bring them back.
+const WIND: bool = false;
+const GROANS: bool = false;
+
 pub struct Ambient {
     hum: ffi::Music,
-    air: ffi::Music,
+    air: Option<ffi::Music>,
     creaks: Vec<ffi::Sound>,
     next_creak: f32,
     rng: Rng,
@@ -257,11 +262,13 @@ impl Ambient {
     pub fn new(seed: u64) -> Self {
         let mut rng = Rng::new(seed ^ 0x0A1B_1E27);
         let hum_data = hum(&mut rng);
-        let air_data = air(&mut rng);
         let hum = stream(&mut rng, hum_data);
-        let air = stream(&mut rng, air_data);
+        let air = WIND.then(|| {
+            let data = air(&mut rng);
+            stream(&mut rng, data)
+        });
         let kind = CString::new(".wav").unwrap();
-        let creaks = (0..6)
+        let creaks = (0..if GROANS { 6 } else { 0 })
             .map(|_| {
                 let bytes = wav_bytes(&creak(&mut rng), 1);
                 unsafe {
@@ -275,9 +282,11 @@ impl Ambient {
             .collect();
         unsafe {
             ffi::SetMusicVolume(hum, 0.0);
-            ffi::SetMusicVolume(air, 0.0);
             ffi::PlayMusicStream(hum);
-            ffi::PlayMusicStream(air);
+            if let Some(air) = air {
+                ffi::SetMusicVolume(air, 0.0);
+                ffi::PlayMusicStream(air);
+            }
         }
         Self {
             hum,
@@ -296,12 +305,14 @@ impl Ambient {
         let air = (0.08 + 0.3 * up * up) * (0.7 + 0.3 * day) * master;
         unsafe {
             ffi::UpdateMusicStream(self.hum);
-            ffi::UpdateMusicStream(self.air);
             ffi::SetMusicVolume(self.hum, hum);
-            ffi::SetMusicVolume(self.air, air);
+            if let Some(a) = self.air {
+                ffi::UpdateMusicStream(a);
+                ffi::SetMusicVolume(a, air);
+            }
         }
         self.next_creak -= dt;
-        if self.next_creak <= 0.0 && master > 0.0 {
+        if self.next_creak <= 0.0 && master > 0.0 && !self.creaks.is_empty() {
             self.next_creak = self.rng.range(9.0, 26.0);
             let i = self.rng.range_i(0, self.creaks.len() as i32) as usize;
             let s = self.creaks[i];
@@ -319,7 +330,9 @@ impl Drop for Ambient {
     fn drop(&mut self) {
         unsafe {
             ffi::UnloadMusicStream(self.hum);
-            ffi::UnloadMusicStream(self.air);
+            if let Some(a) = self.air {
+                ffi::UnloadMusicStream(a);
+            }
             for s in &self.creaks {
                 ffi::UnloadSound(*s);
             }
