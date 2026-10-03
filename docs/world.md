@@ -30,7 +30,9 @@ drifting particles, flickering signs).
 ## Biomes
 
 The map is split into large zones (typically 8 to 12 lots across), each with a biome. A biome is a
-`Biome` value in `src/world/biome.rs`: flower palette, plant and flower density per height layer,
+`Biome` value in `src/world/biome.rs`: flower palette, an architecture `Palette` (neon, lit-window light,
+facade accent panels, billboard colors, wall tint; uploaded as a uniform array and picked per lot by the
+biome's index in `BIOMES`, so a new biome re-colors all the procedural materials with no shader work), plant and flower density per height layer,
 bush/vine/climber rates, and city parameters (empty-lot chance, deck, stair and bridge chances).
 `biome_at(seed, lot)` is pure, so zones stay deterministic and infinite. Zone sites come from a
 jittered grid and a lot joins the nearest site (distance divided by the biome's `size`), so each biome
