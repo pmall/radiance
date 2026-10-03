@@ -30,6 +30,7 @@ const BRIDGE_WIDTH: f32 = 4.0;
 /// Salts keeping the per-lot random streams independent.
 const SALT_TOWER: i32 = 1;
 const SALT_DECOR: i32 = 2;
+const SALT_BRIDGE: i32 = 5;
 
 #[derive(Clone, Copy)]
 pub struct Tower {
@@ -144,23 +145,43 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         push_tower(&mut decor, &t, out);
     }
 
-    // Bridges toward +x and +z neighbors (each pair handled once, by the lower lot).
-    if let Some(a) = tower(seed, lx, lz) {
-        for (nx, nz) in [(lx + 1, lz), (lx, lz + 1)] {
-            if let Some(b) = tower(seed, nx, nz)
-                && decor.chance(biome.bridge_chance)
-            {
-                push_bridge(&mut decor, &a, &b, nx != lx, out);
-            }
+    push_bridges(seed, lx, lz, out);
+
+    push_lamps(seed, (lx, lz), &mut decor, &levels, first, out);
+}
+
+/// Bridges from this lot's tower toward its +x and +z neighbors (each pair is handled once, by the
+/// lower lot). Own random stream, so a neighbor can ask where they are without generating the lot.
+fn push_bridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
+    let Some(a) = tower(seed, lx, lz) else {
+        return;
+    };
+    let chance = biome_at(seed, lx, lz).bridge_chance;
+    let mut rng = Rng::new(hash_coords(seed, lx, SALT_BRIDGE, lz));
+    for (nx, nz) in [(lx + 1, lz), (lx, lz + 1)] {
+        if let Some(b) = tower(seed, nx, nz)
+            && rng.chance(chance)
+        {
+            push_bridge(&mut rng, &a, &b, nx != lx, out);
         }
     }
-
-    push_lamps(&mut decor, o, &levels, first, out);
 }
 
 /// Street lamp posts along the sidewalks of the lot's four borders, on every deck level the lot
 /// has. They are dead like the rest of the city (only flowers give light), and solid.
-fn push_lamps(rng: &mut Rng, origin: Vec3, levels: &[f32], first: usize, out: &mut Vec<Block>) {
+fn push_lamps(
+    seed: u64,
+    (lx, lz): (i32, i32),
+    rng: &mut Rng,
+    levels: &[f32],
+    first: usize,
+    out: &mut Vec<Block>,
+) {
+    let origin = lot_origin(lx, lz);
+    // Bridges from the neighbors that end in this lot cross its streets too.
+    let mut incoming = Vec::new();
+    push_bridges(seed, lx - 1, lz, &mut incoming);
+    push_bridges(seed, lx, lz - 1, &mut incoming);
     const SIDEWALK: f32 = 3.6;
     const POLE: f32 = 0.22;
     const HEIGHT: f32 = 5.6;
@@ -198,6 +219,7 @@ fn push_lamps(rng: &mut Rng, origin: Vec3, levels: &[f32], first: usize, out: &m
                 );
                 if out[first..]
                     .iter()
+                    .chain(&incoming)
                     .any(|b| b.aabb.overlaps(&pole) || b.aabb.overlaps(&head))
                 {
                     continue;
@@ -413,5 +435,25 @@ mod tests {
                 .zip(&b)
                 .all(|(x, y)| x.aabb.min == y.aabb.min && x.aabb.max == y.aabb.max)
         );
+    }
+
+    #[test]
+    fn lamps_stand_clear_of_everything_else() {
+        for seed in 1..=2u64 {
+            let mut all = Vec::new();
+            for lz in -4..4 {
+                for lx in -4..4 {
+                    generate_lot(seed, lx, lz, &mut all);
+                }
+            }
+            for l in all.iter().filter(|b| b.kind == BlockKind::Lamp) {
+                assert!(
+                    !all.iter()
+                        .any(|b| b.kind != BlockKind::Lamp && b.aabb.overlaps(&l.aabb)),
+                    "lamp at {:?} overlaps a block",
+                    l.aabb.min
+                );
+            }
+        }
     }
 }
