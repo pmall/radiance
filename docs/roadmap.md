@@ -38,6 +38,9 @@
      and street lamps are solid blocks. Reference: Mirror's Edge (see `docs/feedback.md`).
      Also fire escapes and blade signs on tower walls (`src/world/facade.rs`), photo detail on roofs,
      foliage and rust (`detail2.png`), and per-biome architecture palettes (`Palette` in `biome.rs`).
+   - Lore pass *(done)*: unfinished tower tiers with tower cranes (the machines never stopped
+     building), vegetation and flowers thickest in the canopy and thinnest in the depths (humans
+     moved up as the city rose). See `docs/lore.md`.
    - Biomes *(groundwork done)*: see `docs/world.md` and `docs/biome-ideas.md`.
 
 ## Debug and art-iteration tools

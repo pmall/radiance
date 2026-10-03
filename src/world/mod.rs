@@ -2,6 +2,7 @@
 
 pub mod biome;
 pub mod city;
+pub mod construction;
 pub mod facade;
 pub mod growth;
 pub mod roof;
