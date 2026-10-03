@@ -20,6 +20,12 @@ debug tools).
 - Time of day evolves continuously through a full day/night cycle.
 - The same seed always produces the same city.
 
+## Guidance (future)
+
+The city is huge and has no UI. Like the wind in *Ghost of Tsushima*, a guiding wind (sound first,
+pollen and spores drifting the same way as its visual twin) leads the player toward points of
+interest. See `docs/audio.md`.
+
 ## Player
 
 - First person, no visible body. The city should feel immense through the scale of its architecture.
