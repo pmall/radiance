@@ -11,10 +11,13 @@ pub struct Debug {
     pub show_overlay: bool,
 }
 
+/// Key of each effect in `EFFECTS`, same order as the bindings in `main`.
+const EFFECT_KEYS: [&str; 8] = ["F3", "F4", "F5", "F6", "F7", "F8", "F11", "X"];
+
 pub const HELP: &[&str] = &[
     "WASD / ZQSD / arrows move  Shift run  Space/left click jump (hold toward a ledge to climb)",
     "F1 overlay  F2 free-fly (Space/Ctrl up/down)",
-    "F3-F8/F11 toggle effects  F9 render scale  F10 reload shaders  F12 screenshot",
+    "F3-F8/F11/X toggle effects  F9 render scale  F10 reload shaders  F12 screenshot",
     "T pause time  Home/End scrub  PgUp/PgDn speed  1-4 (or numpad) dawn/day/dusk/night",
     "R random seed  [ ] or numpad -/+ previous/next seed  Esc release mouse  Ctrl+Q quit",
 ];
@@ -41,7 +44,7 @@ impl Debug {
             .enumerate()
             .map(|(i, (bit, name))| {
                 let on = renderer.effects & bit != 0;
-                format!("F{} {}{}", i + 3, if on { "" } else { "-" }, name)
+                format!("{} {}{}", EFFECT_KEYS[i], if on { "" } else { "-" }, name)
             })
             .collect::<Vec<_>>()
             .join("  ");

@@ -11,6 +11,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `docs/art-direction.md`: rendering look, palettes, day/night cycle, light plants.
 - `docs/audio.md`: piano notes, ambient soundscape.
 - `docs/roadmap.md`: milestones, current status, debug tooling.
+- `docs/biome-ideas.md`: brainstormed biomes (not implemented), for inspiration.
 - `docs/feedback.md`: owner feedback and decisions so far; read it before visual or control changes.
 
 ## Hard constraints

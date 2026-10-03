@@ -3,6 +3,7 @@
 pub mod biome;
 pub mod city;
 pub mod growth;
+pub mod roof;
 
 use std::collections::HashMap;
 
@@ -41,10 +42,35 @@ impl Aabb {
     }
 }
 
+/// What a block is, which decides how its surfaces are painted.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BlockKind {
+    /// The street level at the bottom of the world.
+    Floor,
+    /// Deck slabs: streets and plazas on the upper and mid levels.
+    Deck,
+    Tower,
+    /// Walkway deck and parapets between two towers.
+    Bridge,
+    /// Spiral stair steps.
+    Stair,
+    /// Hand-placed movement test blocks near spawn.
+    Course,
+    /// Low wall around a roof edge.
+    Parapet,
+    /// Rooftop machinery: air conditioners, vents, tanks, stairwell housings, billboard posts.
+    Equipment,
+    /// Billboard panel.
+    Sign,
+    /// Antenna mast.
+    Mast,
+}
+
 /// A solid, drawable box.
 pub struct Block {
     pub aabb: Aabb,
     pub color: Color,
+    pub kind: BlockKind,
 }
 
 /// Lots kept loaded around the player (Chebyshev distance, in lots) and the distance at which

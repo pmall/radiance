@@ -14,7 +14,7 @@ use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::biome_at;
-use super::{Aabb, Block};
+use super::{Aabb, Block, BlockKind};
 use crate::rng::{Rng, hash_coords};
 
 /// Side of a square lot.
@@ -96,6 +96,7 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
 
     // Deep floor: always present, it is the bottom of the world.
     out.push(Block {
+        kind: BlockKind::Floor,
         aabb: Aabb::from_center(vec3(mid.x, DEEP_FLOOR - 1.0, mid.z), vec3(LOT, 2.0, LOT)),
         color: Color::new(44, 48, 58, 255),
     });
@@ -119,6 +120,7 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
             push_ring_deck(mid, top, color, out);
         } else {
             out.push(Block {
+                kind: BlockKind::Deck,
                 aabb: Aabb::from_center(
                     vec3(mid.x, top - DECK_THICKNESS * 0.5, mid.z),
                     vec3(LOT, DECK_THICKNESS, LOT),
@@ -164,6 +166,7 @@ fn push_ring_deck(mid: Vec3, top: f32, color: Color, out: &mut Vec<Block>) {
     let band = half - STAIR_HOLE;
     let mut slab = |cx: f32, cz: f32, sx: f32, sz: f32| {
         out.push(Block {
+            kind: BlockKind::Deck,
             aabb: Aabb::from_center(
                 vec3(mid.x + cx, y, mid.z + cz),
                 vec3(sx, DECK_THICKNESS, sz),
@@ -194,6 +197,7 @@ fn push_spiral_stair(rng: &mut Rng, mid: Vec3, out: &mut Vec<Block>) {
             mid.z + a.sin() * STEP_RADIUS,
         );
         out.push(Block {
+            kind: BlockKind::Stair,
             aabb: Aabb::from_center(c, vec3(STEP_SIZE, STEP_RISE, STEP_SIZE)),
             color,
         });
@@ -202,6 +206,13 @@ fn push_spiral_stair(rng: &mut Rng, mid: Vec3, out: &mut Vec<Block>) {
 
 /// A tower is a body plus an optional narrower setback tier on top.
 fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
+    push_tower_body(rng, t, out);
+    if let Some(roof) = out.last().map(|b| b.aabb) {
+        super::roof::push_roof(rng, &roof, out);
+    }
+}
+
+fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
     let color = tint(rng, 78, 140);
     let top = t.top();
     let tall = top > UPPER_DECK + 30.0;
@@ -209,6 +220,7 @@ fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
         let tier = rng.range(0.25, 0.4) * (top - UPPER_DECK);
         let body_h = t.size.y - tier;
         out.push(Block {
+            kind: BlockKind::Tower,
             aabb: Aabb {
                 min: t.center - t.size * 0.5,
                 max: vec3(
@@ -222,6 +234,7 @@ fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
         let shrink = rng.range(0.55, 0.8);
         let base_y = t.center.y - t.size.y * 0.5 + body_h;
         out.push(Block {
+            kind: BlockKind::Tower,
             aabb: Aabb {
                 min: vec3(
                     t.center.x - t.size.x * 0.5 * shrink,
@@ -238,6 +251,7 @@ fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
         });
     } else {
         out.push(Block {
+            kind: BlockKind::Tower,
             aabb: Aabb::from_center(t.center, t.size),
             color,
         });
@@ -287,6 +301,7 @@ fn push_bridge(rng: &mut Rng, a: &Tower, b: &Tower, along_x: bool, out: &mut Vec
         s[cross] = wid;
         s.y = h;
         out.push(Block {
+            kind: BlockKind::Bridge,
             aabb: Aabb::from_center(p, s),
             color: col,
         });
@@ -314,6 +329,7 @@ fn push_movement_course(lx: i32, lz: i32, out: &mut Vec<Block>) {
             continue;
         }
         out.push(Block {
+            kind: BlockKind::Course,
             aabb: Aabb::from_center(c, vec3(3.0, *h, 3.0)),
             color: Color::new(200, 110, 160, 255),
         });

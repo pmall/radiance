@@ -22,6 +22,13 @@ What the project owner has said so far. Treat as requirements.
 - Plants must never traverse blocks: bush bases are not rooted in walls, stray leaf and stem
   vertices are pushed out of blocks (neighbor lots included), and a flower's light is clamped
   between the deck under it and the deck over it (no glow leaking through floors).
+- Surfaces should look like a real city, not flat boxes: floors like pavement (dust, cracks,
+  markings), buildings like buildings (windows, storefronts, neon). Streets want few markings; the
+  crosswalk-everywhere version was judged too much.
+- Main visual reference: Mirror's Edge (a full, dense city with no NPCs): punched-window facades,
+  glass curtain walls, big colored accent panels, billboards, rooftops full of machinery. The mood is
+  different (ours is hazier, with night and bioluminescence) but the density and spirit are the goal.
+- Textures: existing assets are welcome, there is no need to code everything procedurally.
 
 ## Controls
 
