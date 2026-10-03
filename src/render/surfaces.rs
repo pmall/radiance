@@ -24,6 +24,9 @@ fn load_png(png: &[u8]) -> ffi::Texture2D {
         ffi::UnloadImage(image);
         ffi::GenTextureMipmaps(&mut texture);
         ffi::SetTextureWrap(texture, ffi::TextureWrap::TEXTURE_WRAP_REPEAT as i32);
+        // Trilinear first (the default magnification is nearest, which shows blocky pixels up
+        // close), then anisotropy on top for surfaces seen at a grazing angle.
+        ffi::SetTextureFilter(texture, ffi::TextureFilter::TEXTURE_FILTER_TRILINEAR as i32);
         ffi::SetTextureFilter(
             texture,
             ffi::TextureFilter::TEXTURE_FILTER_ANISOTROPIC_8X as i32,
