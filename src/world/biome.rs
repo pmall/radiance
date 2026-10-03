@@ -89,7 +89,7 @@ pub struct Biome {
 }
 
 /// The original look of the city: cyan and magenta flowers with some green, violet and amber,
-/// flowers most frequent in the sunlit canopy, plants a little lusher in the depths.
+/// vegetation and flowers both thickest in the sunlit canopy and thinnest in the near-dark depths.
 pub const DEFAULT: Biome = Biome {
     name: "default",
     frequency: 1.0,
@@ -101,7 +101,7 @@ pub const DEFAULT: Biome = Biome {
         (1, [140, 130, 255]),
         (1, [255, 200, 100]),
     ],
-    plant_density: [0.9, 1.0, 1.2],
+    plant_density: [1.5, 1.0, 0.45],
     bloom: [2.4, 1.0, 0.5],
     bush_rate: 1.0,
     vine_rate: 1.0,
