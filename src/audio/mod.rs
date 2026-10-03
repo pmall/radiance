@@ -8,6 +8,7 @@ mod ambient;
 mod piano;
 mod reverb;
 
+use reverb::take_limiter_stats;
 pub use reverb::{start_capture, stop_capture, take_capture};
 
 use std::collections::HashMap;
@@ -18,6 +19,10 @@ use sola_raylib::ffi;
 use crate::rng::{Rng, hash_coords};
 use crate::world::World;
 use crate::world::city::LOT;
+
+/// The synthesized background (machinery hum, wind, metal groans) is switched off: the owner found
+/// it unpleasant. The code stays in `ambient.rs`, so it can come back reworked.
+const AMBIENCE: bool = false;
 
 /// Distance at which a soul starts to sing.
 const REACH: f32 = 6.5;
@@ -45,9 +50,10 @@ struct Pending {
 
 pub struct Audio {
     piano: piano::Piano,
-    ambient: ambient::Ambient,
+    ambient: Option<ambient::Ambient>,
     seed: u64,
     clock: f32,
+    last_stats: f32,
     last_sung: HashMap<Soul, f32>,
     queue: Vec<Pending>,
     rng: Rng,
@@ -68,9 +74,10 @@ impl Audio {
         reverb::attach();
         Some(Self {
             piano: piano::Piano::new(),
-            ambient: ambient::Ambient::new(seed),
+            ambient: AMBIENCE.then(|| ambient::Ambient::new(seed)),
             seed,
             clock: 0.0,
+            last_stats: 0.0,
             last_sung: HashMap::new(),
             queue: Vec::new(),
             rng: Rng::new(seed ^ 0x50_1A60),
@@ -103,10 +110,13 @@ impl Audio {
     ) -> Vec<Soul> {
         self.clock += dt;
         let master = if self.muted { 0.0 } else { 1.0 };
-        self.ambient.update(dt, eye.y, day, master);
+        if let Some(ambient) = self.ambient.as_mut() {
+            ambient.update(dt, eye.y, day, master);
+        }
 
         let mut started = Vec::new();
-        if !self.muted {
+        // RADIANCE_NO_SOULS silences the souls only (to compare the ambience on its own).
+        if !self.muted && std::env::var_os("RADIANCE_NO_SOULS").is_none() {
             let here = ((eye.x / LOT).floor() as i32, (eye.z / LOT).floor() as i32);
             for (key, lot) in world.lots() {
                 if (key.0 - here.0).abs() > 1 || (key.1 - here.1).abs() > 1 {
@@ -146,6 +156,15 @@ impl Audio {
             }
         }
 
+        if std::env::var_os("RADIANCE_AUDIO_LOG").is_some() && self.clock - self.last_stats > 4.0 {
+            self.last_stats = self.clock;
+            let (frames, limited, peak) = take_limiter_stats();
+            eprintln!(
+                "LIMITER {:.1}% of frames over 0.8, peak before limiting {:.2}",
+                100.0 * limited as f32 / frames.max(1) as f32,
+                peak
+            );
+        }
         let clock = self.clock;
         let log = std::env::var_os("RADIANCE_AUDIO_LOG").is_some();
         let piano = &mut self.piano;

@@ -13,7 +13,9 @@ silent; `--no-audio` mutes a run, `M` toggles mute in game).
 - **Piano samples.** CC0 "Upright Piano KW" from FreePats (a living-room upright, mono, one
   velocity, a sample every minor third from D#2 to C7), pitched by at most two semitones with
   playback speed. Credits in `assets/audio/README.md`.
-- **Ambience**, synthesized in code at startup (no samples): a machinery hum (detuned bass partials
+- **Ambience: currently switched off** (`AMBIENCE` in `src/audio/mod.rs`; the owner found it
+  unpleasant). Only the piano and its reverb play. What the code in `ambient.rs` does when enabled:
+  it is synthesized in code at startup (no samples): a machinery hum (detuned bass partials
   and rumble, loud in the depths, quieter up high), breathing wind (band-passed noise swelling every
   8 s, strongest in the open sky), and distant metal groans (inharmonic partials of a struck bar sliding
   down, with a faint high scrape, shaken by slow random chatter) every 9 to 26 s at random pitch and
