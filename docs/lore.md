@@ -26,8 +26,8 @@ what the city looks like and sounds like.
 - Flowers are souls, so they should feel special next to ordinary plants: they are the only things
   that glow and the only things that sing. Their density follows altitude (many in the canopy, few in
   the depths), not building details.
-- The depths are the oldest, longest-abandoned layer: most decayed and overgrown, darkest, with few
-  souls, so each one stands out. The upper levels are the most recent human world, brighter and
+- The depths are the oldest, longest-abandoned layer: most decayed, darkest, with little light for
+  plants, so little vegetation and few souls, and each one stands out. The upper levels are the most recent human world, brighter and
   better kept, with the most souls.
 - The tall, newest parts are machine-built, so they can be colder and more regular, while the human
   touches (shops, signage, balconies, fire escapes) belong to where people last lived, high up.
