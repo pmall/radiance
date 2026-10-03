@@ -9,7 +9,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `docs/vision.md`: scope, definition of done, player feel, references.
 - `docs/world.md`: setting, vertical layers, procedural generation rules.
 - `docs/art-direction.md`: rendering look, palettes, day/night cycle, light plants.
-- `docs/audio.md`: piano notes, ambient soundscape.
+- `docs/audio.md`: piano notes, ambient soundscape. `docs/guidance-ideas.md`: ideas to guide the player by sound.
 - `docs/roadmap.md`: milestones, current status, debug tooling.
 - `docs/biome-ideas.md`: brainstormed biomes (not implemented), for inspiration.
 - `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.
