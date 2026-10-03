@@ -112,7 +112,7 @@ impl WorldMesh {
             nrm.extend_from_slice(&v.normal.to_array());
             // uv.y = 1 marks plant geometry (architecture is 0), read by the scene shader.
             uv.extend_from_slice(&[v.id as f32 / 255.0, 1.0]);
-            uv2.extend_from_slice(&[0.0, 0.0]);
+            uv2.extend_from_slice(&v.uv);
             col.extend_from_slice(&[v.color.r, v.color.g, v.color.b, v.glow]);
         }
 
