@@ -3,6 +3,7 @@
 //! as a mixed-output processor.
 
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
@@ -96,6 +97,21 @@ struct Reverb {
 
 static REVERB: OnceLock<Mutex<Reverb>> = OnceLock::new();
 
+/// Limiter statistics for the debug log: frames seen, frames where the limiter changed the sound,
+/// and the loudest sample before limiting (f32 bits).
+static STAT_FRAMES: AtomicU64 = AtomicU64::new(0);
+static STAT_LIMITED: AtomicU64 = AtomicU64::new(0);
+static STAT_PEAK: AtomicU32 = AtomicU32::new(0);
+
+/// (frames, limited frames, peak before limiting) since the last call.
+pub fn take_limiter_stats() -> (u64, u64, f32) {
+    (
+        STAT_FRAMES.swap(0, Ordering::Relaxed),
+        STAT_LIMITED.swap(0, Ordering::Relaxed),
+        f32::from_bits(STAT_PEAK.swap(0, Ordering::Relaxed)),
+    )
+}
+
 /// A copy of the final mix, kept while a recording runs (see `crate::recorder`).
 struct Capture {
     on: bool,
@@ -170,8 +186,15 @@ fn reverberate(r: &mut Reverb, data: &mut [f32]) {
         let mono = (frame[0] + frame[1]) * 0.5;
         // Left and right tanks share the input and differ by their delay spread.
         let (l, rr) = (r.left.process(mono), r.right.process(mono));
-        frame[0] = soft_limit(frame[0] + l * WET * 3.0);
-        frame[1] = soft_limit(frame[1] + rr * WET * 3.0);
+        let (a, b) = (frame[0] + l * WET * 3.0, frame[1] + rr * WET * 3.0);
+        let peak = a.abs().max(b.abs());
+        STAT_FRAMES.fetch_add(1, Ordering::Relaxed);
+        if peak > 0.8 {
+            STAT_LIMITED.fetch_add(1, Ordering::Relaxed);
+        }
+        STAT_PEAK.fetch_max(peak.to_bits(), Ordering::Relaxed);
+        frame[0] = soft_limit(a);
+        frame[1] = soft_limit(b);
     }
 }
 
