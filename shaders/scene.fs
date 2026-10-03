@@ -53,7 +53,7 @@ float shadow(vec3 p, vec3 n)
 
 // Light grid layout, mirrored from src/render/lights.rs.
 const int LW = 256;
-const int MAX_LIGHTS = 1024;
+const int MAX_LIGHTS = 512;
 const ivec3 GRID = ivec3(32, 16, 32);
 const float CELL = 6.0;
 
@@ -67,14 +67,17 @@ vec3 plantLights(vec3 p, vec3 n)
 {
     ivec3 c = ivec3(floor((p - uGridOrigin) / CELL));
     if (any(lessThan(c, ivec3(0))) || any(greaterThanEqual(c, GRID))) return vec3(0.0);
-    int base = MAX_LIGHTS * 2 + (c.x + GRID.x * (c.y + GRID.y * c.z)) * 2;
+    int base = MAX_LIGHTS * 3 + (c.x + GRID.x * (c.y + GRID.y * c.z)) * 2;
     vec3 acc = vec3(0.0);
     for (int h = 0; h < 2; h++) {
         vec4 ids = fetchTexel(base + h);
         for (int k = 0; k < 4; k++) {
             if (ids[k] < 0.0) continue;
             int i = int(ids[k]);
-            vec4 a = fetchTexel(i * 2);
+            vec4 a = fetchTexel(i * 3);
+            vec4 band = fetchTexel(i * 3 + 2);
+            // Decks stop the light: only surfaces between the floor and ceiling of the flower.
+            if (p.y < band.x - 0.1 || p.y > band.y + 0.1) continue;
             vec3 d = a.xyz - p;
             float dist = length(d);
             float x = 1.0 - dist / a.w;
@@ -82,7 +85,7 @@ vec3 plantLights(vec3 p, vec3 n)
             float q = 0.34 * smoothstep(0.03, 0.13, x) + 0.33 * smoothstep(0.30, 0.40, x)
                     + 0.33 * smoothstep(0.65, 0.75, x);
             float facing = clamp(dot(n, d / max(dist, 1e-3)) * 0.5 + 0.6, 0.0, 1.0);
-            acc += fetchTexel(i * 2 + 1).rgb * q * facing;
+            acc += fetchTexel(i * 3 + 1).rgb * q * facing;
         }
     }
     return acc;

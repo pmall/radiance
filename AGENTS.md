@@ -32,9 +32,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - `src/main.rs`: window, main loop, fixed 120 Hz simulation step, input routing.
 - `src/player.rs`: first-person controller (walk/run/jump, step-up, ledge grab, free-fly).
-- `src/world/`: world data, collision index and generation (`city.rs`: lot-based city skeleton, each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks).
+- `src/world/`: world data, collision index and generation (`biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton, each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks).
 - `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
-  post pass for sky, outlines, fog, grading, grain; `lights.rs` bins plant point lights into a camera grid texture, `particles.rs` drifting motes and spores). `look.rs` holds the per-time-of-day palettes.
+  post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `particles.rs` drifting motes and spores). `look.rs` holds the per-time-of-day palettes.
 - `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback).
 - `src/daycycle.rs`: time-of-day clock and sun direction.
 - `src/rng.rs`: seeded RNG and coordinate hashing.

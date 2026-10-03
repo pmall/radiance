@@ -83,8 +83,10 @@ fn read_input(rl: &RaylibHandle) -> Input {
             axis(&[KEY_W, KEY_Z, KEY_UP], &[KEY_S, KEY_DOWN]),
         ),
         look: Vec2::new(d.x, d.y),
-        jump_pressed: rl.is_key_pressed(KEY_SPACE),
-        jump_held: rl.is_key_down(KEY_SPACE),
+        jump_pressed: rl.is_key_pressed(KEY_SPACE)
+            || rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT),
+        jump_held: rl.is_key_down(KEY_SPACE)
+            || rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
         run: rl.is_key_down(KEY_LEFT_SHIFT),
         down: rl.is_key_down(KEY_LEFT_CONTROL),
     }
