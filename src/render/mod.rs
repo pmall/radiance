@@ -14,6 +14,7 @@ mod mesh;
 mod particles;
 mod shader;
 mod shadow;
+mod surfaces;
 mod targets;
 
 use glam::{Vec2, Vec3, vec3};
@@ -130,6 +131,9 @@ impl Renderer {
         // Map slot 2 is bound to `texture2`: the plant light grid.
         let light_grid = LightGrid::new();
         unsafe { (*material.maps.add(2)).texture = light_grid.texture };
+        // Map slot 3 is the photographic detail texture, sampler `texture3`.
+        unsafe { (*material.maps.add(surfaces::SLOT)).texture = surfaces::load() };
+        surfaces::bind_sampler(&mut material);
         let halos = Halos::new(light_grid.texture);
         Self {
             scene,
@@ -186,6 +190,7 @@ impl Renderer {
         self.particles.reload();
         self.halos.reload();
         self.material.shader = self.scene.raw;
+        surfaces::bind_sampler(&mut self.material);
     }
 
     /// Polls shader files for changes.
@@ -199,6 +204,7 @@ impl Renderer {
             self.particles.poll();
             self.halos.poll();
             self.material.shader = self.scene.raw;
+            surfaces::bind_sampler(&mut self.material);
         }
     }
 

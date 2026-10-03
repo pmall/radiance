@@ -20,6 +20,7 @@ uniform mat4 uLightVP;
 uniform int uShadows;
 uniform float uShadowTexel;
 uniform sampler2D texture2;  // plant light grid (see src/render/lights.rs)
+uniform sampler2D texture3;  // photo detail: R pavement, G asphalt, B concrete wall, A metal (src/render/surfaces.rs)
 uniform vec3 uGridOrigin;
 uniform float uGlow;         // plant emission and light strength for the time of day
 
@@ -128,6 +129,12 @@ float fbm(vec2 p)
     return 0.5 * vnoise(p) + 0.3 * vnoise(p * 2.07 + 5.3) + 0.2 * vnoise(p * 4.3 + 11.1);
 }
 
+// Fine detail from photographs, centered on 1 (R pavement, G asphalt, B concrete wall, A metal).
+vec4 grit(vec2 uv)
+{
+    return texture(texture3, uv) * 2.0;
+}
+
 // 1 inside a box of half-size `h` centered on the origin, antialiased over `aa` meters.
 float boxMask(vec2 q, vec2 h, float aa)
 {
@@ -194,7 +201,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
 
     // Wall: concrete with soft blotches, darker slab band at the foot of every story.
     float blotch = 0.88 + 0.24 * fbm(vec2(loc.x * 0.6, p.y * 0.25));
-    vec3 col = base * blotch;
+    vec3 col = base * blotch * mix(1.0, grit(vec2(loc.x, p.y) / 4.5).b, 0.55);
     col *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.5, vy * H));
     // Rain streaks running down from the sills, heavier lower down.
     float streak = vnoise(vec2(loc.x * 6.0 + floor(cu) * 3.0, p.y * 0.1));
@@ -221,6 +228,16 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     col = mix(col, base * 0.35, frame);
     col = mix(col, base * 1.25, sill);
 
+    // Window air conditioners under some sills, and a projecting cornice band every 4 stories.
+    float acHas = step(0.9, hash12(vec2(cell + fid * 3.0, story + 40.0))) * inCols * (1.0 - shop) * (1.0 - inP) * step(float(style), 3.5);
+    vec2 aq = q - vec2(0.0, -halfw.y - 0.42);
+    float ac = boxMask(aq, vec2(0.42, 0.26), px) * acHas;
+    float grille = 0.55 + 0.45 * step(0.5, fract(aq.y * 9.0));
+    col = mix(col, vec3(0.55, 0.57, 0.6) * grille, ac);
+    float band = (1.0 - smoothstep(0.0, 0.3 + px, abs(vy * H - 0.0))) * step(mod(story, 4.0), 0.5);
+    col = mix(col, base * 1.2, band * (1.0 - shop));
+    col *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.5, (vy * H - 0.3))) * step(mod(story, 4.0), 0.5) * step(0.3, vy * H) ;
+
     // Neon lintel above storefronts.
     float lintel = boxMask(vec2(q.x, q.y - halfw.y - 0.5), vec2(halfw.x, 0.07), px) * inCols * shop;
     vec3 lc = neonColor(hash12(vec2(cell, fid * 5.0 + story)));
@@ -239,20 +256,32 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     return col;
 }
 
-// Paved street or deck: slabs with joints, per-slab tone, cracks, dust, oil stains and painted
-// lane markings along the lot borders (towers keep 3 m from the border, so streets run there).
+// Paved street or deck. Streets run along the lot borders (towers keep 3 m from them): asphalt
+// with lane markings between curbs, concrete slabs with joints on the sides. Cracks, dust and
+// oil stains over both; the photo detail gives the grain.
 vec3 pavement(vec3 base, vec3 p, float px)
 {
     vec2 uv = p.xz;
-    float far = 1.0 - smoothstep(0.05, 0.4, px);  // fine detail fades before it shimmers
+    vec2 off = uv - round(uv / 24.0) * 24.0;  // from the nearest street axes
+    vec2 ad = abs(off);
+    float street = step(min(ad.x, ad.y), 3.0);
+
+    // Sidewalk: 4 m slabs with joints and a tone per slab.
     vec2 g = uv / 4.0;
     vec2 sid = floor(g);
     vec2 f = fract(g);
     float dj = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * 4.0;
-    float joint = 1.0 - smoothstep(0.02, 0.05 + px, dj);
+    float joint = (1.0 - smoothstep(0.02, 0.05 + px, dj)) * (1.0 - street);
+    vec3 walk = base * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
+    walk *= mix(1.0, grit(uv / 2.4).r, 0.85);
+    // Road: dark asphalt.
+    vec3 road = base * 0.5 * (0.85 + 0.3 * fbm(uv * 0.12)) * mix(1.0, grit(uv / 1.7).g, 0.9);
+    vec3 col = mix(walk, road, street);
 
-    vec3 col = base * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
-    col *= 1.0 + far * (0.12 * (vnoise(uv * 7.0) - 0.5) + 0.08 * (vnoise(uv * 27.0) - 0.5));
+    // Curbs between road and sidewalk (not across intersections).
+    float curbZ = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.x - 3.0))) * step(3.0, ad.y);
+    float curbX = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.y - 3.0))) * step(3.0, ad.x);
+    col = mix(col, base * 1.15, max(curbX, curbZ) * 0.9);
 
     // Cracks: thin contour lines of a noise field, only in patches.
     float cn = fbm(uv * 0.9 + sid * 1.7);
@@ -261,15 +290,12 @@ vec3 pavement(vec3 base, vec3 p, float px)
     // Oil and wet stains, then dust settled in blotches.
     col *= 1.0 - 0.5 * smoothstep(0.6, 0.7, fbm(uv * 0.3 + 20.0));
     float dust = smoothstep(0.52, 0.8, fbm(uv * 0.45 + 3.0));
-    col = mix(col, col * vec3(1.35, 1.2, 0.95) + 0.015, dust * 0.65);
+    col = mix(col, col * vec3(1.35, 1.2, 0.95) + 0.015, dust * 0.5);
     col *= 1.0 - 0.55 * joint;
 
-    // Lane markings.
-    vec2 off = uv - round(uv / 24.0) * 24.0;  // from the nearest street axes
-    vec2 ad = abs(off);
-    float wear = 0.45 + 0.55 * vnoise(uv * 3.5);
-    // Dashed yellow center lines, white edge lines, outside the intersections.
-    float ix = step(3.4, ad.y);  // along a street running in z: away from the crossing street
+    // Lane markings: dashed yellow center lines, white edge lines, outside the intersections.
+    float wear = (0.45 + 0.55 * vnoise(uv * 3.5)) * grit(uv / 0.9).g;
+    float ix = step(3.4, ad.y);
     float iz = step(3.4, ad.x);
     float dashZ = step(0.5, fract(uv.y / 3.0)) * (1.0 - smoothstep(0.07, 0.07 + px, ad.x)) * ix;
     float dashX = step(0.5, fract(uv.x / 3.0)) * (1.0 - smoothstep(0.07, 0.07 + px, ad.y)) * iz;
@@ -288,7 +314,7 @@ vec3 roof(vec3 base, vec3 p, float px)
     vec2 uv = p.xz;
     float far = 1.0 - smoothstep(0.05, 0.4, px);
     vec3 col = base * 0.5 * (0.8 + 0.4 * fbm(uv * 0.2));
-    col *= 1.0 + far * 0.25 * (vnoise(uv * 12.0) - 0.5);
+    col *= grit(uv / 1.5).g;
     vec2 cell = floor(uv / 5.0);
     vec2 fc = fract(uv / 5.0) - 0.5;
     float patch = step(0.78, hash12(cell)) * boxMask(fc * 5.0, vec2(1.6, 1.1), px);
@@ -303,6 +329,7 @@ vec3 underside(vec3 base, vec3 p, float px)
     float beam = 1.0 - smoothstep(0.3, 0.3 + px, abs(fract(uv.x / 5.0) - 0.5) * 5.0 - 2.1);
     vec3 col = base * 0.45 * (0.75 + 0.5 * fbm(uv * 0.4));
     col *= 1.0 - 0.3 * beam;
+    col *= grit(uv / 2.0).b;
     return col * (1.0 - 0.4 * smoothstep(0.55, 0.8, fbm(uv * 0.8 + 4.0)));
 }
 
@@ -311,6 +338,7 @@ vec3 concrete(vec3 base, vec3 p, vec3 n, vec2 loc)
 {
     float u = abs(n.y) < 0.5 ? loc.x : p.x + p.z;
     vec3 col = base * (0.8 + 0.4 * fbm(vec2(u * 0.7, p.y * 0.5)));
+    col *= grit(vec2(u, p.y) / 2.5).b;
     float streak = vnoise(vec2(u * 3.0, p.y * 0.12));
     return col * (1.0 - 0.3 * smoothstep(0.55, 0.9, streak));
 }
@@ -324,7 +352,7 @@ vec3 bridgeMetal(vec3 base, vec3 p, vec3 n, float px)
     vec2 w = vec2(px / 1.5) * 1.5;
     float seam = max(1.0 - smoothstep(0.5 - 0.02 - w.x, 0.5 - 0.02 + w.x, 0.5 - (0.5 - d.x) ),
                      1.0 - smoothstep(0.5 - 0.02 - w.y, 0.5 - 0.02 + w.y, 0.5 - (0.5 - d.y)));
-    vec3 col = base * (0.8 + 0.3 * fbm(uv * 0.6));
+    vec3 col = base * (0.8 + 0.3 * fbm(uv * 0.6)) * grit(uv / 1.2).a;
     return col * (1.0 - 0.3 * seam);
 }
 
@@ -332,7 +360,7 @@ vec3 bridgeMetal(vec3 base, vec3 p, vec3 n, float px)
 // Rooftop machinery: louvered casing with a fan or cap on top. loc is normalized on top faces.
 vec3 equipment(vec3 base, vec3 p, vec3 n, vec2 loc, float px)
 {
-    vec3 col = base * (0.85 + 0.25 * fbm(p.xz * 1.5 + p.y));
+    vec3 col = base * (0.85 + 0.25 * fbm(p.xz * 1.5 + p.y)) * grit((abs(n.y) > 0.5 ? p.xz : vec2(p.x + p.z, p.y)) / 1.3).a;
     if (n.y > 0.5) {
         vec2 c = loc - 0.5;
         float r = length(c);
@@ -387,6 +415,34 @@ vec3 mast(vec3 base, vec3 p, float px)
     return base * (1.0 - 0.5 * rung);
 }
 
+
+// Rooftop solar array: dark blue cells with silver seams and a sheen.
+vec3 solar(vec3 base, vec3 p, vec3 n, float px)
+{
+    if (n.y < 0.5) return base * 0.6;
+    vec2 g = p.xz / 0.55;
+    vec2 d = abs(fract(g) - 0.5);
+    float seam = 1.0 - smoothstep(0.46, 0.46 + px / 0.55, max(d.x, d.y));
+    float sheen = 0.7 + 0.6 * smoothstep(0.2, 0.9, vnoise(p.xz * 0.35));
+    return mix(vec3(0.5, 0.52, 0.56), base * sheen * 1.8, seam);
+}
+
+// Skylight: dark glass in a frame with a cross of bars.
+vec3 skylight(vec3 base, vec3 loc3, vec3 n, vec2 loc, float px)
+{
+    if (n.y < 0.5) return base * 0.7;
+    vec2 c = abs(loc - 0.5);
+    float frame = step(0.42, max(c.x, c.y));
+    float bars = 1.0 - smoothstep(0.015, 0.015 + fwidth(c.x) , min(c.x, c.y));
+    return mix(base * 0.25, vec3(0.5, 0.52, 0.55), max(frame, bars));
+}
+
+// Street lamp: dull painted metal.
+vec3 lamp(vec3 base, vec3 p)
+{
+    return base * (0.8 + 0.4 * fbm(vec2(p.x + p.z, p.y) * 1.3)) * grit(vec2(p.x + p.z, p.y)).a;
+}
+
 // Painted foliage: soft blotches of two greens, finer brush flecks.
 float paintPlant(vec3 p)
 {
@@ -431,6 +487,12 @@ void main()
             }
         } else if (kind == 9) {
             albedo = mast(albedo, fragWorldPos, px);
+        } else if (kind == 10) {
+            albedo = solar(albedo, fragWorldPos, n, px);
+        } else if (kind == 11) {
+            albedo = skylight(albedo, fragWorldPos, n, fragLoc, px);
+        } else if (kind == 12) {
+            albedo = lamp(albedo, fragWorldPos);
         }
     }
 

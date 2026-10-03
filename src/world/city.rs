@@ -89,6 +89,7 @@ pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
 
 /// Appends every block belonging to one lot.
 pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
+    let first = out.len();
     let o = lot_origin(lx, lz);
     let mid = o + vec3(LOT * 0.5, 0.0, LOT * 0.5);
     let mut decor = Rng::new(hash_coords(seed, lx, SALT_DECOR, lz));
@@ -105,6 +106,8 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     // Empty lots often hold a spiral stair linking the layers, with a hole through the decks.
     let stair = tower_here.is_none() && !is_plaza(lx, lz) && decor.chance(biome.stair_chance);
 
+    let mut levels = vec![DEEP_FLOOR];
+
     // Deck slabs. The plaza always has an upper deck; elsewhere gaps open onto the levels below.
     for (y, keep, shade) in [
         (UPPER_DECK, biome.deck_keep[0], (92, 112)),
@@ -116,6 +119,7 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         }
         let color = tint(&mut decor, shade.0, shade.1);
         let top = y;
+        levels.push(y);
         if stair {
             push_ring_deck(mid, top, color, out);
         } else {
@@ -147,6 +151,64 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
                 && decor.chance(biome.bridge_chance)
             {
                 push_bridge(&mut decor, &a, &b, nx != lx, out);
+            }
+        }
+    }
+
+    push_lamps(&mut decor, o, &levels, first, out);
+}
+
+/// Street lamp posts along the sidewalks of the lot's four borders, on every deck level the lot
+/// has. They are dead like the rest of the city (only flowers give light), and solid.
+fn push_lamps(rng: &mut Rng, origin: Vec3, levels: &[f32], first: usize, out: &mut Vec<Block>) {
+    const SIDEWALK: f32 = 3.6;
+    const POLE: f32 = 0.22;
+    const HEIGHT: f32 = 5.6;
+    let color = Color::new(70, 76, 88, 255);
+    for &y in levels {
+        for side in 0..4 {
+            for t in [4.0_f32, 12.0, 20.0] {
+                if !rng.chance(0.3) {
+                    continue;
+                }
+                let along = t + rng.range(-1.5, 1.5);
+                // Position and the direction the lamp head leans, toward the street.
+                let (x, z, lean) = match side {
+                    0 => (origin.x + SIDEWALK, origin.z + along, vec3(-1.0, 0.0, 0.0)),
+                    1 => (
+                        origin.x + LOT - SIDEWALK,
+                        origin.z + along,
+                        vec3(1.0, 0.0, 0.0),
+                    ),
+                    2 => (origin.x + along, origin.z + SIDEWALK, vec3(0.0, 0.0, -1.0)),
+                    _ => (
+                        origin.x + along,
+                        origin.z + LOT - SIDEWALK,
+                        vec3(0.0, 0.0, 1.0),
+                    ),
+                };
+                let pole = Aabb {
+                    min: vec3(x - POLE * 0.5, y, z - POLE * 0.5),
+                    max: vec3(x + POLE * 0.5, y + HEIGHT, z + POLE * 0.5),
+                };
+                let c = vec3(x, y + HEIGHT - 0.15, z) + lean * 0.7;
+                let head = Aabb::from_center(
+                    c,
+                    vec3(0.4 + 1.0 * lean.x.abs(), 0.3, 0.4 + 1.0 * lean.z.abs()),
+                );
+                if out[first..]
+                    .iter()
+                    .any(|b| b.aabb.overlaps(&pole) || b.aabb.overlaps(&head))
+                {
+                    continue;
+                }
+                for aabb in [pole, head] {
+                    out.push(Block {
+                        kind: BlockKind::Lamp,
+                        aabb,
+                        color,
+                    });
+                }
             }
         }
     }
@@ -213,7 +275,7 @@ fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
 }
 
 fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
-    let color = tint(rng, 78, 140);
+    let color = tint(rng, 92, 190);
     let top = t.top();
     let tall = top > UPPER_DECK + 30.0;
     if tall && rng.chance(0.7) {
@@ -247,7 +309,7 @@ fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
                     t.center.z + t.size.z * 0.5 * shrink,
                 ),
             },
-            color: tint(rng, 78, 140),
+            color: tint(rng, 92, 190),
         });
     } else {
         out.push(Block {

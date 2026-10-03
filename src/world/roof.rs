@@ -14,7 +14,7 @@ const PARAPET_HEIGHT: f32 = 0.9;
 /// Clear space between the roof edge and any equipment.
 const EDGE_MARGIN: f32 = 1.6;
 /// Equipment is dropped on a grid of cells this wide, one prop per cell at most.
-const CELL: f32 = 4.5;
+const CELL: f32 = 3.4;
 
 fn light_gray(rng: &mut Rng) -> Color {
     let v = rng.range_i(188, 232) as u8;
@@ -63,29 +63,54 @@ pub fn push_roof(rng: &mut Rng, roof: &Aabb, out: &mut Vec<Block>) {
     );
     for iz in 0..nz {
         for ix in 0..nx {
-            if !rng.chance(0.42) {
+            if !rng.chance(0.66) {
                 continue;
             }
             let roll = rng.f32();
-            // Footprint (x, z) and height by kind of equipment.
-            let (sx, sz, sy) = if roll < 0.42 {
+            // Footprint (x, z), height and block kind by kind of equipment.
+            let (sx, sz, sy, kind) = if roll < 0.3 {
                 (
                     rng.range(1.4, 2.2),
                     rng.range(1.1, 1.8),
                     rng.range(0.9, 1.3),
+                    BlockKind::Equipment,
                 )
-            } else if roll < 0.62 {
+            } else if roll < 0.45 {
                 (
                     rng.range(2.6, 3.2),
                     rng.range(2.2, 2.8),
                     rng.range(1.2, 1.6),
+                    BlockKind::Equipment,
                 )
-            } else if roll < 0.76 {
-                (0.7, 0.7, rng.range(2.0, 3.5))
-            } else if roll < 0.9 {
-                (2.4, 2.4, rng.range(2.8, 3.4))
+            } else if roll < 0.55 {
+                (0.7, 0.7, rng.range(2.0, 3.5), BlockKind::Equipment)
+            } else if roll < 0.65 {
+                (2.4, 2.4, rng.range(2.8, 3.4), BlockKind::Equipment)
+            } else if roll < 0.72 {
+                (
+                    rng.range(3.2, 4.0),
+                    rng.range(2.8, 3.4),
+                    2.6,
+                    BlockKind::Equipment,
+                )
+            } else if roll < 0.86 {
+                // A solar array: flat, wide, low.
+                (
+                    rng.range(3.4, 4.2),
+                    rng.range(2.6, 3.4),
+                    0.55,
+                    BlockKind::Solar,
+                )
+            } else if roll < 0.94 {
+                (
+                    rng.range(1.6, 2.6),
+                    rng.range(1.6, 2.6),
+                    0.5,
+                    BlockKind::Skylight,
+                )
             } else {
-                (rng.range(3.2, 4.0), rng.range(2.8, 3.4), 2.6)
+                // A pipe run along the roof.
+                (rng.range(3.5, 4.2), 0.3, 0.3, BlockKind::Equipment)
             };
             let c = vec3(
                 x0 + (ix as f32 + 0.5) * CELL + rng.range(-0.5, 0.5) * (CELL - sx).max(0.0) * 0.5,
@@ -100,8 +125,12 @@ pub fn push_roof(rng: &mut Rng, roof: &Aabb, out: &mut Vec<Block>) {
                 continue;
             }
             placed.push(aabb);
-            let color = light_gray(rng);
-            add(aabb, color, BlockKind::Equipment, out);
+            let color = match kind {
+                BlockKind::Solar => Color::new(28, 44, 84, 255),
+                BlockKind::Skylight => Color::new(60, 90, 110, 255),
+                _ => light_gray(rng),
+            };
+            add(aabb, color, kind, out);
         }
     }
 
