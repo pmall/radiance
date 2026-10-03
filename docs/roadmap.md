@@ -54,5 +54,6 @@ Important, since the purpose is art exploration. Build them alongside the featur
 - Live-tweakable shader and palette parameters, if practical (e.g. shader hot-reload from disk).
   *(shader hot-reload done, F10 forces it; palettes still in `src/render/look.rs`)*
 - Headless frame capture for checking looks: `--time`, `--view`, `--shot`, `--fx` (effect mask). *(done)*
+- Record a run to MP4 with the screen and the sound. *(done: V; 1600x900 60 fps H.264 (NVENC when available) with AAC audio, saved in the background to `recordings/`; the overlay stays out of the video)*
 - Frame time benchmark: `--bench N` renders N frames without vsync and prints ms/frame and triangles.
   *(done; about 3 ms/frame, ~1.4 M tris loaded, on the 3060 from the plaza)*
