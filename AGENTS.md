@@ -47,6 +47,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `cargo run -- <seed>`: run (seed optional).
 - `cargo run -- <seed> --time 0.5 --view x,y,z,yaw,pitch --shot out.png`: render one frame at a
   given time of day (0 = midnight, 0.5 = noon) and camera, save it and exit. Use it to check looks.
+- `--fx <mask>` sets effect bits for a shot, `--bench <frames>` prints ms/frame (no vsync).
 - `cargo check` / `cargo clippy`: verify.
 - Rust lives in `~/.cargo/bin`; it may need adding to `PATH` in non-login shells.
 - If bindgen fails with `'stdarg.h' file not found`, the clang builtin headers are missing
