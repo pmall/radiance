@@ -13,6 +13,7 @@
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
+use super::biome::biome_at;
 use super::{Aabb, Block};
 use crate::rng::{Rng, hash_coords};
 
@@ -43,7 +44,7 @@ impl Tower {
 }
 
 /// The lots around the spawn point stay open as a plaza.
-fn is_plaza(lx: i32, lz: i32) -> bool {
+pub(super) fn is_plaza(lx: i32, lz: i32) -> bool {
     (-1..=0).contains(&lx) && (-1..=0).contains(&lz)
 }
 
@@ -65,7 +66,7 @@ pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
         return None;
     }
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_TOWER, lz));
-    if rng.chance(0.18) {
+    if rng.chance(biome_at(seed, lx, lz).tower_empty) {
         return None;
     }
     let w = rng.range(9.0, 16.0);
@@ -91,6 +92,7 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     let o = lot_origin(lx, lz);
     let mid = o + vec3(LOT * 0.5, 0.0, LOT * 0.5);
     let mut decor = Rng::new(hash_coords(seed, lx, SALT_DECOR, lz));
+    let biome = biome_at(seed, lx, lz);
 
     // Deep floor: always present, it is the bottom of the world.
     out.push(Block {
@@ -100,10 +102,13 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
 
     let tower_here = tower(seed, lx, lz);
     // Empty lots often hold a spiral stair linking the layers, with a hole through the decks.
-    let stair = tower_here.is_none() && !is_plaza(lx, lz) && decor.chance(0.7);
+    let stair = tower_here.is_none() && !is_plaza(lx, lz) && decor.chance(biome.stair_chance);
 
     // Deck slabs. The plaza always has an upper deck; elsewhere gaps open onto the levels below.
-    for (y, keep, shade) in [(UPPER_DECK, 0.85, (92, 112)), (MID_DECK, 0.6, (64, 80))] {
+    for (y, keep, shade) in [
+        (UPPER_DECK, biome.deck_keep[0], (92, 112)),
+        (MID_DECK, biome.deck_keep[1], (64, 80)),
+    ] {
         let solid = is_plaza(lx, lz) && y == UPPER_DECK;
         if !(solid || stair || decor.chance(keep)) {
             continue;
@@ -137,7 +142,7 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     if let Some(a) = tower(seed, lx, lz) {
         for (nx, nz) in [(lx + 1, lz), (lx, lz + 1)] {
             if let Some(b) = tower(seed, nx, nz)
-                && decor.chance(0.35)
+                && decor.chance(biome.bridge_chance)
             {
                 push_bridge(&mut decor, &a, &b, nx != lx, out);
             }

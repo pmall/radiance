@@ -40,7 +40,7 @@ const FACES: [(Vec3, [[f32; 3]; 4]); 6] = [
 ];
 
 /// Copies a slice into memory owned by raylib (freed by `UnloadMesh`).
-fn raylib_copy<T: Copy>(data: &[T]) -> *mut T {
+pub(super) fn raylib_copy<T: Copy>(data: &[T]) -> *mut T {
     let bytes = std::mem::size_of_val(data);
     unsafe {
         let p = ffi::MemAlloc(bytes as u32) as *mut T;

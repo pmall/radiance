@@ -24,10 +24,13 @@
 
 8. **Visual quality pass (feedback after the first full playthrough):**
    - Plants: bushes read as boulders (faceted blobs); replace with leaf cards or fronds, smaller and
-     softer, with real foliage shapes.
+     softer, with real foliage shapes. *(done: rosettes of arching folded fronds and narrow-blade
+     tufts in `growth.rs`, denser than before)*
    - Light sources: only flowers emit light, one light per flower at the flower, with a visible halo,
-     matching tint and a smaller pool (see `docs/art-direction.md`).
-   - Textures: the image is flat vertex color plus grain. Add real surface texture (hatching and
+     matching tint and a smaller pool (see `docs/art-direction.md`). *(done: foliage never glows;
+     each flower has petals, a bright core and one light of its color; halos are billboards read from
+     the light texture, `src/render/halos.rs`; pool cut to 512 lights)*
+   - Textures *(next)*: the image is flat vertex color plus grain. Add real surface texture (hatching and
      brush strokes in shadow bands, concrete and metal detail, painted leaves with veins, a stronger
      paper or canvas feel). Texturing is compatible with procedural generation: the seed still drives placement, textures drive surface look. Authored/external or procedural, whichever looks best.
 

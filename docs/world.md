@@ -26,3 +26,16 @@ drifting particles, flickering signs).
   and other external assets are welcome to dress that geometry whenever they make the render better;
   they are materials and building blocks, not a replacement for generation.
   if truly needed.
+
+## Biomes
+
+The map is split into large zones (typically 8 to 12 lots across), each with a biome. A biome is a
+`Biome` value in `src/world/biome.rs`: flower palette, plant and flower density per height layer,
+bush/vine/climber rates, and city parameters (empty-lot chance, deck, stair and bridge chances).
+`biome_at(seed, lot)` is pure, so zones stay deterministic and infinite. Zone sites come from a
+jittered grid and a lot joins the nearest site (distance divided by the biome's `size`), so each biome
+type has its own typical zone size. The spawn plaza is always the default biome.
+
+Status: the machinery is in place with a single biome, `default` (the original look). Still to do:
+more biomes (including a rare "rainbow" one with every flower color), blending across zone borders,
+per-biome fog and sky tint, and per-biome plant species and tower styles.

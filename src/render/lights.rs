@@ -2,8 +2,8 @@
 //!
 //! Each frame the nearest lights are binned into grid cells (a few light indices per cell) and
 //! uploaded in one float texture; the scene shader looks up only the lights of its own cell.
-//! Texture layout (RGBA32F, `WIDTH` texels per row): light data first (2 texels per light:
-//! position + radius, color), then the grid (2 texels per cell: 8 light indices, -1 = empty).
+//! Texture layout (RGBA32F, `WIDTH` texels per row): light data first (3 texels per light:
+//! position + radius, color, vertical extent), then the grid (2 texels per cell: 8 light indices, -1 = empty).
 //! The constants here are mirrored in `shaders/scene.fs`.
 
 use glam::Vec3;
@@ -12,11 +12,11 @@ use sola_raylib::ffi;
 use crate::world::Light;
 
 const WIDTH: usize = 256;
-pub const MAX_LIGHTS: usize = 1024;
+pub const MAX_LIGHTS: usize = 512;
 const SLOTS: usize = 8;
 const GRID: [usize; 3] = [32, 16, 32];
 const CELL: f32 = 6.0;
-const LIGHT_TEXELS: usize = MAX_LIGHTS * 2;
+const LIGHT_TEXELS: usize = MAX_LIGHTS * 3;
 const GRID_CELLS: usize = GRID[0] * GRID[1] * GRID[2];
 const TEXELS: usize = LIGHT_TEXELS + GRID_CELLS * 2;
 const HEIGHT: usize = TEXELS.div_ceil(WIDTH);
@@ -75,9 +75,10 @@ impl LightGrid {
         self.counts.fill(0);
 
         for (i, l) in near.iter().enumerate() {
-            let t = i * 8;
+            let t = i * 12;
             self.pixels[t..t + 4].copy_from_slice(&[l.pos.x, l.pos.y, l.pos.z, l.radius]);
             self.pixels[t + 4..t + 8].copy_from_slice(&[l.color.x, l.color.y, l.color.z, 0.0]);
+            self.pixels[t + 8..t + 12].copy_from_slice(&[l.y_lo, l.y_hi, 0.0, 0.0]);
 
             let lo = ((l.pos - Vec3::splat(l.radius) - self.origin) / CELL).floor();
             let hi = ((l.pos + Vec3::splat(l.radius) - self.origin) / CELL).floor();

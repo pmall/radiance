@@ -1,5 +1,6 @@
 //! World geometry and generation: the city skeleton plus a spatial index for collision.
 
+pub mod biome;
 pub mod city;
 pub mod growth;
 
@@ -71,6 +72,10 @@ pub struct Light {
     pub radius: f32,
     /// Linear color with intensity baked in.
     pub color: Vec3,
+    /// Vertical extent the light reaches: the floor under it and the ceiling over it, so it does
+    /// not leak through decks into the levels above and below.
+    pub y_lo: f32,
+    pub y_hi: f32,
 }
 
 /// Everything generated for one lot.

@@ -7,6 +7,7 @@
 //!
 //! Shaders hot-reload from disk when edited.
 
+mod halos;
 mod lights;
 pub mod look;
 mod mesh;
@@ -20,6 +21,7 @@ use sola_raylib::ffi;
 
 use crate::world::Light;
 use crate::world::World;
+use halos::Halos;
 use lights::LightGrid;
 use look::Sky;
 use mesh::WorldMesh;
@@ -95,6 +97,7 @@ pub struct Renderer {
     lots_lights: HashMap<(i32, i32), Vec<Light>>,
     light_grid: LightGrid,
     particles: Particles,
+    halos: Halos,
     pub lights_in_use: usize,
     pub effects: i32,
     pub render_scale: f32,
@@ -125,6 +128,7 @@ impl Renderer {
         // Map slot 2 is bound to `texture2`: the plant light grid.
         let light_grid = LightGrid::new();
         unsafe { (*material.maps.add(2)).texture = light_grid.texture };
+        let halos = Halos::new(light_grid.texture);
         Self {
             scene,
             post,
@@ -135,6 +139,7 @@ impl Renderer {
             lots_lights: HashMap::new(),
             light_grid,
             particles: Particles::new(),
+            halos,
             lights_in_use: 0,
             effects: FX_ALL,
             render_scale: 1.0,
@@ -177,6 +182,7 @@ impl Renderer {
         self.shadow.shader.force_reload();
         self.shadow.poll();
         self.particles.reload();
+        self.halos.reload();
         self.material.shader = self.scene.raw;
     }
 
@@ -189,6 +195,7 @@ impl Renderer {
             self.post.poll();
             self.shadow.poll();
             self.particles.poll();
+            self.halos.poll();
             self.material.shader = self.scene.raw;
         }
     }
@@ -335,7 +342,9 @@ impl Renderer {
         }
 
         if self.effects & FX_PARTICLES != 0 {
-            self.draw_particles(view, sky, &camera, targets.depth, (rw, rh), (right, cam_up));
+            let depth = targets.depth;
+            self.draw_particles(view, sky, &camera, depth, (rw, rh), (right, cam_up));
+            self.draw_halos(view, sky, &camera, depth, (rw, rh), (right, cam_up));
         }
     }
 
@@ -377,6 +386,36 @@ impl Renderer {
             ffi::rlSetClipPlanes(NEAR as f64, FAR as f64);
             ffi::BeginMode3D(*camera);
             self.particles.draw();
+            ffi::EndMode3D();
+        }
+    }
+
+    /// Halos at the lights, additive over the finished frame, hidden by scene depth.
+    fn draw_halos(
+        &mut self,
+        view: &View,
+        sky: &Sky,
+        camera: &ffi::Camera3D,
+        depth: ffi::Texture2D,
+        screen: (i32, i32),
+        (right, cam_up): (Vec3, Vec3),
+    ) {
+        let p = &mut self.halos.shader;
+        p.set_vec3("uCamPos", view.pos);
+        p.set_vec3("uCamFwd", view.dir);
+        p.set_vec3("uCamRight", right);
+        p.set_vec3("uCamUp", cam_up);
+        p.set_vec2("uScreen", Vec2::new(screen.0 as f32, screen.1 as f32));
+        p.set_f32("uNear", NEAR);
+        p.set_f32("uFar", FAR);
+        p.set_f32("uGlow", sky.look.plant_glow);
+        p.set_i32("uCount", self.lights_in_use as i32);
+        self.halos.material.shader = self.halos.shader.raw;
+        unsafe {
+            (*self.halos.material.maps.add(1)).texture = depth;
+            ffi::rlSetClipPlanes(NEAR as f64, FAR as f64);
+            ffi::BeginMode3D(*camera);
+            self.halos.draw();
             ffi::EndMode3D();
         }
     }

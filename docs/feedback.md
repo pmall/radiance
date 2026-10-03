@@ -17,6 +17,11 @@ What the project owner has said so far. Treat as requirements.
 - Bushes read as rocks or boulders on the ground: replace the faceted blobs with real foliage.
 - Only flowers emit light, never whole bushes or vines. Each light sits at its flower, with that
   flower's color and a visible glowing source, so it is clear which flower lights what.
+- Flowers: denser in the sunlit canopy, sparser in the depths (where each glow stands out); plants
+  themselves stay roughly even. Flowers keep at least 3 m apart.
+- Plants must never traverse blocks: bush bases are not rooted in walls, stray leaf and stem
+  vertices are pushed out of blocks (neighbor lots included), and a flower's light is clamped
+  between the deck under it and the deck over it (no glow leaking through floors).
 
 ## Controls
 
