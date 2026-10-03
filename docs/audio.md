@@ -28,9 +28,13 @@ the timbre adjustable on the fly:
 
 - **Per-biome voice:** brightness, detune, decay and inharmonicity change with the biome (glassy and
   long in one, dull and short in another), blending across zone borders.
-- **Sound as guidance:** a sound that reshapes as the player moves toward a place or object (rising
-  pitch or brightness, faster pulse, direction by stereo and muffling), to lead through the vast city
-  without any UI.
+- **Sound as guidance, like the wind in Ghost of Tsushima (owner's direction):** the sound acts as a
+  guiding wind that leads the player toward points of interest in the very large city, with no UI.
+  It reshapes as the player moves toward a place or object (rising pitch or brightness, faster
+  pulse, direction by stereo and muffling). The visual twin would be the existing pollen motes and
+  spores drifting the same way, as the wind does in that game. This needs points of interest to
+  exist first: they must come from the seed (e.g. very tall unfinished towers, soul clusters, the
+  rare rainbow biome, biome borders).
 - Suggested approach: modal/additive string model with a short hammer noise burst, possibly layered
   over the recorded attack to keep the realism; runs in an audio-stream callback like the reverb.
   Only `piano.rs` would be replaced. It needs the owner's ears to judge against the recorded notes.
