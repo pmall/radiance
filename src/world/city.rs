@@ -142,7 +142,12 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     }
 
     if let Some(t) = tower_here {
+        let before = out.len();
         push_tower(&mut decor, &t, out);
+        // Wall props go on the body (the first tower block).
+        if let Some(body) = out[before..].first().map(|b| b.aabb) {
+            super::facade::push_facade_props(&mut decor, &body, &levels, first, out);
+        }
     }
 
     push_bridges(seed, lx, lz, out);

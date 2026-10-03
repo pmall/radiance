@@ -77,6 +77,7 @@ impl WorldMesh {
                 BlockKind::Solar => 10.0,
                 BlockKind::Skylight => 11.0,
                 BlockKind::Lamp => 12.0,
+                BlockKind::Steel => 13.0,
             };
             for (n, corners) in FACES {
                 // Faces resting on the ground can never be seen.

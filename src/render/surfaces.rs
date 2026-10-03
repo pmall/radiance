@@ -1,21 +1,25 @@
-//! Photographic surface detail: one packed RGBA texture (see `tools/pack_textures.py`) holding the
-//! fine detail of CC0 concrete, asphalt, wall and metal photos, sampled by the scene shader with
-//! world-space coordinates. Bound to material slot 3, sampler `texture3`.
+//! Photographic surface detail: two packed RGBA textures (see `tools/pack_textures.py`) holding the
+//! fine detail of CC0 photos, sampled by the scene shader with world-space coordinates.
 
 use std::ffi::CString;
 
 use sola_raylib::ffi;
 
 const DETAIL_PNG: &[u8] = include_bytes!("../../assets/textures/detail.png");
+const DETAIL2_PNG: &[u8] = include_bytes!("../../assets/textures/detail2.png");
 
-/// Material slot and sampler of the detail texture.
-pub const SLOT: usize = 3;
+/// Material slots (samplers `texture3`, `texture4`) of the two detail textures.
+pub const SLOTS: [usize; 2] = [3, 4];
 
-pub fn load() -> ffi::Texture2D {
+/// The detail textures, in slot order.
+pub fn load() -> [ffi::Texture2D; 2] {
+    [load_png(DETAIL_PNG), load_png(DETAIL2_PNG)]
+}
+
+fn load_png(png: &[u8]) -> ffi::Texture2D {
     unsafe {
         let kind = CString::new(".png").unwrap();
-        let image =
-            ffi::LoadImageFromMemory(kind.as_ptr(), DETAIL_PNG.as_ptr(), DETAIL_PNG.len() as i32);
+        let image = ffi::LoadImageFromMemory(kind.as_ptr(), png.as_ptr(), png.len() as i32);
         let mut texture = ffi::LoadTextureFromImage(image);
         ffi::UnloadImage(image);
         ffi::GenTextureMipmaps(&mut texture);
@@ -28,13 +32,18 @@ pub fn load() -> ffi::Texture2D {
     }
 }
 
-/// Tells raylib where the shader's detail sampler is, so DrawMesh binds the texture to it. Must be
-/// repeated whenever the scene shader is reloaded (the location table is rebuilt).
-pub fn bind_sampler(material: &mut ffi::Material) {
-    unsafe {
-        let name = CString::new("texture3").unwrap();
-        let loc = ffi::GetShaderLocation(material.shader, name.as_ptr());
-        let idx = ffi::ShaderLocationIndex::SHADER_LOC_MAP_ROUGHNESS as usize;
-        *material.shader.locs.add(idx) = loc;
+/// Tells raylib where the shader's detail samplers are, so DrawMesh binds the textures to them.
+/// Must be repeated whenever the scene shader is reloaded (the location table is rebuilt).
+pub fn bind_samplers(material: &mut ffi::Material) {
+    use ffi::ShaderLocationIndex::{SHADER_LOC_MAP_OCCLUSION, SHADER_LOC_MAP_ROUGHNESS};
+    for (name, index) in [
+        ("texture3", SHADER_LOC_MAP_ROUGHNESS),
+        ("texture4", SHADER_LOC_MAP_OCCLUSION),
+    ] {
+        unsafe {
+            let name = CString::new(name).unwrap();
+            let loc = ffi::GetShaderLocation(material.shader, name.as_ptr());
+            *material.shader.locs.add(index as usize) = loc;
+        }
     }
 }

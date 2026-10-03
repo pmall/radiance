@@ -20,6 +20,7 @@ uniform mat4 uLightVP;
 uniform int uShadows;
 uniform float uShadowTexel;
 uniform sampler2D texture2;  // plant light grid (see src/render/lights.rs)
+uniform sampler2D texture4;  // photo detail 2: R roof, G foliage, B rust, A plaster
 uniform sampler2D texture3;  // photo detail: R pavement, G asphalt, B concrete wall, A metal (src/render/surfaces.rs)
 uniform vec3 uGridOrigin;
 uniform float uGlow;         // plant emission and light strength for the time of day
@@ -135,6 +136,11 @@ vec4 grit(vec2 uv)
     return texture(texture3, uv) * 2.0;
 }
 
+vec4 grit2(vec2 uv)
+{
+    return texture(texture4, uv) * 2.0;
+}
+
 // 1 inside a box of half-size `h` centered on the origin, antialiased over `aa` meters.
 float boxMask(vec2 q, vec2 h, float aa)
 {
@@ -203,7 +209,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
 
     // Wall: concrete with soft blotches, darker slab band at the foot of every story.
     float blotch = 0.88 + 0.24 * fbm(vec2(loc.x * 0.6, p.y * 0.25));
-    vec3 col = base * blotch * mix(1.0, grit(vec2(loc.x, p.y) / 4.5).b, 0.55);
+    vec3 col = base * blotch * mix(1.0, grit(vec2(loc.x, p.y) / 4.5).b, 0.5) * mix(1.0, grit2(vec2(loc.x, p.y) / 7.3).a, 0.5);
     col *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.5, vy * H));
     // Rain streaks running down from the sills, heavier lower down.
     float streak = vnoise(vec2(loc.x * 6.0 + floor(cu) * 3.0, p.y * 0.1));
@@ -275,7 +281,7 @@ vec3 pavement(vec3 base, vec3 p, float px)
     float dj = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * 4.0;
     float joint = (1.0 - smoothstep(0.02, 0.05 + px, dj)) * (1.0 - street);
     vec3 walk = base * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
-    walk *= mix(1.0, grit(uv / 2.4).r, 0.85);
+    walk *= mix(1.0, grit(uv / 2.4).r, 0.85) * mix(1.0, grit2(uv / 5.7).a, 0.4);
     // Road: dark asphalt.
     vec3 road = base * 0.5 * (0.85 + 0.3 * fbm(uv * 0.12)) * mix(1.0, grit(uv / 1.7).g, 0.9);
     vec3 col = mix(walk, road, street);
@@ -316,7 +322,7 @@ vec3 roof(vec3 base, vec3 p, float px)
     vec2 uv = p.xz;
     float far = 1.0 - smoothstep(0.05, 0.4, px);
     vec3 col = base * 0.5 * (0.8 + 0.4 * fbm(uv * 0.2));
-    col *= grit(uv / 1.5).g;
+    col *= grit2(uv / 2.0).r;
     vec2 cell = floor(uv / 5.0);
     vec2 fc = fract(uv / 5.0) - 0.5;
     float patch = step(0.78, hash12(cell)) * boxMask(fc * 5.0, vec2(1.6, 1.1), px);
@@ -439,6 +445,21 @@ vec3 skylight(vec3 base, vec3 loc3, vec3 n, vec2 loc, float px)
     return mix(base * 0.25, vec3(0.5, 0.52, 0.55), max(frame, bars));
 }
 
+// Steel (fire escapes, brackets): painted metal with rust streaks; landings show a grating.
+vec3 steel(vec3 base, vec3 p, vec3 n, float px)
+{
+    vec2 uv = abs(n.y) > 0.5 ? p.xz : vec2(p.x + p.z, p.y);
+    vec3 col = base * (0.8 + 0.4 * fbm(uv * 1.7)) * grit(uv / 0.8).a;
+    float rust = smoothstep(0.55, 0.8, vnoise(vec2(uv.x * 3.0, uv.y * 0.6) + 7.0)) * grit2(uv / 0.9).b;
+    col = mix(col, vec3(0.28, 0.12, 0.05), clamp(rust * 0.5, 0.0, 0.7));
+    if (n.y > 0.5) {
+        vec2 d = abs(fract(uv / 0.12) - 0.5);
+        float bars = 1.0 - smoothstep(0.38, 0.38 + px / 0.12, max(d.x, d.y));
+        col *= 1.0 - 0.45 * bars;
+    }
+    return col;
+}
+
 // Street lamp: dull painted metal.
 vec3 lamp(vec3 base, vec3 p)
 {
@@ -482,7 +503,7 @@ void main()
         float fid = fragId * 255.0;
         bool vertical = abs(n.y) < 0.5;
         if (kind == 1) {
-            albedo *= paintPlant(fragWorldPos);
+            albedo *= paintPlant(fragWorldPos) * mix(1.0, grit2(fragWorldPos.xz * 1.3 + fragWorldPos.y * 0.7).g, 0.6);
             if (fragLoc.x >= 0.0) albedo = leaf(albedo, fragLoc);
         } else if (kind == 0) {
             if (vertical) albedo = facade(albedo, fragWorldPos, fragLoc, fid, px, emit);
@@ -516,6 +537,8 @@ void main()
             albedo = skylight(albedo, fragWorldPos, n, fragLoc, px);
         } else if (kind == 12) {
             albedo = lamp(albedo, fragWorldPos);
+        } else if (kind == 13) {
+            albedo = steel(albedo, fragWorldPos, n, px);
         }
     }
 
