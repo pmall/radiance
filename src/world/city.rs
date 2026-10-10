@@ -136,9 +136,22 @@ pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
         .min()
 }
 
+/// Test scaffolding until the climbing mechanics are designed (`docs/game-ideas.md`): stairs
+/// always standing near the spawn (lot, (bottom, top)), one up to D4 and one down to D0, so
+/// every floor can be reached quickly while working on the look.
+const START_STAIRS: [((i32, i32), (usize, usize)); 2] =
+    [((-3, 1), (START, START + 2)), ((2, 1), (0, START))];
+
+/// How often a stair starts on each floor (bottom to the one under the top): mostly low in the
+/// city, where people built stairs everywhere; rarely high up, where machines built for machines.
+const STAIR_START_WEIGHTS: [i32; COUNT - 1] = [3, 3, 3, 2, 2, 2, 1, 1];
+
 /// The floors a lot's spiral stair links (bottom, top), if it has one. Stairs stand in empty
 /// lots and get rarer higher up: going down is easy, going up is not.
 pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
+    if let Some(&(_, span)) = START_STAIRS.iter().find(|(lot, _)| *lot == (lx, lz)) {
+        return Some(span);
+    }
     if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
         return None;
     }
@@ -146,11 +159,15 @@ pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
     if !rng.chance(biome_at(seed, lx, lz).stair_chance) {
         return None;
     }
-    let lo = rng.range_i(0, COUNT as i32 - 1) as usize;
-    // Per band of the bottom floor: canopy, middle, depths.
-    if !rng.chance([0.3, 0.6, 1.0][floors::band(lo)]) {
-        return None;
-    }
+    let total: i32 = STAIR_START_WEIGHTS.iter().sum();
+    let mut roll = rng.range_i(0, total);
+    let lo = STAIR_START_WEIGHTS
+        .iter()
+        .position(|&w| {
+            roll -= w;
+            roll < 0
+        })
+        .unwrap_or(0);
     let hi = (lo + rng.range_i(1, 4) as usize).min(COUNT - 1);
     Some((lo, hi))
 }
@@ -194,7 +211,8 @@ pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u8 {
 
 /// The tower standing on a lot, if any. Pure, so neighbors can query it for bridges.
 pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
-    if is_plaza(lx, lz) || crater_at(seed, lx, lz).is_some() {
+    let start_stair = START_STAIRS.iter().any(|(lot, _)| *lot == (lx, lz));
+    if is_plaza(lx, lz) || start_stair || crater_at(seed, lx, lz).is_some() {
         return None;
     }
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_TOWER, lz));
@@ -232,7 +250,10 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     // The bottom: always solid ground.
     out.push(Block {
         kind: BlockKind::Floor,
-        aabb: Aabb::from_center(vec3(mid.x, floors::BOTTOM - 1.0, mid.z), vec3(LOT, 2.0, LOT)),
+        aabb: Aabb::from_center(
+            vec3(mid.x, floors::BOTTOM - 1.0, mid.z),
+            vec3(LOT, 2.0, LOT),
+        ),
         color: Color::new(44, 48, 58, 255),
     });
     let mut levels = vec![floors::BOTTOM];
@@ -612,6 +633,18 @@ mod tests {
                 .zip(&b)
                 .all(|(x, y)| x.aabb.min == y.aabb.min && x.aabb.max == y.aabb.max)
         );
+    }
+
+    #[test]
+    fn the_start_has_a_way_up_and_a_way_down() {
+        for seed in 1..=5 {
+            let spans: Vec<_> = (-3..=3)
+                .flat_map(|lz| (-3..=3).map(move |lx| (lx, lz)))
+                .filter_map(|(lx, lz)| stair(seed, lx, lz))
+                .collect();
+            assert!(spans.iter().any(|&(lo, hi)| lo <= START && hi > START));
+            assert!(spans.iter().any(|&(lo, hi)| lo < START && hi >= START));
+        }
     }
 
     #[test]

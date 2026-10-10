@@ -31,7 +31,6 @@ const MIN_WALL: f32 = 6.0;
 /// Slabs thinner than this count as decks and bridges, which vines hang from.
 const MAX_SLAB: f32 = 3.0;
 
-
 fn leaf_color(rng: &mut Rng) -> Color {
     let c = |r: i32, g: i32, b: i32| Color::new(r as u8, g as u8, b as u8, 255);
     let j = rng.range_i(-14, 15);
@@ -578,6 +577,41 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         biome: biome_at(seed, lx, lz),
         solids: &around,
     };
+
+    // Souls line the stairs: people climbed them as the city rose. Flowers at regular intervals
+    // along the steps make a stair read from afar as a spiral of light, the way up in the dark.
+    let steps: Vec<Vec3> = blocks
+        .iter()
+        .filter(|blk| blk.kind == BlockKind::Stair)
+        .map(|blk| {
+            vec3(
+                (blk.aabb.min.x + blk.aabb.max.x) * 0.5,
+                blk.aabb.max.y,
+                (blk.aabb.min.z + blk.aabb.max.z) * 0.5,
+            )
+        })
+        .collect();
+    let axis = vec3(
+        (lx as f32 + 0.5) * super::city::LOT,
+        0.0,
+        (lz as f32 + 0.5) * super::city::LOT,
+    );
+    let every = (steps.len() / (MAX_LIGHTS - 4)).max(5);
+    for i in (every / 2..steps.len().saturating_sub(1)).step_by(every) {
+        let (p, next) = (steps[i], steps[i + 1]);
+        // At the back of the step and toward its outer side, clear of the steps above.
+        let ahead = vec3(next.x - p.x, 0.0, next.z - p.z).normalize_or_zero();
+        let out = vec3(p.x - axis.x, 0.0, p.z - axis.z).normalize_or_zero();
+        let r = b.rng.range(0.24, 0.32);
+        b.new_plant();
+        let fc = b.flower_color();
+        b.flower(
+            p - ahead * 0.8 + out * 0.6 + Vec3::Y * r * 0.9,
+            r,
+            fc,
+            Vec3::Y,
+        );
+    }
 
     for blk in blocks {
         let a = &blk.aabb;
