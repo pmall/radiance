@@ -31,12 +31,14 @@ plant bands, the shaders' floor heights, the souls' register, the debug overlay'
 - **Craters:** round clusters of lots with nothing built above a floor (mostly middle floors,
   sometimes D2), one per 8x8 lots about half the time. Plants grow there as lushly as in the
   canopy; flowers, which follow the sun like real ones, only 1.5x their floor's usual rate. A wide one always opens on D2 right in front of the spawn, which faces it.
-- **Stairs:** spirals in empty lots, each linking one floor to the next, rarer at every floor up
-  (common in D0–D2, rare in the canopy): every floor needs its own stair, so climbing gets harder
-  and harder. Lined
-  with flowers (the souls of the people who climbed them) so they read from afar in the dark.
-  Generation is the same as in the real game; a test checks a stair up from D2 always stands
-  within 8 lots of the spawn. How the player climbs is not built yet (`docs/game-ideas.md`).
+- **Stairs:** switchback stairwells in empty lots (straight flights going back and forth in two
+  lanes split by a central wall, landings at each turn, rails on the open sides), each linking one
+  floor to the next, rarer at every floor up (common in D0–D2, rare in the canopy): every floor
+  needs its own stair, so climbing gets harder and harder. A flower on every landing (the souls of
+  the people who climbed them) makes a stairwell read from afar as a column of lights.
+  How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).
+- **Flower budget:** at most 24 flowers per lot *and floor*, so the lower floors, grown first,
+  don't use up the budget of the floors above.
 - **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can
   be unfinished skeletons with cranes. Roof and wall props that would pierce a deck are dropped.
 
