@@ -7,7 +7,8 @@
 2. **Rendering pipeline:** cel shading, outlines, colored fog, color grading on simple geometry.
    *(done: also cast shadows, banded sky, paper grain, time-of-day looks)*
 3. **City skeleton:** procedural chunk of architecture with vertical layers.
-   *(first pass done: 24 m lots with towers, deck slabs at y = 0 / -36 / -80, bridges; spiral stairs in empty lots link the layers)*
+   *(first pass done: 24 m lots with towers, deck slabs at y = 0 / -36 / -80, bridges; spiral stairs in empty lots link the layers.
+   Replaced in milestone 9 by a stack of 9 floors.)*
 4. **Infinite streaming:** seed-deterministic chunk generation and unloading around the player.
    *(done: lots load within 7 lots of the player, unload past 9, 4 per frame; one mesh per lot)*
 5. **Overgrowth:** procedural plant growth over the architecture.
@@ -46,6 +47,19 @@
      veins, older architecture deep and machine intrusion high, set dressing, flowers in human
      places, melodic-gradient guidance. See "What the prototype can take now" in
      `docs/game-ideas.md`.
+
+9. **The floor stack, props and points of interest** (owner's direction after the *Last Radiance*
+   brainstorm: the ambiance and visuals must carry the future story):
+   1. Floor stack *(done)*: 9 floors D0–D8, start on D2 facing a crater of daylight, decks block
+      the sun and sky through a cover map, fog beams, stairs rarer higher up, construction front
+      past the top deck. See "The floor stack" in `docs/world.md`. About 6 ms/frame and 3.7 M
+      tris from the spawn on the 3060 (was 3 ms, 1.4 M tris).
+      Known issues: small bright chips flicker in the far fog of the crater; deck slabs read as
+      square tiles from above; the depths band is uniform (no older architecture yet).
+   2. Props *(next)*: free model kits drawn in our style (rules in `docs/art-direction.md`), set
+      dressing over D0–D2 (`docs/world.md`).
+   3. Points of interest: silent tableaux from `docs/poi-catalog.md` placed by the seed near the
+      start (the notice board courtyard, the armchair with a flower, the bench with two flowers...).
 
 ## Debug and art-iteration tools
 

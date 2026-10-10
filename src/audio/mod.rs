@@ -192,7 +192,7 @@ fn note_for(seed: u64, soul: Soul, height: f32, rng: &mut Rng) -> i32 {
     let h = hash_coords(seed, soul.lot.0, SALT_NOTE + soul.index as i32, soul.lot.1);
     let pitch_class = piano::SCALE[(h % 5) as usize];
     // Register center: D3 deep down to A5 high up, a little spread so neighbors differ.
-    let t = ((height + 80.0) / 130.0).clamp(0.0, 1.0);
+    let t = crate::world::floors::depth01(height);
     let center = 50.0 + 30.0 * t + ((h >> 8) % 9) as f32 - 4.0;
     let _ = rng;
     // The key with that pitch class closest to the center.
@@ -216,6 +216,7 @@ impl Drop for Audio {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world::floors;
 
     #[test]
     fn notes_stay_in_the_scale_follow_height_and_repeat() {
@@ -226,12 +227,12 @@ mod tests {
                 lot: (3, -2),
                 index,
             };
-            let low = note_for(5, soul, -75.0, &mut rng);
-            let up = note_for(5, soul, 40.0, &mut rng);
+            let low = note_for(5, soul, floors::BOTTOM + 5.0, &mut rng);
+            let up = note_for(5, soul, floors::TOP, &mut rng);
             assert!(piano::SCALE.contains(&(low % 12)) && piano::SCALE.contains(&(up % 12)));
             assert_eq!(
                 low,
-                note_for(5, soul, -75.0, &mut rng),
+                note_for(5, soul, floors::BOTTOM + 5.0, &mut rng),
                 "same soul, same note"
             );
             deep += low as f32;

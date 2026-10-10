@@ -38,6 +38,62 @@ uniform vec3 uHighlightTint;
 
 uniform int uEffects;
 uniform float uTime;
+uniform float uFogBase;      // fog density stops growing below this height
+uniform sampler2D uCover;
+#define COVER_TEX uCover
+
+// Cover map: which decks stand over each lot around the camera (src/render/cover.rs).
+// Tile 0 red: bit (f - 1) set for a deck on floor f; tiles 1..3: sky view per floor. Constants
+// mirrored there and in src/world/floors.rs.
+const int COVER = 64;
+const float LOT = 24.0;
+const int FLOORS = 9;
+uniform float uFloorY[FLOORS];
+uniform vec2 uCoverOrigin;   // lot coordinates of texel (0, 0)
+
+int coverBits(vec2 xz)
+{
+    ivec2 c = ivec2(floor(xz / LOT - uCoverOrigin));
+    // Beyond the map, assume the city is covered.
+    if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, ivec2(COVER)))) return 0xff;
+    return int(texelFetch(COVER_TEX, c, 0).r * 255.0 + 0.5);
+}
+
+// 1 if a ray from p along dir clears every deck above p, else 0.
+float skyVis(vec3 p, vec3 dir)
+{
+    if (dir.y < 0.02) return 1.0;
+    for (int f = 1; f < FLOORS; f++) {
+        float y = uFloorY[f] - 0.6;
+        if (y < p.y + 0.2) continue;
+        vec3 q = p + dir * ((y - p.y) / dir.y);
+        if (((coverBits(q.xz) >> (f - 1)) & 1) != 0) return 0.0;
+    }
+    return 1.0;
+}
+
+// Share of the sky p sees (0 = none, 1 = open sky), precomputed per lot and floor and blended
+// between lots.
+float skyView(vec3 p)
+{
+    int f = 0;
+    for (int k = 1; k < FLOORS; k++) if (uFloorY[k] <= p.y + 0.5) f = k;
+    vec2 c = clamp(p.xz / LOT - uCoverOrigin, vec2(0.5), vec2(float(COVER) - 0.5));
+    // Beyond the map, assume the city is covered.
+    vec2 d = p.xz / LOT - uCoverOrigin;
+    if (any(lessThan(d, vec2(0.0))) || any(greaterThan(d, vec2(float(COVER))))) return 0.0;
+    vec2 uv = (vec2(float((1 + f / 4) * COVER), 0.0) + c) / vec2(float(4 * COVER), float(COVER));
+    return texture(COVER_TEX, uv)[f % 4];
+}
+
+// Height above the floor p stands on.
+float aboveFloor(float y)
+{
+    float base = uFloorY[0];
+    for (int f = 1; f < FLOORS; f++) if (uFloorY[f] <= y + 0.5) base = uFloorY[f];
+    return y - base;
+}
+
 uniform float uLineWidth;    // in scene pixels
 
 out vec4 finalColor;
@@ -106,14 +162,42 @@ vec3 sky(vec3 dir)
 // Fraction of light lost to exponential height fog along a view ray.
 float fogAmount(vec3 dir, float dist)
 {
-    // Density plateaus below the upper deck (y = 0) instead of growing into the depths.
-    bool below = uCamPos.y < 0.0;
-    float a = uFogDensity * exp(-uFogFalloff * max(uCamPos.y, 0.0));
+    // Density plateaus below the canopy instead of growing into the depths.
+    bool below = uCamPos.y < uFogBase;
+    float a = uFogDensity * exp(-uFogFalloff * max(uCamPos.y - uFogBase, 0.0));
     float b = below ? 0.0 : uFogFalloff * dir.y * dist;
     float k = abs(b) > 1e-4 ? (1.0 - exp(-b)) / b : 1.0;
     // A thin uniform haze on top, so tall distant structures fade too.
     float optical = a * dist * k + uFogDensity * 0.06 * dist;
     return 1.0 - exp(-optical);
+}
+
+// Light the fog gets along a view ray: x = share of it with open sky above, y = share in the
+// sun. A few samples along the ray, so openings in the floors show as shafts and beams.
+vec2 fogLight(vec3 dir, float dist)
+{
+    const int N = 12;
+    // Interleaved gradient noise: a different sample offset per pixel, hidden by the grain.
+    float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    float reach = min(dist, 600.0);
+    vec2 acc = vec2(0.0);
+    for (int i = 0; i < N; i++) {
+        vec3 q = uCamPos + dir * reach * (float(i) + jitter) / float(N);
+        acc += vec2(skyView(q), skyVis(q, uLightDir));
+    }
+    return acc / float(N);
+}
+
+// Fog color along a view ray of length dist, f = its fog amount. Fog sinks into darkness under
+// the decks, where little light gets down; where the sun gets through, it lights the fog as beams.
+vec3 fogColor(vec3 dir, float dist, float f)
+{
+    float c = max(dot(dir, uLightDir), 0.0);
+    vec2 fl = fogLight(dir, dist);
+    float dim = mix(0.12, 1.0, fl.x);
+    vec3 col = uFog * dim + uDisk * uFogGlow * (0.1 + 0.2 * c * c + 0.3 * pow(c, 6.0)) * fl.y;
+    // Far fog blends into the sky behind it so silhouettes melt into the horizon.
+    return mix(col, sky(dir) * dim, smoothstep(0.4, 1.0, f));
 }
 
 void main()
@@ -127,6 +211,10 @@ void main()
 
     if (rawDepth >= 1.0) {
         col = sky(dir);
+        // Past the loaded city, a ray that would run into the floors above ends in their dark
+        // fog, not in the sky. Level rays only see the sky from out in the open.
+        float clear = dir.y < 0.02 ? step(0.9, skyView(uCamPos)) : skyVis(uCamPos, dir);
+        if ((uEffects & FX_FOG) != 0 && clear < 1.0) col = fogColor(dir, 600.0, 1.0);
     } else {
         col = texture(texture0, uv).rgb;
         float z = linearDepth(rawDepth);
@@ -165,14 +253,7 @@ void main()
         if ((uEffects & FX_FOG) != 0) {
             float dist = z / dot(dir, uCamFwd);
             float f = fogAmount(dir, dist);
-            float c = max(dot(dir, uLightDir), 0.0);
-            vec3 fogCol = uFog + uDisk * uFogGlow * 0.3 * pow(c, 6.0);
-            // Fog sinks into darkness down the layers: little light reaches the depths.
-            float midY = uCamPos.y + dir.y * dist * 0.5;
-            fogCol *= mix(0.12, 1.0, smoothstep(-80.0, -6.0, midY));
-            // Far fog blends into the sky behind it so silhouettes melt into the horizon.
-            fogCol = mix(fogCol, sky(dir), smoothstep(0.4, 1.0, f));
-            col = mix(col, fogCol, f);
+            col = mix(col, fogColor(dir, dist, f), f);
         }
     }
 

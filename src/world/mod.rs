@@ -4,6 +4,7 @@ pub mod biome;
 pub mod city;
 pub mod construction;
 pub mod facade;
+pub mod floors;
 pub mod growth;
 pub mod roof;
 
@@ -47,9 +48,9 @@ impl Aabb {
 /// What a block is, which decides how its surfaces are painted.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockKind {
-    /// The street level at the bottom of the world.
+    /// The ground at the bottom of the world.
     Floor,
-    /// Deck slabs: streets and plazas on the upper and mid levels.
+    /// Deck slabs: the streets and plazas of the floors above the ground.
     Deck,
     Tower,
     /// Walkway deck and parapets between two towers.

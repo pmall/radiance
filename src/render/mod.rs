@@ -7,6 +7,7 @@
 //!
 //! Shaders hot-reload from disk when edited.
 
+mod cover;
 mod halos;
 mod lights;
 pub mod look;
@@ -22,6 +23,7 @@ use sola_raylib::ffi;
 
 use crate::world::Light;
 use crate::world::World;
+use cover::CoverMap;
 use halos::Halos;
 use lights::LightGrid;
 use look::Sky;
@@ -63,6 +65,8 @@ const LINE_WIDTH: f32 = 2.4;
 /// How far ahead of the camera the shadow map is centered, in meters.
 const SHADOW_LEAD: f32 = 50.0;
 const RELOAD_POLL: f32 = 0.5;
+/// Scales how fast fog thins with height, so it spans the whole floor stack.
+const FOG_STACK_SCALE: f32 = 0.4;
 
 const IDENTITY: ffi::Matrix = ffi::Matrix {
     m0: 1.0,
@@ -101,6 +105,9 @@ pub struct Renderer {
     /// Souls that are singing: their lights swell and fade back (1 = just started).
     pulses: HashMap<crate::audio::Soul, f32>,
     light_grid: LightGrid,
+    cover: CoverMap,
+    /// Seed of the synced world, for the cover map.
+    seed: u64,
     particles: Particles,
     halos: Halos,
     pub lights_in_use: usize,
@@ -137,6 +144,8 @@ impl Renderer {
         for (slot, texture) in surfaces::SLOTS.into_iter().zip(surfaces::load()) {
             unsafe { (*material.maps.add(slot)).texture = texture };
         }
+        let cover = CoverMap::new();
+        unsafe { (*material.maps.add(surfaces::COVER_SLOT)).texture = cover.texture };
         surfaces::bind_samplers(&mut material);
         let halos = Halos::new(light_grid.texture);
         Self {
@@ -149,6 +158,8 @@ impl Renderer {
             lots_lights: HashMap::new(),
             pulses: HashMap::new(),
             light_grid,
+            cover,
+            seed: 0,
             particles: Particles::new(),
             halos,
             lights_in_use: 0,
@@ -173,6 +184,7 @@ impl Renderer {
 
     /// Brings the per-lot meshes in line with the lots the world currently has loaded.
     pub fn sync_world(&mut self, world: &World) {
+        self.seed = world.seed;
         let live: std::collections::HashSet<_> = world.lots().map(|(k, _)| k).collect();
         self.meshes.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
@@ -273,7 +285,11 @@ impl Renderer {
         }
 
         // Scene pass.
+        self.cover.update(self.seed, view.pos);
+        let cover_origin = self.cover.origin_uniform();
         let s = &mut self.scene;
+        s.set_vec2("uCoverOrigin", cover_origin);
+        s.set_f32_array("uFloorY", &cover::floor_uniform());
         s.set_mat4("uLightVP", light_vp);
         s.set_i32("uShadows", shadows as i32);
         s.set_f32("uShadowTexel", self.shadow.texel());
@@ -336,8 +352,12 @@ impl Renderer {
         p.set_f32("uStars", look.stars);
         p.set_vec3("uLightDir", sky.light_dir);
         p.set_vec3("uFog", look.fog);
+        p.set_vec2("uCoverOrigin", cover_origin);
+        p.set_f32_array("uFloorY", &cover::floor_uniform());
+        p.set_f32("uFogBase", crate::world::floors::Y[crate::world::floors::START]);
         p.set_f32("uFogDensity", look.fog_density);
-        p.set_f32("uFogFalloff", look.fog_falloff);
+        // The looks were tuned for a city a third as tall: stretch the thinning over the stack.
+        p.set_f32("uFogFalloff", look.fog_falloff * FOG_STACK_SCALE);
         p.set_f32("uFogGlow", look.fog_glow);
         p.set_vec3("uInk", look.ink);
         p.set_f32("uExposure", look.exposure);
@@ -353,6 +373,7 @@ impl Renderer {
             // Samplers must be bound after BeginShaderMode, which flushes pending state.
             p.set_texture("uNormal", targets.normal);
             p.set_texture("uDepth", targets.depth);
+            p.set_texture("uCover", self.cover.texture);
             let (w, h) = (ffi::GetScreenWidth() as f32, ffi::GetScreenHeight() as f32);
             ffi::DrawTexturePro(
                 targets.color,
@@ -398,8 +419,8 @@ impl Renderer {
         (right, cam_up): (Vec3, Vec3),
     ) {
         let look = &sky.look;
-        let k = ((view.pos.y + 60.0) / 50.0).clamp(0.0, 1.0);
-        let depth_k = 1.0 - k * k * (3.0 - 2.0 * k);
+        // Spores rather than pollen where no sky is overhead.
+        let depth_k = 1.0 - self.cover.sky_view(view.pos);
         // Pollen is warm; it picks up a little of the sun or moon color.
         let disk = look
             .disk

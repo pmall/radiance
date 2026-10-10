@@ -1,28 +1,26 @@
-//! The city skeleton: a grid of lots, each holding a tower, deck slabs on a few vertical
-//! layers, and bridges to its neighbors. Everything about a lot is a pure function of
-//! `(seed, lot x, lot z)`, so lots can be generated independently and in any order
-//! (this is what makes milestone 4's chunk streaming seamless).
+//! The city skeleton: a grid of lots, each holding a tower, deck slabs on the floors of the
+//! stack (`floors.rs`), stairs between floors and bridges to its neighbors. Everything about a
+//! lot is a pure function of `(seed, lot x, lot z)`, so lots can be generated independently and
+//! in any order, and the renderer can ask where the decks are without generating anything.
 //!
-//! Vertical layers (y in meters):
-//! - upper deck, y = 0: sunlit streets and plazas; spawn is here.
-//! - mid deck, y = -36: dim neon-lit level.
-//! - deep floor, y = -80: dark street level.
-//!
-//! Towers rise from the deep floor; some are spires poking far above the upper deck.
+//! - D0, the bottom: always solid ground. Towers rise from it.
+//! - Floors above: a deck slab per lot, kept by chance (`Biome::deck_keep`), so gaps open onto
+//!   the floors below and, where they line up, let the light down.
+//! - Craters: round clusters of lots where nothing is built above some floor, so the sun pours
+//!   down into the dark. One always opens near the start.
+//! - Stairs: spirals in empty lots linking one to three floors, rarer higher up.
+//! - The construction front: the tallest towers rise past the top deck, some still unfinished.
 
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::biome_at;
+use super::floors::{self, COUNT, START, Y};
 use super::{Aabb, Block, BlockKind};
 use crate::rng::{Rng, hash_coords};
 
 /// Side of a square lot.
 pub const LOT: f32 = 24.0;
-
-pub const UPPER_DECK: f32 = 0.0;
-pub const MID_DECK: f32 = -36.0;
-pub const DEEP_FLOOR: f32 = -80.0;
 
 const DECK_THICKNESS: f32 = 1.2;
 const BRIDGE_WIDTH: f32 = 4.0;
@@ -31,6 +29,13 @@ const BRIDGE_WIDTH: f32 = 4.0;
 const SALT_TOWER: i32 = 1;
 const SALT_DECOR: i32 = 2;
 const SALT_BRIDGE: i32 = 5;
+const SALT_CRATER: i32 = 6;
+const SALT_STAIR: i32 = 7;
+/// Deck streams use `SALT_DECK + 16 * floor`.
+const SALT_DECK: i32 = 8;
+
+/// Side, in lots, of the grid cell that may hold one crater.
+const CRATER_CELL: i32 = 8;
 
 #[derive(Clone, Copy)]
 pub struct Tower {
@@ -42,6 +47,15 @@ impl Tower {
     fn top(&self) -> f32 {
         self.center.y + self.size.y * 0.5
     }
+}
+
+/// What covers a lot on one floor.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Deck {
+    None,
+    Full,
+    /// A deck with a square hole for a stair passing through.
+    Ring,
 }
 
 /// The lots around the spawn point stay open as a plaza.
@@ -61,9 +75,126 @@ fn tint(rng: &mut Rng, lo: i32, hi: i32) -> Color {
     Color::new(c(s + warm), c(s + 6), c(s + 14 - warm), 255)
 }
 
+/// A crater: lots around `center` within `radius` have nothing built above `floor`.
+struct Crater {
+    center: (i32, i32),
+    radius: i32,
+    floor: usize,
+}
+
+impl Crater {
+    fn contains(&self, lx: i32, lz: i32) -> bool {
+        let (dx, dz) = (lx - self.center.0, lz - self.center.1);
+        dx * dx + dz * dz <= self.radius * self.radius + self.radius
+    }
+}
+
+/// The crater of a grid cell, if it has one.
+fn crater_in_cell(seed: u64, cx: i32, cz: i32) -> Option<Crater> {
+    // One always opens down to the start floor right in front of the spawn (the player wakes up
+    // facing -z): a wide shaft of daylight beyond the dark plaza, the first pull upward.
+    if (cx, cz) == (0, -1) {
+        return Some(Crater {
+            center: (0, -5),
+            radius: 3,
+            floor: START,
+        });
+    }
+    let mut rng = Rng::new(hash_coords(seed, cx, SALT_CRATER, cz));
+    if !rng.chance(0.45) {
+        return None;
+    }
+    let center = (
+        cx * CRATER_CELL + rng.range_i(2, CRATER_CELL - 2),
+        cz * CRATER_CELL + rng.range_i(2, CRATER_CELL - 2),
+    );
+    let radius = if rng.chance(0.4) { 2 } else { 1 };
+    // Mostly in the middle floors, sometimes all the way down to the start floor.
+    let floor = if rng.chance(0.25) {
+        START
+    } else {
+        rng.range_i(START as i32 + 1, 6) as usize
+    };
+    Some(Crater {
+        center,
+        radius,
+        floor,
+    })
+}
+
+/// The floor above which nothing is built on this lot, if it lies in a crater.
+pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
+    if is_plaza(lx, lz) {
+        return None;
+    }
+    let (cx, cz) = (lx.div_euclid(CRATER_CELL), lz.div_euclid(CRATER_CELL));
+    (cz - 1..=cz + 1)
+        .flat_map(|z| (cx - 1..=cx + 1).map(move |x| (x, z)))
+        .filter_map(|(x, z)| crater_in_cell(seed, x, z))
+        .filter(|c| c.contains(lx, lz))
+        .map(|c| c.floor)
+        .min()
+}
+
+/// The floors a lot's spiral stair links (bottom, top), if it has one. Stairs stand in empty
+/// lots and get rarer higher up: going down is easy, going up is not.
+pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
+    if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
+        return None;
+    }
+    let mut rng = Rng::new(hash_coords(seed, lx, SALT_STAIR, lz));
+    if !rng.chance(biome_at(seed, lx, lz).stair_chance) {
+        return None;
+    }
+    let lo = rng.range_i(0, COUNT as i32 - 1) as usize;
+    // Per band of the bottom floor: canopy, middle, depths.
+    if !rng.chance([0.3, 0.6, 1.0][floors::band(lo)]) {
+        return None;
+    }
+    let hi = (lo + rng.range_i(1, 4) as usize).min(COUNT - 1);
+    Some((lo, hi))
+}
+
+/// What covers a lot on a floor. Pure, so the renderer can map the decks around the camera.
+pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
+    if floor == 0 || (floor == START && is_plaza(lx, lz)) {
+        return Deck::Full;
+    }
+    if let Some(f) = crater_at(seed, lx, lz) {
+        if floor > f {
+            return Deck::None;
+        }
+        if floor == f {
+            return Deck::Full;
+        }
+    }
+    if let Some((lo, hi)) = stair(seed, lx, lz) {
+        if floor == lo {
+            return Deck::Full;
+        }
+        if floor > lo && floor <= hi {
+            return Deck::Ring;
+        }
+    }
+    let keep = biome_at(seed, lx, lz).deck_keep[floors::band(floor)];
+    let mut rng = Rng::new(hash_coords(seed, lx, SALT_DECK + 16 * floor as i32, lz));
+    if rng.chance(keep) {
+        Deck::Full
+    } else {
+        Deck::None
+    }
+}
+
+/// One bit per floor above the ground (bit `f - 1` for floor `f`), set where the lot has a deck.
+pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u8 {
+    (1..COUNT)
+        .filter(|&f| deck(seed, lx, lz, f) != Deck::None)
+        .fold(0, |bits, f| bits | 1 << (f - 1))
+}
+
 /// The tower standing on a lot, if any. Pure, so neighbors can query it for bridges.
 pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
-    if is_plaza(lx, lz) {
+    if is_plaza(lx, lz) || crater_at(seed, lx, lz).is_some() {
         return None;
     }
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_TOWER, lz));
@@ -73,17 +204,20 @@ pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
     let w = rng.range(9.0, 16.0);
     let d = rng.range(9.0, 16.0);
     let top = match rng.f32() {
-        r if r < 0.55 => rng.range(MID_DECK + 8.0, UPPER_DECK + 14.0),
-        r if r < 0.90 => rng.range(UPPER_DECK + 14.0, 48.0),
-        _ => rng.range(60.0, 110.0),
+        // Old buildings of the depths, long since covered by the floors above.
+        r if r < 0.2 => rng.range(Y[1] + 8.0, Y[START] + 14.0),
+        // Most end somewhere in the stack, a little above one of its floors.
+        r if r < 0.88 => Y[rng.range_i(START as i32, COUNT as i32) as usize] + rng.range(8.0, 28.0),
+        // The construction front, past the top deck.
+        _ => rng.range(floors::TOP + 30.0, floors::TOP + 110.0),
     };
     let jitter = (LOT - 6.0 - w.max(d)) * 0.5;
     let o = lot_origin(lx, lz);
     let cx = o.x + LOT * 0.5 + rng.range(-jitter, jitter);
     let cz = o.z + LOT * 0.5 + rng.range(-jitter, jitter);
-    let h = top - DEEP_FLOOR;
+    let h = top - floors::BOTTOM;
     Some(Tower {
-        center: vec3(cx, DEEP_FLOOR + h * 0.5, cz),
+        center: vec3(cx, floors::BOTTOM + h * 0.5, cz),
         size: vec3(w, h, d),
     })
 }
@@ -94,40 +228,32 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     let o = lot_origin(lx, lz);
     let mid = o + vec3(LOT * 0.5, 0.0, LOT * 0.5);
     let mut decor = Rng::new(hash_coords(seed, lx, SALT_DECOR, lz));
-    let biome = biome_at(seed, lx, lz);
 
-    // Deep floor: always present, it is the bottom of the world.
+    // The bottom: always solid ground.
     out.push(Block {
         kind: BlockKind::Floor,
-        aabb: Aabb::from_center(vec3(mid.x, DEEP_FLOOR - 1.0, mid.z), vec3(LOT, 2.0, LOT)),
+        aabb: Aabb::from_center(vec3(mid.x, floors::BOTTOM - 1.0, mid.z), vec3(LOT, 2.0, LOT)),
         color: Color::new(44, 48, 58, 255),
     });
+    let mut levels = vec![floors::BOTTOM];
 
-    let tower_here = tower(seed, lx, lz);
-    // Empty lots often hold a spiral stair linking the layers, with a hole through the decks.
-    let stair = tower_here.is_none() && !is_plaza(lx, lz) && decor.chance(biome.stair_chance);
-
-    let mut levels = vec![DEEP_FLOOR];
-
-    // Deck slabs. The plaza always has an upper deck; elsewhere gaps open onto the levels below.
-    for (y, keep, shade) in [
-        (UPPER_DECK, biome.deck_keep[0], (92, 112)),
-        (MID_DECK, biome.deck_keep[1], (64, 80)),
-    ] {
-        let solid = is_plaza(lx, lz) && y == UPPER_DECK;
-        if !(solid || stair || decor.chance(keep)) {
+    // Deck slabs, lighter higher up.
+    for (f, &y) in Y.iter().enumerate().skip(1) {
+        let kind = deck(seed, lx, lz, f);
+        if kind == Deck::None {
             continue;
         }
-        let color = tint(&mut decor, shade.0, shade.1);
-        let top = y;
+        let t = floors::depth01(y);
+        let lo = 60 + (36.0 * t) as i32;
+        let color = tint(&mut decor, lo, lo + 18);
         levels.push(y);
-        if stair {
-            push_ring_deck(mid, top, color, out);
+        if kind == Deck::Ring {
+            push_ring_deck(mid, y, color, out);
         } else {
             out.push(Block {
                 kind: BlockKind::Deck,
                 aabb: Aabb::from_center(
-                    vec3(mid.x, top - DECK_THICKNESS * 0.5, mid.z),
+                    vec3(mid.x, y - DECK_THICKNESS * 0.5, mid.z),
                     vec3(LOT, DECK_THICKNESS, LOT),
                 ),
                 color,
@@ -137,11 +263,11 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
 
     push_movement_course(lx, lz, out);
 
-    if stair {
-        push_spiral_stair(&mut decor, mid, out);
+    if let Some((lo, hi)) = stair(seed, lx, lz) {
+        push_spiral_stair(&mut decor, mid, Y[lo], Y[hi], out);
     }
 
-    if let Some(t) = tower_here {
+    if let Some(t) = tower(seed, lx, lz) {
         let before = out.len();
         push_tower(&mut decor, &t, out);
         // Wall props go on the body (the first tower block).
@@ -153,6 +279,23 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     push_bridges(seed, lx, lz, out);
 
     push_lamps(seed, (lx, lz), &mut decor, &levels, first, out);
+
+    // Roofs and wall props of towers ending just under a deck would pierce it: drop them.
+    let decks: Vec<Aabb> = out[first..]
+        .iter()
+        .filter(|b| b.kind == BlockKind::Deck)
+        .map(|b| b.aabb)
+        .collect();
+    let mut index = 0;
+    out.retain(|b| {
+        let ours = index >= first;
+        index += 1;
+        let prop = !matches!(
+            b.kind,
+            BlockKind::Floor | BlockKind::Deck | BlockKind::Tower | BlockKind::Stair
+        );
+        !ours || !prop || !decks.iter().any(|d| d.overlaps(&b.aabb))
+    });
 }
 
 /// Bridges from this lot's tower toward its +x and +z neighbors (each pair is handled once, by the
@@ -270,19 +413,19 @@ fn push_ring_deck(mid: Vec3, top: f32, color: Color, out: &mut Vec<Block>) {
     slab(off, 0.0, band, STAIR_HOLE * 2.0);
 }
 
-/// A helix of thin steps from the deep floor up to the upper deck. Each step rises less than
-/// the player's step-up height, so it can simply be walked.
-fn push_spiral_stair(rng: &mut Rng, mid: Vec3, out: &mut Vec<Block>) {
+/// A helix of thin steps from height `bottom` up to `top`. Each step rises less than the
+/// player's step-up height, so it can simply be walked.
+fn push_spiral_stair(rng: &mut Rng, mid: Vec3, bottom: f32, top: f32, out: &mut Vec<Block>) {
     let dir = if rng.chance(0.5) { 1.0 } else { -1.0 };
     let phase = rng.range(0.0, std::f32::consts::TAU);
     let color = Color::new(176, 150, 112, 255);
-    let n = ((UPPER_DECK - DEEP_FLOOR) / STEP_RISE).round() as i32;
+    let n = ((top - bottom) / STEP_RISE).round() as i32;
     for i in 1..=n {
         let a = phase + dir * i as f32 * std::f32::consts::TAU / STEPS_PER_TURN;
-        let top = DEEP_FLOOR + i as f32 * STEP_RISE;
+        let step_top = bottom + i as f32 * STEP_RISE;
         let c = vec3(
             mid.x + a.cos() * STEP_RADIUS,
-            top - STEP_RISE * 0.5,
+            step_top - STEP_RISE * 0.5,
             mid.z + a.sin() * STEP_RADIUS,
         );
         out.push(Block {
@@ -310,9 +453,9 @@ fn push_tower(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) {
 fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) -> Option<Aabb> {
     let color = tint(rng, 92, 190);
     let top = t.top();
-    let tall = top > UPPER_DECK + 30.0;
+    let tall = top > Y[START] + 30.0;
     if tall && rng.chance(0.7) {
-        let tier = rng.range(0.25, 0.4) * (top - UPPER_DECK);
+        let tier = rng.range(0.25, 0.4) * (top - Y[START]);
         let body_h = t.size.y - tier;
         out.push(Block {
             kind: BlockKind::Tower,
@@ -328,7 +471,8 @@ fn push_tower_body(rng: &mut Rng, t: &Tower, out: &mut Vec<Block>) -> Option<Aab
         });
         let shrink = rng.range(0.55, 0.8);
         let base_y = t.center.y - t.size.y * 0.5 + body_h;
-        if rng.chance(0.4) {
+        // Only the construction front, past the top deck, is still being built.
+        if top > floors::TOP + 20.0 && rng.chance(0.5) {
             let min = vec3(
                 t.center.x - t.size.x * 0.5 * shrink,
                 base_y,
@@ -387,13 +531,17 @@ fn push_bridge(rng: &mut Rng, a: &Tower, b: &Tower, along_x: bool, out: &mut Vec
         return;
     }
     let min_top = a.top().min(b.top());
-    let y_lo = MID_DECK + 6.0;
+    let y_lo = Y[1] + 6.0;
     let y_hi = min_top - 3.0;
     if y_hi <= y_lo {
         return;
     }
     let y = (rng.range(y_lo, y_hi) / 6.0).round() * 6.0;
     let y = y.clamp(y_lo, y_hi);
+    // Not level with a floor, where it would run through the decks.
+    if Y.iter().any(|&f| (y - f).abs() < 4.0) {
+        return;
+    }
     let c = rng.range(lo + BRIDGE_WIDTH * 0.5, hi - BRIDGE_WIDTH * 0.5);
     let len = to - from;
     let mid = (from + to) * 0.5;
@@ -437,7 +585,7 @@ fn push_bridge(rng: &mut Rng, a: &Tower, b: &Tower, along_x: bool, out: &mut Vec
 /// Hand-placed blocks near spawn to test steps, jumps and ledge grabs.
 fn push_movement_course(lx: i32, lz: i32, out: &mut Vec<Block>) {
     for (i, h) in [0.4_f32, 1.0, 1.6, 2.4, 3.2].iter().enumerate() {
-        let c = vec3(-8.0 + i as f32 * 4.0, UPPER_DECK + h * 0.5, -10.0);
+        let c = vec3(-8.0 + i as f32 * 4.0, Y[START] + h * 0.5, 10.0);
         if (c.x / LOT).floor() as i32 != lx || (c.z / LOT).floor() as i32 != lz {
             continue;
         }
