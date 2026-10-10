@@ -253,43 +253,43 @@ const SCENES: &[Scene] = &[
         slot: Slot::Parking,
         parts: &[part(Sedan, 0.0, 0.0, 0.0)],
         blooms: &[],
-        weight: [0, 0, 3],
-        floors: Some((0, 1)),
+        weight: [0, 3, 3],
+        floors: Some((0, 5)),
     },
     Scene {
         slot: Slot::Parking,
         parts: &[part(Hatchback, 0.0, 0.0, 0.0)],
         blooms: &[],
-        weight: [0, 0, 2],
-        floors: Some((0, 1)),
+        weight: [0, 2, 2],
+        floors: Some((0, 5)),
     },
     Scene {
         slot: Slot::Parking,
         parts: &[part(Van, 0.0, 0.0, 0.0)],
         blooms: &[],
-        weight: [0, 0, 2],
-        floors: Some((0, 1)),
+        weight: [0, 2, 2],
+        floors: Some((0, 5)),
     },
     Scene {
         slot: Slot::Parking,
         parts: &[part(Taxi, 0.0, 0.0, 0.0)],
         blooms: &[],
-        weight: [0, 0, 1],
-        floors: Some((0, 1)),
+        weight: [0, 1, 1],
+        floors: Some((0, 5)),
     },
     Scene {
         slot: Slot::Parking,
         parts: &[part(Suv, 0.0, 0.0, 0.0)],
         blooms: &[],
-        weight: [0, 0, 1],
-        floors: Some((0, 2)),
+        weight: [0, 1, 1],
+        floors: Some((0, 5)),
     },
     Scene {
         slot: Slot::Parking,
         parts: &[part(Truck, 0.0, 0.0, 0.0)],
         blooms: &[],
-        weight: [0, 0, 1],
-        floors: Some((0, 0)),
+        weight: [0, 1, 1],
+        floors: Some((0, 1)),
     },
     // 25..=27: lots with no tower.
     Scene {
@@ -328,14 +328,19 @@ const SCENES: &[Scene] = &[
 /// the street before the crater, facing it: (scene index, x, z).
 const START_SCENES: &[(usize, f32, f32)] = &[(17, -7.0, -20.0), (4, 8.0, -20.2)];
 
-/// Scenes tried per lot and floor for each slot, by height band (canopy, middle, depths).
-const TRIES: [(Slot, [usize; 3]); 5] = [
-    (Slot::Curb, [0, 4, 9]),
-    (Slot::Corner, [0, 1, 2]),
-    (Slot::Facade, [1, 3, 7]),
-    (Slot::Parking, [0, 0, 3]),
-    (Slot::Vacant, [0, 2, 3]),
+/// Scenes tried per lot and floor for each slot on the oldest floors; scaled by `FLOOR_DENSITY`.
+const TRIES: [(Slot, f32); 5] = [
+    (Slot::Curb, 9.0),
+    (Slot::Corner, 2.0),
+    (Slot::Facade, 7.0),
+    (Slot::Parking, 1.0),
+    (Slot::Vacant, 3.0),
 ];
+
+/// How much of `TRIES` each floor gets: people lived longest in the depths and moved up with
+/// the city, so human leftovers thin out going up; the canopy, built by machines after them,
+/// is nearly bare.
+const FLOOR_DENSITY: [f32; floors::COUNT] = [1.0, 1.0, 0.9, 0.7, 0.55, 0.4, 0.12, 0.08, 0.05];
 
 /// What dressing adds to a lot.
 #[derive(Default)]
@@ -385,12 +390,17 @@ struct LotDressing<'a> {
     blocks: &'a [&'a Block],
     boxes: Vec<Aabb>,
     out: Dressing,
+    /// A point of interest with flowers was placed: one per lot at most, so they stay rare.
+    poi: bool,
 }
 
 impl LotDressing<'_> {
     /// Places a scene in a frame, all or nothing: every prop fully on the deck at the frame's
     /// height, clear of everything else, and (except parked cars) off the road.
     fn try_place(&mut self, scene: &Scene, frame: &Frame) -> bool {
+        if self.poi && !scene.blooms.is_empty() {
+            return false;
+        }
         let placed: Vec<Placed> = scene.parts.iter().map(|p| frame.place(p)).collect();
         let y = frame.origin.y;
         let (lo, hi) = (
@@ -430,6 +440,7 @@ impl LotDressing<'_> {
             }
         }
         self.boxes.extend(placed.iter().map(|p| p.aabb()));
+        self.poi |= !scene.blooms.is_empty();
         if let Some(first) = placed.first() {
             for &(x, h, z) in scene.blooms {
                 self.out
@@ -466,6 +477,7 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
         blocks: &blocks,
         boxes: Vec::new(),
         out: Dressing::default(),
+        poi: false,
     };
     let plaza = super::city::is_plaza(lx, lz);
 
@@ -515,7 +527,10 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
             if total == 0 {
                 continue;
             }
-            for _ in 0..tries[band] {
+            // Fractional tries happen by chance.
+            let want = tries * FLOOR_DENSITY[floor];
+            let n = want as usize + rng.chance(want.fract()) as usize;
+            for _ in 0..n {
                 let mut roll = rng.range_i(0, total as i32) as u32;
                 let Some(&scene) = eligible.iter().find(|s| {
                     let w = s.weight[band];

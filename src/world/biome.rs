@@ -103,7 +103,7 @@ pub const DEFAULT: Biome = Biome {
         (1, [255, 200, 100]),
     ],
     plant_density: [1.5, 1.0, 0.45],
-    bloom: [2.4, 1.0, 0.5],
+    bloom: [2.4, 1.2, 0.9],
     bush_rate: 1.0,
     vine_rate: 1.0,
     climber_rate: 1.0,

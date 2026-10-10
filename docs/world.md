@@ -99,8 +99,10 @@ places each scene in the kind of place it belongs to, never at random:
   D0–D1, a truck on D0. Nothing else ever stands in the road (tested).
 - **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other.
 
-About 10 to 15 props per lot and floor in the depths, a few in the middle floors, almost none in
-the canopy. No indoor furniture out in the street except as a story (moving out, a shop emptied),
+Density follows the floor (`FLOOR_DENSITY` in `dressing.rs`): about 10 to 15 props per lot on
+D0–D2, thinning through D3–D5, almost none in the canopy. Cars: about one per lot on D0–D2,
+fading out by D5, none in the canopy (built after the humans). At most one flowered point of
+interest per lot. Bushes next to props grow smaller instead of not at all. No indoor furniture out in the street except as a story (moving out, a shop emptied),
 and no construction props in the depths (they belong to the construction front, not done yet).
 Every prop stands fully on a deck, clear of everything else, with a collision box; plants grow
 around them.
