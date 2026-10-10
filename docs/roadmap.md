@@ -56,15 +56,16 @@
       tris from the spawn on the 3060 (was 3 ms, 1.4 M tris).
       Known issues: small bright chips flicker in the far fog of the crater; deck slabs read as
       square tiles from above; the depths band is uniform (no older architecture yet).
-   2. Props *(first pass done)*: 41 CC0 Kenney models recolored to the material families, ~25
-      scenes placed by the seed, dense in the depths (`docs/world.md`, "Set dressing"). About
-      7.3 ms/frame and 5.6 M tris from the spawn (cars are ~2k tris each).
+   2. Props *(second pass done)*: 41 CC0 Kenney models recolored to the material families
+      (prototypes: judged too toy-like, to be replaced), placed by the street layout (curb,
+      corner, facade, parking, vacant lot), 10 to 15 per lot and floor in the depths
+      (`docs/world.md`, "Set dressing"). Candidates for better models: Poly Haven (CC0,
+      realistic: covered car, metal trash can, utility boxes, roller shutters, payphone...).
    3. Points of interest *(first pass done)*: the armchair with a flower and the bench with two
       flowers on the start plaza; armchairs, benches and dead gardens with flowers elsewhere. Still
       to do: the catalog's other objects (notice board courtyard, vending machine, bus stop blocked
       by a column, phone booth...), which need models not in these kits.
-      Open question: the depths are so dark that props are only readable near flowers or in a
-      crater.
+      The darkness of the depths stays (owner's call).
 
 ## Debug and art-iteration tools
 

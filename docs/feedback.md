@@ -57,6 +57,11 @@ What the project owner has said so far. Treat as requirements.
   helps find things instead: the overlay gives the distance and clock direction of the nearest
   stair up, stair down and crater, and the right mouse button makes Wick 4 times faster.
 
+- Props: the Kenney kits look like a cheap mobile game ("too baby-like"); fine as prototypes,
+  to be replaced later. What matters most is smart placement: every prop where it belongs in a
+  street (no bench in the road), no construction props in the depths, no indoor furniture out in
+  the street without a story. Darkness of the depths: keep it, the owner loves it.
+
 ## Controls
 
 - The owner uses an AZERTY keyboard: movement works with ZQSD, WASD and arrow keys.

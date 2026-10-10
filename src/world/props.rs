@@ -438,8 +438,12 @@ fn remap(f: Family, rgb: [f32; 3]) -> [u8; 3] {
     out.map(|v: f32| v.clamp(0.0, 255.0) as u8)
 }
 
+/// Props authored facing -z (their back toward +z); turned around at load, so every prop faces
+/// +z (a bench's seat opens toward +z, its back is on the -z side).
+const AUTHORED_FACING_BACK: &[Prop] = &[Prop::Bench];
+
 /// A prop's triangles, scaled to its real height, standing at the origin (base at y = 0,
-/// centered in x and z), facing -z as authored.
+/// centered in x and z), facing +z.
 pub struct PropMesh {
     /// Three vertices per triangle.
     pub verts: Vec<PropVert>,
@@ -566,8 +570,14 @@ fn load(def: &Def) -> PropMesh {
     }
     let scale = def.height / (hi.y - lo.y).max(1e-4);
     let base = vec3((lo.x + hi.x) * 0.5, lo.y, (lo.z + hi.z) * 0.5);
+    let turn = if AUTHORED_FACING_BACK.contains(&def.prop) {
+        vec3(-1.0, 1.0, -1.0)
+    } else {
+        Vec3::ONE
+    };
     for v in &mut verts {
-        v.pos = (v.pos - base) * scale;
+        v.pos = (v.pos - base) * scale * turn;
+        v.normal *= turn;
     }
     let size = (hi - lo) * scale;
     PropMesh {

@@ -83,19 +83,32 @@ Status: the machinery is in place with a single biome, `default` (the original l
 more biomes (including a rare "rainbow" one with every flower color), blending across zone borders,
 per-biome fog and sky tint, and per-biome plant species and tower styles.
 
-## Set dressing (first pass implemented)
+## Set dressing (implemented, second pass)
 
-`src/world/dressing.rs` places props from model kits (`assets/models/`) in small scenes, per lot
-and floor: about 7 in the depths, 3 in the middle floors, 1 in the canopy. Scenes: benches, bins
-and boxes, dumpsters, barrels, roadworks, barriers, carts, tires, signs, traffic lights; old cars
-and a truck on D0–D1; human places on D1–D3 (a café table, the laundromat, an office corner, a
-living room in the open, a coat rack, a fridge). Every prop stands fully on a deck, clear of
-everything else, and has a collision box; plants grow around them.
+Every lot follows one street layout, the one the pavement shader draws: a road along each border
+(3 m deep on each lot's side), a curb, the sidewalk, then the tower's facades. `src/world/dressing.rs`
+places each scene in the kind of place it belongs to, never at random:
 
-Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): a flower
-growing out of an armchair, two flowers side by side on a bench (allowed closer than the usual
-3 m), a dead garden with one living flower. The armchair and the bench always stand on the start
-plaza, facing the crater.
+- **Curb:** on the sidewalk just behind the curb, facing the road: benches, bench and bin, bins,
+  street signs.
+- **Corner:** the sidewalk corner of two streets: traffic lights (D0–D2), signs.
+- **Facade:** against a tower wall, facing out: dumpsters, barrels and crates, carts, bins and
+  boxes, café terraces (D1–D3), a sofa with boxes and a lamp (someone moving out), a fridge and a
+  freezer (a shop emptied), tires.
+- **Parking:** in the road along the curb, nose along the street, clear of crossings: old cars on
+  D0–D1, a truck on D0. Nothing else ever stands in the road (tested).
+- **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other.
+
+About 10 to 15 props per lot and floor in the depths, a few in the middle floors, almost none in
+the canopy. No indoor furniture out in the street except as a story (moving out, a shop emptied),
+and no construction props in the depths (they belong to the construction front, not done yet).
+Every prop stands fully on a deck, clear of everything else, with a collision box; plants grow
+around them.
+
+Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): two flowers
+side by side on a bench (allowed closer than the usual 3 m), a flower growing out of an armchair
+left by a wall, a dead garden with one living flower. The armchair and the bench always stand on
+the start plaza, behind the curb before the crater, facing it.
 
 ### Ideas still to do (from the brainstorm's decoration lists)
 
