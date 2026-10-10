@@ -25,6 +25,12 @@ what the prototype can take from these ideas now.
   remnants), canopy (machine-built, sunlit, construction at the top). Each band has its own
   architecture, materials, density, vegetation and sound, so depth is felt without a meter. Upper
   floors need at least a coarse silhouette so they can be glimpsed from below.
+- **Climbing by floor (owner's design, not built yet):**
+  - **D0 to D2:** easy climb.
+  - **D2 to D4:** a bit less easy.
+  - **D4 to D5:** locked: a code or something similar is needed to get up. This is where Wick
+    breaks the fourth wall and addresses the player for the first time (the cold stop).
+  - Above D5: to be defined.
 - **Traversal.** Down is easy, up is increasingly hard: stairs, elevators and walkways low; wider
   gaps, thicker growth and unwalkable structures high. The generator knows the player's jump and
   ledge-grab range and guarantees routes upward. Falling from too high is lethal.
