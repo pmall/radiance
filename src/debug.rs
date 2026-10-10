@@ -61,10 +61,11 @@ impl Debug {
                 .name
             ),
             format!(
-                "pos {:.1} {:.1} {:.1}  {}",
+                "pos {:.1} {:.1} {:.1}  {}  {}",
                 p.x,
                 p.y,
                 p.z,
+                crate::world::floors::NAMES[crate::world::floors::floor_at(p.y)],
                 player.state_name()
             ),
             match audio {

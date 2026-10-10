@@ -25,6 +25,60 @@ uniform sampler2D texture3;  // photo detail: R pavement, G asphalt, B concrete 
 uniform vec3 uGridOrigin;
 uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 signs, 1 tint
 uniform float uGlow;         // plant emission and light strength for the time of day
+uniform sampler2D texture5;  // cover map
+#define COVER_TEX texture5
+
+// Cover map: which decks stand over each lot around the camera (src/render/cover.rs).
+// Tile 0 red: bit (f - 1) set for a deck on floor f; tiles 1..3: sky view per floor. Constants
+// mirrored there and in src/world/floors.rs.
+const int COVER = 64;
+const float LOT = 24.0;
+const int FLOORS = 9;
+uniform float uFloorY[FLOORS];
+uniform vec2 uCoverOrigin;   // lot coordinates of texel (0, 0)
+
+int coverBits(vec2 xz)
+{
+    ivec2 c = ivec2(floor(xz / LOT - uCoverOrigin));
+    // Beyond the map, assume the city is covered.
+    if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, ivec2(COVER)))) return 0xff;
+    return int(texelFetch(COVER_TEX, c, 0).r * 255.0 + 0.5);
+}
+
+// 1 if a ray from p along dir clears every deck above p, else 0.
+float skyVis(vec3 p, vec3 dir)
+{
+    if (dir.y < 0.02) return 1.0;
+    for (int f = 1; f < FLOORS; f++) {
+        float y = uFloorY[f] - 0.6;
+        if (y < p.y + 0.2) continue;
+        vec3 q = p + dir * ((y - p.y) / dir.y);
+        if (((coverBits(q.xz) >> (f - 1)) & 1) != 0) return 0.0;
+    }
+    return 1.0;
+}
+
+// Share of the sky p sees (0 = none, 1 = open sky), precomputed per lot and floor and blended
+// between lots.
+float skyView(vec3 p)
+{
+    int f = 0;
+    for (int k = 1; k < FLOORS; k++) if (uFloorY[k] <= p.y + 0.5) f = k;
+    vec2 c = clamp(p.xz / LOT - uCoverOrigin, vec2(0.5), vec2(float(COVER) - 0.5));
+    // Beyond the map, assume the city is covered.
+    vec2 d = p.xz / LOT - uCoverOrigin;
+    if (any(lessThan(d, vec2(0.0))) || any(greaterThan(d, vec2(float(COVER))))) return 0.0;
+    vec2 uv = (vec2(float((1 + f / 4) * COVER), 0.0) + c) / vec2(float(4 * COVER), float(COVER));
+    return texture(COVER_TEX, uv)[f % 4];
+}
+
+// Height above the floor p stands on.
+float aboveFloor(float y)
+{
+    float base = uFloorY[0];
+    for (int f = 1; f < FLOORS; f++) if (uFloorY[f] <= y + 0.5) base = uFloorY[f];
+    return y - base;
+}
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outNormal;
@@ -188,9 +242,8 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     float story = floor(yy);
     float vy = yy - story;
 
-    // Street levels (decks at y = -80, -36 and 0) get storefronts.
-    float shop = max(max(step(-80.0, p.y) * step(p.y, -76.0), step(-36.0, p.y) * step(p.y, -32.0)),
-                     step(0.0, p.y) * step(p.y, 4.0));
+    // The street level of every floor gets storefronts.
+    float shop = step(aboveFloor(p.y), 4.0);
     vec2 q = vec2((fu - 0.5) * pitch, (vy - mix(0.52, 0.42, shop)) * H);
     vec2 halfw = style == 0 ? vec2(0.31 * pitch, 0.95)
                : style == 1 ? vec2(pitch * 0.5 - 0.15, 0.7)
@@ -202,7 +255,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     float hasP = step(0.55, hash11(fid * 8.1));
     float pw = W * mix(0.35, 0.6, hash11(fid * 8.7));
     float pu = (W - pw) * hash11(fid * 9.1);
-    float py0 = floor(mix(-60.0, 6.0, hash11(fid * 10.3)) / H) * H;
+    float py0 = floor(mix(uFloorY[0] + 20.0, uFloorY[FLOORS - 1], hash11(fid * 10.3)) / H) * H;
     float ph = H * floor(mix(2.0, 5.0, hash11(fid * 11.7)));
     float inP = hasP * step(pu, loc.x) * step(loc.x, pu + pw) * step(py0, p.y) * step(p.y, py0 + ph) * (1.0 - shop);
     float pr = hash11(fid * 12.9);
@@ -219,7 +272,7 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     col *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.5, vy * H));
     // Rain streaks running down from the sills, heavier lower down.
     float streak = vnoise(vec2(loc.x * 6.0 + floor(cu) * 3.0, p.y * 0.1));
-    float low = 1.0 - smoothstep(-80.0, 10.0, p.y);
+    float low = 1.0 - smoothstep(uFloorY[0], uFloorY[3], p.y);
     col *= 1.0 - 0.3 * smoothstep(0.55, 0.9, streak) * (0.3 + 0.7 * low);
 
     // Glass: dark, a little lighter toward the top of each pane; some panes are lit.
@@ -550,7 +603,7 @@ void main()
     }
 
     float ndl = dot(n, uLightDir);
-    float sh = ndl > 0.0 ? shadow(fragWorldPos, n) : 0.0;
+    float sh = ndl > 0.0 ? shadow(fragWorldPos, n) * skyVis(fragWorldPos + n * 0.1, uLightDir) : 0.0;
     float direct;
     if ((uEffects & FX_CEL) != 0) {
         // Three flat bands: shadow, half-lit, lit. Cast shadows snap to the shadow band.
@@ -560,15 +613,17 @@ void main()
         direct = max(ndl, 0.0) * sh;
     }
 
-    // Hemisphere ambient: sky from above, bounced ground light from below.
-    vec3 ambient = mix(uAmbientGround, uAmbientSky, n.y * 0.5 + 0.5);
+    // Hemisphere ambient: sky from above, bounced ground light from below. Under the decks of
+    // the floors above, little of the sky gets in.
+    float open = skyView(fragWorldPos + n * 0.1);
+    vec3 ambient = mix(uAmbientGround, uAmbientSky, n.y * 0.5 + 0.5) * mix(0.2, 1.0, open);
 
     // Painted vertical gradient: darker at street level, slightly lifted up high.
-    float y = fragWorldPos.y;
-    float grad = mix(0.55, 1.0, smoothstep(0.0, 10.0, y)) * (1.0 + 0.15 * smoothstep(10.0, 80.0, y));
+    float y = aboveFloor(fragWorldPos.y);
+    float grad = mix(0.55, 1.0, smoothstep(0.0, 10.0, y)) * (1.0 + 0.15 * smoothstep(10.0, 30.0, y));
 
-    // Plants glow regardless of the hour in the lightless depths.
-    float glow = mix(uGlow, max(uGlow, 0.85), 1.0 - smoothstep(-60.0, -10.0, fragWorldPos.y));
+    // Plants glow regardless of the hour where no sky reaches.
+    float glow = mix(uGlow, max(uGlow, 0.85), 1.0 - open);
     vec3 lit = albedo * (ambient * grad + uLight * direct + plantLights(fragWorldPos, n) * glow);
     lit += albedo * fragColor.a * glow * 2.5;
     lit += emit * glow * 0.32;

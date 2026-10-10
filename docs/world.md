@@ -11,12 +11,33 @@ drifting particles, flickering signs).
 
 ## Verticality defines the mood
 
-- **Upper city:** a canopy of towers and walkways in daylight haze, airy and readable.
-- **Middle levels:** dimmer, lit by neon remnants and scattered bioluminescence.
-- **Depths:** dark streets and old infrastructure, lit almost only by plants.
+- **Canopy (D6–D8):** towers and walkways in daylight haze, airy and readable.
+- **Middle floors (D3–D5):** dimmer, lit by neon remnants and scattered bioluminescence.
+- **Depths (D0–D2):** dark streets and old infrastructure, lit almost only by plants.
+
+## The floor stack (implemented)
+
+The city is a finite stack of 9 floors, one table in `src/world/floors.rs`: D0 (the original
+ground, y = -80) to D8 (the top deck, y = 216), 36 m apart above D1. The player wakes on **D2**
+(y = 0): two older floors below, six above. Everything height-dependent reads the table (decks,
+plant bands, the shaders' floor heights, the souls' register, the debug overlay's floor name).
+
+- **Decks:** each lot has a deck on a floor by chance (`Biome::deck_keep`, per band), a pure function
+  of seed, lot and floor (`city::deck`). Gaps open onto the floors below.
+- **Light under the decks:** the renderer keeps a cover map of the lots around the camera
+  (`src/render/cover.rs`): which decks exist, and how much sky each lot sees on each floor (24 rays
+  traced against the decks). The shaders block the sun with it (exact, at any distance), dim the
+  sky light and the fog by the sky view, and march the fog so sunbeams show through openings.
+- **Craters:** round clusters of lots with nothing built above a floor (mostly middle floors,
+  sometimes D2), one per 8x8 lots about half the time. Plants grow there as lushly as in the
+  canopy. A wide one always opens on D2 right in front of the spawn, which faces it.
+- **Stairs:** spirals in empty lots linking 1 to 3 floors, rarer the higher they start.
+- **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can
+  be unfinished skeletons with cranes. Roof and wall props that would pierce a deck are dropped.
 
 Each band should be recognizable without a depth meter: architecture, materials, density,
-vegetation and sound all change. Ideas from the brainstorm (`docs/game-ideas.md`, not implemented):
+vegetation and sound all change. Ideas from the brainstorm (`docs/game-ideas.md`, not implemented
+unless marked):
 
 - **Deeper is older.** Depths: the original human city (stone facades, arches, ornamented doorways,
   cobblestones, tram tracks, metro entrances, dry fountains, stopped public clocks), broken by the
@@ -24,8 +45,8 @@ vegetation and sound all change. Ideas from the brainstorm (`docs/game-ideas.md`
 - **Higher is more machine.** Human-scale stairs, lifts and walkways low; colder, regular,
   machine-built structures high, with fewer human-scale routes and wider gaps. Machine intrusion
   into human spaces (columns through roads, struts across facades, cable bundles) grows with height.
-- **Craters:** where nothing was built above, a shaft of sunlight reaches a middle or deep level,
-  with lush growth underneath. Landmarks seen from far below, pulling the eye upward.
+- **Craters** *(first pass done, see above)*: where nothing was built above, a shaft of sunlight
+  reaches a middle or deep level, with lush growth underneath. Landmarks seen from far below.
 - **Light-network veins:** glowing roots running down walls and across decks, carrying light from
   canopy flowers to those below.
 

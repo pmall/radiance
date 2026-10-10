@@ -300,7 +300,7 @@ impl Ambient {
     /// Keeps the streams fed and sets the beds for the player's `height` and the daylight
     /// (0 night .. 1 day). The hum is strongest in the depths, the wind in the open sky.
     pub fn update(&mut self, dt: f32, height: f32, day: f32, master: f32) {
-        let up = ((height + 60.0) / 100.0).clamp(0.0, 1.0);
+        let up = crate::world::floors::depth01(height);
         let hum = (0.34 - 0.2 * up) * (1.0 + 0.15 * (1.0 - day)) * master;
         let air = (0.08 + 0.3 * up * up) * (0.7 + 0.3 * day) * master;
         unsafe {

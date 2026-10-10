@@ -67,9 +67,9 @@ pub struct Biome {
 
     /// Flower colors (sRGB) with pick weights.
     pub flowers: &'static [(u32, [u8; 3])],
-    /// Plant growth multiplier per height layer: canopy, middle, depths (see `growth::layer`).
+    /// Plant growth multiplier per height band: canopy, middle, depths (see `floors::band`).
     pub plant_density: [f32; 3],
-    /// Flower multiplier per height layer.
+    /// Flower multiplier per height band.
     pub bloom: [f32; 3],
     /// Multipliers on how many bushes, hanging vines and wall climbers a lot gets.
     pub bush_rate: f32,
@@ -78,9 +78,10 @@ pub struct Biome {
 
     /// Chance that a lot holds no tower.
     pub tower_empty: f32,
-    /// Chance that a lot keeps its upper and its mid deck.
-    pub deck_keep: [f32; 2],
-    /// Chance that a tower-less lot holds a spiral stair.
+    /// Chance that a lot has a deck on a floor, per height band of the floor: canopy, middle,
+    /// depths. Gaps let light down; where they line up the sun reaches the floors below.
+    pub deck_keep: [f32; 3],
+    /// Chance that a tower-less lot holds a spiral stair (rarer higher up, see `city::stair`).
     pub stair_chance: f32,
     /// Chance that two neighboring towers are linked by a bridge.
     pub bridge_chance: f32,
@@ -107,7 +108,7 @@ pub const DEFAULT: Biome = Biome {
     vine_rate: 1.0,
     climber_rate: 1.0,
     tower_empty: 0.18,
-    deck_keep: [0.85, 0.6],
+    deck_keep: [0.55, 0.65, 0.8],
     stair_chance: 0.7,
     bridge_chance: 0.35,
     palette: Palette {

@@ -11,6 +11,7 @@ use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::{Biome, biome_at, pick_color};
+use super::floors;
 use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert};
 use crate::rng::{Rng, hash_coords, mix64};
 
@@ -30,14 +31,6 @@ const MIN_WALL: f32 = 6.0;
 /// Slabs thinner than this count as decks and bridges, which vines hang from.
 const MAX_SLAB: f32 = 3.0;
 
-/// Height layer of a block, indexing the per-layer biome tables: canopy, middle, depths.
-fn layer(y: f32) -> usize {
-    match y {
-        y if y > -10.0 => 0,
-        y if y > -50.0 => 1,
-        _ => 2,
-    }
-}
 
 fn leaf_color(rng: &mut Rng) -> Color {
     let c = |r: i32, g: i32, b: i32| Color::new(r as u8, g as u8, b as u8, 255);
@@ -572,6 +565,8 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         max: hi + reach,
     };
     around.retain(|b| b.aabb.overlaps(&near));
+    // Under a crater the sun gets in, and the growth is as lush as in the canopy.
+    let crater = super::city::crater_at(seed, lx, lz);
     let mut b = Builder {
         rng: &mut rng,
         out: Vec::new(),
@@ -590,10 +585,14 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         if size.x.max(size.z) < MIN_HOST {
             continue;
         }
-        let layer = layer(a.max.y.min(a.min.y + 1.0));
-        let dens = b.biome.plant_density[layer];
+        let y = a.max.y.min(a.min.y + 1.0);
+        let band = match crater {
+            Some(f) if y >= floors::Y[f] - 1.0 => 0,
+            _ => floors::band_at(y),
+        };
+        let dens = b.biome.plant_density[band];
         b.dens = dens;
-        b.bloom = b.biome.bloom[layer];
+        b.bloom = b.biome.bloom[band];
 
         // Bushes on top surfaces (not on parapets, machinery or signs).
         let plantable = matches!(
@@ -621,7 +620,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         }
 
         // Hanging vines from the edges of decks and bridges.
-        if plantable && size.y < MAX_SLAB && a.min.y > super::city::DEEP_FLOOR + 3.0 {
+        if plantable && size.y < MAX_SLAB && a.min.y > floors::BOTTOM + 3.0 {
             let perimeter = 2.0 * (size.x + size.z);
             let mut n = perimeter * 0.3 * dens * b.biome.vine_rate;
             while n > 0.0 {
@@ -690,12 +689,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
                     0
                 };
                 for _ in 0..count {
-                    let roots = [
-                        super::city::DEEP_FLOOR,
-                        super::city::MID_DECK,
-                        super::city::UPPER_DECK,
-                    ];
-                    let start = roots[b.rng.range_i(0, 3) as usize];
+                    let start = floors::Y[b.rng.range_i(0, floors::COUNT as i32) as usize];
                     if start + 3.0 > a.max.y || start < a.min.y {
                         continue;
                     }
