@@ -27,6 +27,8 @@ const LEDGE_PROBE: f32 = 0.5;
 
 const FLY_SPEED: f32 = 20.0;
 const FLY_FAST_MULT: f32 = 5.0;
+/// Speed multiplier of the test mode boost.
+const BOOST_MULT: f32 = 4.0;
 
 const BASE_FOV: f32 = 75.0;
 const RUN_FOV_KICK: f32 = 7.0;
@@ -41,6 +43,8 @@ pub struct Input {
     pub jump_held: bool,
     pub run: bool,
     pub down: bool,
+    /// Test mode only: much faster, walking or flying.
+    pub boost: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -173,7 +177,9 @@ impl Player {
         if input.down {
             dir -= Vec3::Y;
         }
-        let speed = FLY_SPEED * if input.run { FLY_FAST_MULT } else { 1.0 };
+        let speed = FLY_SPEED
+            * if input.run { FLY_FAST_MULT } else { 1.0 }
+            * if input.boost { BOOST_MULT } else { 1.0 };
         let target = dir.normalize_or_zero() * speed;
         self.vel += (target - self.vel) * (1.0 - (-8.0 * dt).exp());
         self.pos += self.vel * dt;
@@ -207,7 +213,8 @@ impl Player {
     fn update_walk(&mut self, dt: f32, input: &Input, world: &World) {
         let fwd = self.forward_flat();
         let wish_dir = (fwd * input.wish.y + self.right() * input.wish.x).clamp_length_max(1.0);
-        let speed = if input.run { RUN_SPEED } else { WALK_SPEED };
+        let speed = if input.run { RUN_SPEED } else { WALK_SPEED }
+            * if input.boost { BOOST_MULT } else { 1.0 };
         let target = wish_dir * speed;
 
         let response = if self.grounded {

@@ -136,26 +136,6 @@ pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
         .min()
 }
 
-/// Test mode: stairs right by the spawn reaching every floor, so any floor is a short walk
-/// away while working on the look. Scaffolding, to switch off once the climbing mechanics exist
-/// (designed in `docs/game-ideas.md`, not built yet).
-pub const TEST_STAIRS: bool = true;
-
-/// The test stairs (lot, (bottom, top)): D2 up to D5 behind-left of the spawn, then D5 to the top
-/// in the next lot; D0 up to D2 behind-right.
-const TEST_STAIRS_AT: [((i32, i32), (usize, usize)); 3] = [
-    ((-3, 1), (START, 5)),
-    ((-3, 2), (5, COUNT - 1)),
-    ((2, 1), (0, START)),
-];
-
-fn test_stair(lx: i32, lz: i32) -> Option<(usize, usize)> {
-    TEST_STAIRS_AT
-        .iter()
-        .find(|(lot, _)| TEST_STAIRS && *lot == (lx, lz))
-        .map(|&(_, span)| span)
-}
-
 /// How often a stair starts on each floor (bottom to the one under the top): mostly low in the
 /// city, where people built stairs everywhere; rarely high up, where machines built for machines.
 const STAIR_START_WEIGHTS: [i32; COUNT - 1] = [3, 3, 3, 2, 2, 2, 1, 1];
@@ -163,9 +143,6 @@ const STAIR_START_WEIGHTS: [i32; COUNT - 1] = [3, 3, 3, 2, 2, 2, 1, 1];
 /// The floors a lot's spiral stair links (bottom, top), if it has one. Stairs stand in empty
 /// lots and get rarer higher up: going down is easy, going up is not.
 pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
-    if let Some(span) = test_stair(lx, lz) {
-        return Some(span);
-    }
     if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
         return None;
     }
@@ -225,7 +202,7 @@ pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u8 {
 
 /// The tower standing on a lot, if any. Pure, so neighbors can query it for bridges.
 pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
-    if is_plaza(lx, lz) || test_stair(lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
+    if is_plaza(lx, lz) || crater_at(seed, lx, lz).is_some() {
         return None;
     }
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_TOWER, lz));
@@ -649,21 +626,16 @@ mod tests {
     }
 
     #[test]
-    fn test_stairs_reach_every_floor_from_the_spawn() {
-        if !TEST_STAIRS {
-            return;
-        }
-        for seed in 1..=5 {
-            let spans: Vec<_> = (-3..=3)
-                .flat_map(|lz| (-3..=3).map(move |lx| (lx, lz)))
+    fn a_stair_up_from_the_start_floor_is_never_far() {
+        for seed in 1..=8 {
+            let near = (-8..=8)
+                .flat_map(|lz| (-8..=8).map(move |lx| (lx, lz)))
                 .filter_map(|(lx, lz)| stair(seed, lx, lz))
-                .collect();
-            for f in 0..COUNT - 1 {
-                assert!(
-                    spans.iter().any(|&(lo, hi)| lo <= f && hi > f),
-                    "no stair from floor {f}"
-                );
-            }
+                .any(|(lo, hi)| lo <= START && hi > START);
+            assert!(
+                near,
+                "seed {seed}: no stair up from the start floor within 8 lots"
+            );
         }
     }
 

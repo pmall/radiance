@@ -107,6 +107,7 @@ fn read_input(rl: &RaylibHandle) -> Input {
             || rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
         run: rl.is_key_down(KEY_LEFT_SHIFT),
         down: rl.is_key_down(KEY_LEFT_CONTROL),
+        boost: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT),
     }
 }
 
@@ -194,6 +195,9 @@ fn main() {
         // Debug keys.
         if rl.is_key_pressed(KEY_F1) {
             debug.show_overlay = !debug.show_overlay;
+        }
+        if rl.is_key_pressed(KEY_G) {
+            debug.test_mode = !debug.test_mode;
         }
         if rl.is_key_pressed(KEY_F2) {
             player.toggle_fly();
@@ -283,6 +287,7 @@ fn main() {
         } else {
             Input::default()
         };
+        input.boost &= debug.test_mode;
         player.apply_look(input.look);
         accumulator = (accumulator + dt).min(0.1);
         while accumulator >= SIM_STEP {
@@ -375,6 +380,7 @@ fn main() {
             break;
         }
 
+        debug.update(&world, &player);
         debug.draw(&mut d, &world, &player, &renderer, &cycle, audio.as_ref());
         if let Some(r) = recorder.as_ref() {
             let secs = r.seconds() as u32;
