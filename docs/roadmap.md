@@ -70,7 +70,8 @@ Important, since the purpose is art exploration. Build them alongside the featur
 - Toggle individual effects (outlines, fog, cel shading, grain, particles). *(done: F3-F8, F11 for particles, X for textures, F9 render scale)*
 - Free-fly camera. *(done: F2)*
 - Test mode *(done: G, on by default)*: the overlay points to the nearest stair up, stair down and
-  crater (distance, clock direction); right mouse button = 4x speed.
+  crater (distance, direction in words); right mouse button = 4x speed. The overlay (F1) shows the
+  floor large at the top, in plain words; `--overlay` keeps it in a `--shot`.
 - Live-tweakable shader and palette parameters, if practical (e.g. shader hot-reload from disk).
   *(shader hot-reload done, F10 forces it; palettes still in `src/render/look.rs`)*
 - Headless frame capture for checking looks: `--time`, `--view`, `--shot`, `--fx` (effect mask). *(done)*

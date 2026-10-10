@@ -48,13 +48,12 @@ impl Finder {
         let mut up: Option<(f32, String, glam::Vec3)> = None;
         let mut down = up.clone();
         let mut crater = up.clone();
-        let keep =
-            |best: &mut Option<(f32, String, glam::Vec3)>, p: glam::Vec3, label: String| {
-                let d = p.distance_squared(pos);
-                if best.as_ref().is_none_or(|b| d < b.0) {
-                    *best = Some((d, label, p));
-                }
-            };
+        let keep = |best: &mut Option<(f32, String, glam::Vec3)>, p: glam::Vec3, label: String| {
+            let d = p.distance_squared(pos);
+            if best.as_ref().is_none_or(|b| d < b.0) {
+                *best = Some((d, label, p));
+            }
+        };
         for z in lz - FIND_RADIUS..=lz + FIND_RADIUS {
             for x in lx - FIND_RADIUS..=lx + FIND_RADIUS {
                 if let Some((lo, hi)) = city::stair(seed, x, z) {
@@ -78,25 +77,51 @@ impl Finder {
     }
 }
 
-/// "130 m at 2 o'clock" from the player's position and heading.
+/// "62 m behind you": distance and direction from the player's position and heading.
 fn bearing(player: &Player, target: glam::Vec3) -> String {
     let v = target - player.pos;
     let (ahead, right) = (v.dot(player.forward_flat()), v.dot(player.right()));
-    let hour = (right.atan2(ahead) / std::f32::consts::TAU * 12.0).round() as i32;
-    let hour = (hour + 11).rem_euclid(12) + 1;
-    format!("{:.0} m at {hour} o'clock", glam::vec2(v.x, v.z).length())
+    let sector = (right.atan2(ahead) / std::f32::consts::TAU * 8.0).round() as i32;
+    let way = [
+        "ahead",
+        "ahead, to the right",
+        "to your right",
+        "behind you, to the right",
+        "behind you",
+        "behind you, to the left",
+        "to your left",
+        "ahead, to the left",
+    ][sector.rem_euclid(8) as usize];
+    format!("{:.0} m {way}", glam::vec2(v.x, v.z).length())
 }
 
 /// Key of each effect in `EFFECTS`, same order as the bindings in `main`.
 const EFFECT_KEYS: [&str; 8] = ["F3", "F4", "F5", "F6", "F7", "F8", "F11", "X"];
 
 pub const HELP: &[&str] = &[
-    "WASD / ZQSD / arrows move  Shift run  Space/left click jump (hold toward a ledge to climb)",
-    "F1 overlay  F2 free-fly (Space/Ctrl up/down)  G test mode (finder, right click = fast)",
-    "F3-F8/F11/X toggle effects  F9 render scale  F10 reload shaders  F12 screenshot",
-    "T pause time  Home/End scrub  PgUp/PgDn speed  1-4 (or numpad) dawn/day/dusk/night",
-    "R random seed  [ ] or numpad -/+ previous/next seed  M mute  V record video  Esc release mouse  Ctrl+Q quit",
+    "Move: WASD / ZQSD / arrows   Shift: run   Space or left click: jump (hold toward a ledge to climb)",
+    "F1: hide this panel   F2: free-fly (Space/Ctrl: up/down)   G: test mode",
+    "Time: T pause   Home/End rewind/advance   PgUp/PgDn speed   1-4 dawn/day/dusk/night",
+    "Seed: R random   [ ] previous/next      M mute   V record video   F12 screenshot",
+    "Look: F3-F8, F11, X effects   F9 resolution   F10 reload shaders   Esc free the mouse   Ctrl+Q quit",
 ];
+
+const TITLE_SIZE: i32 = 32;
+const TEXT_SIZE: i32 = 18;
+const LINE: i32 = 21;
+const HEADING: Color = Color::new(255, 214, 120, 255);
+const DIM: Color = Color::new(170, 170, 180, 255);
+
+/// Name of the time of day at clock position `t` (0 midnight, 0.5 noon).
+fn phase(t: f32) -> &'static str {
+    match t {
+        t if t < 0.2 => "night",
+        t if t < 0.3 => "dawn",
+        t if t < 0.7 => "day",
+        t if t < 0.8 => "dusk",
+        _ => "night",
+    }
+}
 
 impl Debug {
     pub fn new() -> Self {
@@ -126,82 +151,129 @@ impl Debug {
         if !self.show_overlay {
             return;
         }
+        use crate::world::{city, floors};
         let p = player.pos;
-        let effects = EFFECTS
-            .iter()
-            .enumerate()
-            .map(|(i, (bit, name))| {
-                let on = renderer.effects & bit != 0;
-                format!("{} {}{}", EFFECT_KEYS[i], if on { "" } else { "-" }, name)
-            })
-            .collect::<Vec<_>>()
-            .join("  ");
-        let mut lines = vec![
+        let floor = floors::floor_at(p.y);
+        let (code, name) = floors::NAMES[floor]
+            .split_once(' ')
+            .unwrap_or((floors::NAMES[floor], ""));
+
+        // (text, color); the title is drawn on its own above.
+        let mut lines: Vec<(String, Color)> = Vec::new();
+        let mut say = |s: String, c: Color| lines.push((s, c));
+        let doing = match player.state_name() {
+            "ground" => "walking",
+            "air" => "in the air",
+            "mantle" => "climbing a ledge",
+            _ => "free-flying",
+        };
+        say(
             format!(
-                "seed {}  biome {}",
+                "floor {} of {} from the bottom   {:.0} m above its ground   {doing}, {:.0} m/s",
+                floor + 1,
+                floors::COUNT,
+                p.y - floors::Y[floor],
+                glam::vec2(player.vel.x, player.vel.z).length()
+            ),
+            Color::RAYWHITE,
+        );
+        say(
+            format!(
+                "{} {}   time {}{}   seed {}   biome {}",
+                cycle.clock(),
+                phase(cycle.t),
+                if cycle.running { "running" } else { "paused" },
+                if cycle.speed != 1.0 {
+                    format!(" x{}", cycle.speed)
+                } else {
+                    String::new()
+                },
                 world.seed,
                 crate::world::biome::biome_at(
                     world.seed,
-                    (p.x / crate::world::city::LOT).floor() as i32,
-                    (p.z / crate::world::city::LOT).floor() as i32
+                    (p.x / city::LOT).floor() as i32,
+                    (p.z / city::LOT).floor() as i32
                 )
                 .name
             ),
-            format!(
-                "pos {:.1} {:.1} {:.1}  {}  {}",
-                p.x,
-                p.y,
-                p.z,
-                crate::world::floors::NAMES[crate::world::floors::floor_at(p.y)],
-                player.state_name()
-            ),
-            match audio {
-                Some(a) => format!(
-                    "sound {}  {} notes",
-                    if a.muted { "muted (M)" } else { "on (M mutes)" },
-                    a.notes_played
-                ),
-                None => "sound off".to_string(),
-            },
-            format!(
-                "speed {:.1} m/s",
-                glam::vec2(player.vel.x, player.vel.z).length()
-            ),
-            format!(
-                "time {}  {}  x{}",
-                cycle.clock(),
-                if cycle.running { "running" } else { "paused" },
-                cycle.speed
-            ),
-            format!(
-                "blocks {}  tris {}  lights {}  scale {}",
-                world.block_count(),
-                renderer.triangles(),
-                renderer.lights_in_use,
-                renderer.render_scale
-            ),
-            effects,
-        ];
+            Color::RAYWHITE,
+        );
+
         if self.test_mode {
-            lines.push("TEST MODE (G)  right click: fast".into());
+            say(
+                "Nearby (test mode: G hides, hold right click to go fast)".into(),
+                HEADING,
+            );
+            if self.finder.found.is_empty() {
+                say("  nothing within 500 m".into(), Color::RAYWHITE);
+            }
             for (label, target) in &self.finder.found {
-                lines.push(format!("  {label}: {}", bearing(player, *target)));
+                say(
+                    format!("  {label}: {}", bearing(player, *target)),
+                    Color::RAYWHITE,
+                );
             }
         }
-        if renderer.shaders_broken() {
-            lines.push("SHADER COMPILE ERROR (see log), using last good version".into());
-        }
-        let h = 26 + (lines.len() + HELP.len()) as i32 * 20;
-        d.draw_rectangle(8, 8, 680, h, Color::new(0, 0, 0, 140));
-        d.draw_fps(16, 14);
-        let help = HELP.iter().map(|s| s.to_string());
-        for (i, l) in lines.iter().cloned().chain(help).enumerate() {
-            let color = if i < lines.len() {
-                Color::RAYWHITE
+
+        say("Technical".into(), HEADING);
+        say(
+            format!(
+                "  {} fps   {:.1} M triangles   {} flower lights   resolution {:.0}%   sound {}",
+                unsafe { sola_raylib::ffi::GetFPS() },
+                renderer.triangles() as f32 / 1e6,
+                renderer.lights_in_use,
+                renderer.render_scale * 100.0,
+                match audio {
+                    Some(a) if a.muted => "muted".to_string(),
+                    Some(a) => format!("on, {} notes played", a.notes_played),
+                    None => "off".to_string(),
+                }
+            ),
+            Color::RAYWHITE,
+        );
+        let off: Vec<String> = EFFECTS
+            .iter()
+            .enumerate()
+            .filter(|(_, (bit, _))| renderer.effects & bit == 0)
+            .map(|(i, (_, name))| format!("{name} ({})", EFFECT_KEYS[i]))
+            .collect();
+        say(
+            if off.is_empty() {
+                "  all effects on".into()
             } else {
-                Color::LIGHTGRAY
-            };
-            d.draw_text(&l, 16, 36 + i as i32 * 20, 18, color);
+                format!("  effects off: {}", off.join(", "))
+            },
+            Color::RAYWHITE,
+        );
+        if renderer.shaders_broken() {
+            say(
+                "  SHADER COMPILE ERROR (see log), using last good version".into(),
+                Color::RED,
+            );
+        }
+        say("Keys".into(), HEADING);
+        for h in HELP {
+            say(format!("  {h}"), DIM);
+        }
+
+        let measure = |s: &str, size: i32| {
+            let c = std::ffi::CString::new(s).unwrap_or_default();
+            unsafe { sola_raylib::ffi::MeasureText(c.as_ptr(), size) }
+        };
+        let width = lines
+            .iter()
+            .map(|(l, _)| measure(l, TEXT_SIZE))
+            .max()
+            .unwrap_or(0)
+            + 24;
+        let h = 16 + TITLE_SIZE + 8 + lines.len() as i32 * LINE + 8;
+        d.draw_rectangle(8, 8, width, h, Color::new(0, 0, 0, 150));
+        d.draw_text(code, 18, 16, TITLE_SIZE, HEADING);
+        let w = measure(code, TITLE_SIZE);
+        d.draw_text(name, 18 + w + 14, 16, TITLE_SIZE, Color::RAYWHITE);
+        let top = 16 + TITLE_SIZE + 8;
+        for (i, (l, c)) in lines.iter().enumerate() {
+            d.draw_text(l, 18, top + i as i32 * LINE, TEXT_SIZE, *c);
         }
     }
 }

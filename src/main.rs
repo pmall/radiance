@@ -27,7 +27,7 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
@@ -42,6 +42,8 @@ struct Args {
     no_audio: bool,
     /// Record this many seconds of the run to `recordings/`, then exit (to test the recorder).
     record_for: Option<f32>,
+    /// Keep the debug overlay in a `--shot`.
+    overlay: bool,
 }
 
 fn parse_args() -> Args {
@@ -54,6 +56,7 @@ fn parse_args() -> Args {
         bench: None,
         no_audio: false,
         record_for: None,
+        overlay: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -61,6 +64,7 @@ fn parse_args() -> Args {
             "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
             "--shot" => args.shot = it.next(),
             "--no-audio" => args.no_audio = true,
+            "--overlay" => args.overlay = true,
             "--record-for" => args.record_for = it.next().and_then(|s| s.parse().ok()),
             "--bench" => args.bench = it.next().and_then(|s| s.parse().ok()),
             "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
@@ -172,7 +176,7 @@ fn main() {
     let mut toast: Option<(String, f32)> = None;
     if args.shot.is_some() {
         cycle.running = false;
-        debug.show_overlay = false;
+        debug.show_overlay = args.overlay;
     }
 
     'run: while !rl.window_should_close() {
@@ -368,11 +372,16 @@ fn main() {
                 break;
             }
         }
+        // The overlay comes before the shot, which keeps it only with --overlay.
+        debug.update(&world, &player);
+        debug.draw(&mut d, &world, &player, &renderer, &cycle, audio.as_ref());
         if let Some(path) = &args.shot
             && frame == 5
         {
             let c = std::ffi::CString::new(path.as_str()).unwrap();
             unsafe {
+                // Flush queued 2D draws (the overlay) before reading the screen back.
+                sola_raylib::ffi::rlDrawRenderBatchActive();
                 let img = sola_raylib::ffi::LoadImageFromScreen();
                 sola_raylib::ffi::ExportImage(img, c.as_ptr());
                 sola_raylib::ffi::UnloadImage(img);
@@ -380,8 +389,6 @@ fn main() {
             break;
         }
 
-        debug.update(&world, &player);
-        debug.draw(&mut d, &world, &player, &renderer, &cycle, audio.as_ref());
         if let Some(r) = recorder.as_ref() {
             let secs = r.seconds() as u32;
             d.draw_circle(d.get_screen_width() - 120, 24, 8.0, Color::RED);

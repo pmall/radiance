@@ -564,7 +564,8 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         max: hi + reach,
     };
     around.retain(|b| b.aabb.overlaps(&near));
-    // Under a crater the sun gets in, and the growth is as lush as in the canopy.
+    // Under a crater the sun gets in: plants grow as lushly as in the canopy, and flowers, which
+    // follow the sun like real ones, a little more than on their floor.
     let crater = super::city::crater_at(seed, lx, lz);
     let mut b = Builder {
         rng: &mut rng,
@@ -620,13 +621,17 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
             continue;
         }
         let y = a.max.y.min(a.min.y + 1.0);
-        let band = match crater {
-            Some(f) if y >= floors::Y[f] - 1.0 => 0,
-            _ => floors::band_at(y),
-        };
-        let dens = b.biome.plant_density[band];
+        let band = floors::band_at(y);
+        let sunlit = crater.is_some_and(|f| y >= floors::Y[f] - 1.0);
+        let dens = b.biome.plant_density[if sunlit { 0 } else { band }];
         b.dens = dens;
-        b.bloom = b.biome.bloom[band];
+        // Flowers come per plant, so compensate for the extra plants: 1.5x the floor's flowers.
+        b.bloom = b.biome.bloom[band]
+            * if sunlit {
+                1.5 * b.biome.plant_density[band] / dens
+            } else {
+                1.0
+            };
 
         // Bushes on top surfaces (not on parapets, machinery or signs).
         let plantable = matches!(
