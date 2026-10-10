@@ -51,9 +51,10 @@ What the project owner has said so far. Treat as requirements.
 - Craters: lush plants, but flowers only a little denser than on their floor (owner questioned
   canopy-level flowers there; it was not a directive).
 - The debug overlay must be readable by a non-specialist: plain words, the floor shown large.
+  Floors are counted from 0 like the D names (D7 = floor 7 of 8); directions use clock hours.
 - Stairs are generated as in the real game, even when testing. Rare stairs high up are fine; the
   debug panel must still show the nearest one, however far. Test mode (G, on by default)
-  helps find things instead: the overlay gives the distance and direction of the nearest
+  helps find things instead: the overlay gives the distance and clock direction of the nearest
   stair up, stair down and crater, and the right mouse button makes Wick 4 times faster.
 
 ## Controls
