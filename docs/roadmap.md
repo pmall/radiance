@@ -42,6 +42,10 @@
      building), vegetation and flowers thickest in the canopy and thinnest in the depths (humans
      moved up as the city rose). See `docs/lore.md`.
    - Biomes *(groundwork done)*: see `docs/world.md` and `docs/biome-ideas.md`.
+   - Candidates from the *Last Radiance* brainstorm *(not started)*: sunlight craters, light-network
+     veins, older architecture deep and machine intrusion high, set dressing, flowers in human
+     places, melodic-gradient guidance. See "What the prototype can take now" in
+     `docs/game-ideas.md`.
 
 ## Debug and art-iteration tools
 

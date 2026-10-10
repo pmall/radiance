@@ -11,10 +11,16 @@ good it looks.
 It's a mood and rendering prototype: **no gameplay systems** (no objectives, no NPCs, no UI beyond
 debug tools).
 
+A possible future, brainstormed by the owner: a short narrative exploration game, *Last Radiance*,
+built on this city (`docs/story.md`, `docs/game-ideas.md`). It is inspiration for the mood and the
+world, not a change of scope.
+
 ## Definition of done
 
 - Launch → seed-generated city → walk through it in first person.
-- The city streams endlessly in every horizontal direction and has real vertical depth.
+- The city has real vertical depth: a finite stack of floors, from the original ground to the
+  construction front. It streams endlessly in every horizontal direction (kept unless it gets in
+  the way of more important things).
 - The rendering clearly reads as stylized illustration, not default 3D.
 - Bioluminescent plants light their surroundings and play a soft piano-like note when approached.
 - Time of day evolves continuously through a full day/night cycle.
@@ -22,10 +28,9 @@ debug tools).
 
 ## Guidance (future)
 
-The city is huge and has no UI. Like the wind in *Ghost of Tsushima*, a guiding wind (sound first,
-pollen and spores drifting the same way as its visual twin) leads the player toward points of
-interest. See `docs/audio.md`; the brainstormed, less obvious options are in
-`docs/guidance-ideas.md`.
+The city is huge and has no UI. The flowers guide the player: near a point of interest their notes
+grow more consonant and form a motif that completes on arrival, never explained (the "melodic
+gradient", chosen by the owner; see `docs/guidance-ideas.md` and `docs/audio.md`).
 
 ## Player
 

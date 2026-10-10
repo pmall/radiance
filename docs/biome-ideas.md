@@ -8,6 +8,11 @@ size relative to the others.
 Palettes, plant mix and city parameters are cheap. New plant shapes and per-biome fog or sky tint
 are the expensive part.
 
+From the brainstorm (`docs/game-ideas.md`): the height band should set the broad ecology (sparse
+and fungal deep, dense and flowering near the sun), with some biomes only above or below a given
+level. The rainbow biome is extremely rare, possibly unique per city, and in the story it is where
+the flowers' faintest melody leads.
+
 ## Ideas
 
 ### 1. Default: "Neon Garden"
