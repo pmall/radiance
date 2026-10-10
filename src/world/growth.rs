@@ -367,19 +367,40 @@ impl Builder<'_> {
     /// A rosette of arching fronds (or a tuft of narrow blades) sitting on a surface at `base`.
     fn bush(&mut self, base: Vec3) {
         let tuft = self.rng.chance(0.3);
-        let scale = self.rng.range(1.0, 2.0);
+        let mut scale = self.rng.range(1.0, 2.0);
+        // Next to props (a bench, a bin), the bush grows smaller instead of not at all: its
+        // fronds, reaching about 1.8 * scale, stay clear of them.
+        let room = self
+            .solids
+            .iter()
+            .filter(|b| b.kind == BlockKind::Prop && b.aabb.max.y > base.y + 0.05)
+            .filter(|b| b.aabb.min.y < base.y + 2.5 * scale)
+            .map(|b| {
+                let dx = (b.aabb.min.x - base.x).max(base.x - b.aabb.max.x).max(0.0);
+                let dz = (b.aabb.min.z - base.z).max(base.z - b.aabb.max.z).max(0.0);
+                (dx * dx + dz * dz).sqrt()
+            })
+            .fold(f32::MAX, f32::min);
+        scale = scale.min(room / 1.9);
+        if scale < 0.55 {
+            return;
+        }
         // Fronds reach about 1.8 * scale sideways: keep clear of any other block, so none of
         // them is squashed against a wall or rooted in one (the host's top surface is fine).
         let reach = 1.8 * scale;
-        let crowded = self.solids.iter().any(|b| {
-            let a = &b.aabb;
-            a.min.y < base.y + 2.5 * scale
-                && a.max.y > base.y + 0.05
-                && base.x > a.min.x - reach
-                && base.x < a.max.x + reach
-                && base.z > a.min.z - reach
-                && base.z < a.max.z + reach
-        });
+        let crowded = self
+            .solids
+            .iter()
+            .filter(|b| b.kind != BlockKind::Prop)
+            .any(|b| {
+                let a = &b.aabb;
+                a.min.y < base.y + 2.5 * scale
+                    && a.max.y > base.y + 0.05
+                    && base.x > a.min.x - reach
+                    && base.x < a.max.x + reach
+                    && base.z > a.min.z - reach
+                    && base.z < a.max.z + reach
+            });
         if crowded {
             return;
         }
