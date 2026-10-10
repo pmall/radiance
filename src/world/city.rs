@@ -259,7 +259,12 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         let color = tint(&mut decor, lo, lo + 18);
         levels.push(y);
         if kind == Deck::Ring {
-            push_ring_deck(mid, y, color, out);
+            let hole = if stair_along_x(seed, lx, lz) {
+                WELL
+            } else {
+                (WELL.1, WELL.0)
+            };
+            push_ring_deck(mid, y, hole, color, out);
         } else {
             out.push(Block {
                 kind: BlockKind::Deck,
@@ -275,7 +280,7 @@ pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     push_movement_course(lx, lz, out);
 
     if let Some((lo, hi)) = stair(seed, lx, lz) {
-        push_spiral_stair(&mut decor, mid, Y[lo], Y[hi], out);
+        push_switchback_stair(mid, stair_along_x(seed, lx, lz), Y[lo], Y[hi], out);
     }
 
     if let Some(t) = tower(seed, lx, lz) {
@@ -395,56 +400,154 @@ fn push_lamps(
     }
 }
 
-/// Half-size of the square opening in a deck above a stair.
-const STAIR_HOLE: f32 = 5.6;
-const STEP_RISE: f32 = 0.5;
-const STEP_RADIUS: f32 = 4.2;
-const STEP_SIZE: f32 = 2.4;
-const STEPS_PER_TURN: f32 = 28.0;
+// Switchback stairs: straight flights going back and forth in two lanes split by a central
+// wall, with a landing at each turn and rails on the open sides.
+const FLIGHT_RUN: f32 = 8.0;
+const FLIGHT_STEPS: usize = 20;
+/// Step height aimed for (well under the player's step-up height).
+const TARGET_RISE: f32 = 0.25;
+const LANE: f32 = 2.0;
+const SPINE: f32 = 0.4;
+const LANDING: f32 = 2.0;
+const LANDING_THICKNESS: f32 = 0.3;
+const RAIL_HEIGHT: f32 = 1.1;
+const RAIL_THICKNESS: f32 = 0.1;
+/// Half size of the stairwell: along the flights, across them. The deck above has this hole.
+const WELL: (f32, f32) = (FLIGHT_RUN * 0.5 + LANDING, LANE + SPINE * 0.5);
 
-/// A lot-sized deck with a square hole in the middle, as four slabs.
-fn push_ring_deck(mid: Vec3, top: f32, color: Color, out: &mut Vec<Block>) {
+/// Whether a lot's stair flights run along x (else along z).
+fn stair_along_x(seed: u64, lx: i32, lz: i32) -> bool {
+    hash_coords(seed, lx, SALT_STAIR + 1, lz) & 1 == 0
+}
+
+/// A lot-sized deck with a rectangular hole of half size `hole` (x, z) in the middle, as four
+/// slabs.
+fn push_ring_deck(mid: Vec3, top: f32, hole: (f32, f32), color: Color, out: &mut Vec<Block>) {
     let half = LOT * 0.5;
     let y = top - DECK_THICKNESS * 0.5;
-    let band = half - STAIR_HOLE;
-    let mut slab = |cx: f32, cz: f32, sx: f32, sz: f32| {
+    let mut slab = |x0: f32, x1: f32, z0: f32, z1: f32| {
         out.push(Block {
             kind: BlockKind::Deck,
-            aabb: Aabb::from_center(
-                vec3(mid.x + cx, y, mid.z + cz),
-                vec3(sx, DECK_THICKNESS, sz),
-            ),
+            aabb: Aabb {
+                min: vec3(mid.x + x0, y - DECK_THICKNESS * 0.5, mid.z + z0),
+                max: vec3(mid.x + x1, y + DECK_THICKNESS * 0.5, mid.z + z1),
+            },
             color,
         });
     };
-    let off = STAIR_HOLE + band * 0.5;
-    slab(0.0, -off, LOT, band);
-    slab(0.0, off, LOT, band);
-    slab(-off, 0.0, band, STAIR_HOLE * 2.0);
-    slab(off, 0.0, band, STAIR_HOLE * 2.0);
+    slab(-half, half, -half, -hole.1);
+    slab(-half, half, hole.1, half);
+    slab(-half, -hole.0, -hole.1, hole.1);
+    slab(hole.0, half, -hole.1, hole.1);
 }
 
-/// A helix of thin steps from height `bottom` up to `top`. Each step rises less than the
-/// player's step-up height, so it can simply be walked.
-fn push_spiral_stair(rng: &mut Rng, mid: Vec3, bottom: f32, top: f32, out: &mut Vec<Block>) {
-    let dir = if rng.chance(0.5) { 1.0 } else { -1.0 };
-    let phase = rng.range(0.0, std::f32::consts::TAU);
-    let color = Color::new(176, 150, 112, 255);
-    let n = ((top - bottom) / STEP_RISE).round() as i32;
-    for i in 1..=n {
-        let a = phase + dir * i as f32 * std::f32::consts::TAU / STEPS_PER_TURN;
-        let step_top = bottom + i as f32 * STEP_RISE;
-        let c = vec3(
-            mid.x + a.cos() * STEP_RADIUS,
-            step_top - STEP_RISE * 0.5,
-            mid.z + a.sin() * STEP_RADIUS,
-        );
+/// A switchback stair from height `bottom` up to `top`, centered on `mid`.
+fn push_switchback_stair(mid: Vec3, along_x: bool, bottom: f32, top: f32, out: &mut Vec<Block>) {
+    let stone = Color::new(176, 150, 112, 255);
+    let steel = Color::new(70, 76, 88, 255);
+    let wall = Color::new(150, 150, 156, 255);
+    let flights = ((top - bottom) / (FLIGHT_STEPS as f32 * TARGET_RISE))
+        .round()
+        .max(1.0) as usize;
+    let rise = (top - bottom) / (flights * FLIGHT_STEPS) as f32;
+    let tread = FLIGHT_RUN / FLIGHT_STEPS as f32;
+    let half_run = FLIGHT_RUN * 0.5;
+    // A box from stair coordinates: u along the flights, w across them.
+    let mut push = |u: (f32, f32), w: (f32, f32), y: (f32, f32), kind: BlockKind, color: Color| {
+        let (x, z) = if along_x { (u, w) } else { (w, u) };
         out.push(Block {
-            kind: BlockKind::Stair,
-            aabb: Aabb::from_center(c, vec3(STEP_SIZE, STEP_RISE, STEP_SIZE)),
+            kind,
+            aabb: Aabb {
+                min: vec3(mid.x + x.0, y.0, mid.z + z.0),
+                max: vec3(mid.x + x.1, y.1, mid.z + z.1),
+            },
             color,
         });
+    };
+    for i in 0..flights {
+        let base = bottom + (i * FLIGHT_STEPS) as f32 * rise;
+        let forward = i % 2 == 0;
+        // Even flights climb toward +u in one lane, odd ones come back in the other.
+        let lane = if forward {
+            (-WELL.1, -SPINE * 0.5)
+        } else {
+            (SPINE * 0.5, WELL.1)
+        };
+        let rail = if forward {
+            (lane.0, lane.0 + RAIL_THICKNESS)
+        } else {
+            (lane.1 - RAIL_THICKNESS, lane.1)
+        };
+        for j in 0..FLIGHT_STEPS {
+            let step_top = base + (j + 1) as f32 * rise;
+            let (a, b) = (j as f32 * tread, (j + 1) as f32 * tread);
+            let u = if forward {
+                (-half_run + a, -half_run + b)
+            } else {
+                (half_run - b, half_run - a)
+            };
+            push(
+                u,
+                lane,
+                (step_top - rise, step_top),
+                BlockKind::Stair,
+                stone,
+            );
+            push(
+                u,
+                rail,
+                (step_top, step_top + RAIL_HEIGHT),
+                BlockKind::Steel,
+                steel,
+            );
+        }
+        // The landing at the end of the flight, railed on its open sides (the last one is level
+        // with the deck around the stairwell).
+        let end = base + FLIGHT_STEPS as f32 * rise;
+        let u = if forward {
+            (half_run, WELL.0)
+        } else {
+            (-WELL.0, -half_run)
+        };
+        push(
+            u,
+            (-WELL.1, WELL.1),
+            (end - LANDING_THICKNESS, end),
+            BlockKind::Stair,
+            stone,
+        );
+        if i + 1 < flights {
+            let y = (end, end + RAIL_HEIGHT);
+            let edge = if forward {
+                (WELL.0 - RAIL_THICKNESS, WELL.0)
+            } else {
+                (-WELL.0, -WELL.0 + RAIL_THICKNESS)
+            };
+            push(edge, (-WELL.1, WELL.1), y, BlockKind::Steel, steel);
+            push(
+                u,
+                (-WELL.1, -WELL.1 + RAIL_THICKNESS),
+                y,
+                BlockKind::Steel,
+                steel,
+            );
+            push(
+                u,
+                (WELL.1 - RAIL_THICKNESS, WELL.1),
+                y,
+                BlockKind::Steel,
+                steel,
+            );
+        }
     }
+    // The wall between the two lanes.
+    push(
+        (-half_run, half_run),
+        (-SPINE * 0.5, SPINE * 0.5),
+        (bottom, top),
+        BlockKind::Parapet,
+        wall,
+    );
 }
 
 /// A tower is a body plus an optional narrower setback tier on top. Some towers are still being

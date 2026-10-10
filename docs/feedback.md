@@ -44,7 +44,10 @@ What the project owner has said so far. Treat as requirements.
 - Climbing: D0 to D2 easy, D2 to D4 a bit less easy, D4 to D5 locked behind a code or similar,
   where Wick breaks the fourth wall for the first time. Not to be built yet.
 - Stairs link one floor to the next only (no stair spanning several floors) and get harder and
-  harder to find going up.
+  harder to find going up. Spiral stairs did not fit the city: stairs are straight switchbacks
+  ("Z" stairs) with landings and rails.
+- Bushes without flowers are fine (flowers are the special, glowing part); the owner was unsure,
+  so keep it easy to tune.
 - Craters: lush plants, but flowers only a little denser than on their floor (owner questioned
   canopy-level flowers there; it was not a directive).
 - The debug overlay must be readable by a non-specialist: plain words, the floor shown large.

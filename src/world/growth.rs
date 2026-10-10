@@ -17,7 +17,8 @@ use crate::rng::{Rng, hash_coords, mix64};
 
 const SALT_GROWTH: i32 = 3;
 
-/// Light sources kept per lot; the renderer picks the nearest ones overall.
+/// Flowers (light sources) kept per lot and floor; the renderer picks the nearest ones overall.
+/// Per floor, so the floors grown first (the lower ones) don't use up a lot's whole budget.
 const MAX_LIGHTS: usize = 24;
 /// Emission of flowers, out of 255. Foliage never glows: only flowers are light sources.
 const FLOWER_GLOW: u8 = 235;
@@ -51,6 +52,8 @@ struct Builder<'a> {
     rng: &'a mut Rng,
     out: Vec<PlantVert>,
     lights: Vec<Light>,
+    /// Flowers planted on each floor so far (see `MAX_LIGHTS`).
+    per_floor: [usize; floors::COUNT],
     id: u8,
     /// Growth density of the block being planted.
     dens: f32,
@@ -96,7 +99,7 @@ impl Builder<'_> {
     /// color. `axis` is the way the flower faces. Skipped once the lot's light budget is spent.
     fn flower(&mut self, center: Vec3, radius: f32, color: Color, axis: Vec3) {
         let at = center + axis * radius * 0.4;
-        if self.lights.len() >= MAX_LIGHTS
+        if self.per_floor[floors::floor_at(at.y)] >= MAX_LIGHTS
             || self.buried(center)
             || self
                 .lights
@@ -157,6 +160,7 @@ impl Builder<'_> {
             }
         }
         let lin = |v: u8| (v as f32 / 255.0).powf(2.2);
+        self.per_floor[floors::floor_at(at.y)] += 1;
         self.lights.push(Light {
             y_lo,
             y_hi,
@@ -571,6 +575,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         rng: &mut rng,
         out: Vec::new(),
         lights: Vec::new(),
+        per_floor: [0; floors::COUNT],
         id: 1,
         dens: 1.0,
         bloom: 1.0,
@@ -579,39 +584,45 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         solids: &around,
     };
 
-    // Souls line the stairs: people climbed them as the city rose. Flowers at regular intervals
-    // along the steps make a stair read from afar as a spiral of light, the way up in the dark.
-    let steps: Vec<Vec3> = blocks
-        .iter()
-        .filter(|blk| blk.kind == BlockKind::Stair)
-        .map(|blk| {
-            vec3(
-                (blk.aabb.min.x + blk.aabb.max.x) * 0.5,
-                blk.aabb.max.y,
-                (blk.aabb.min.z + blk.aabb.max.z) * 0.5,
-            )
-        })
-        .collect();
+    // Souls line the stairs: people climbed them as the city rose. A flower on each landing, in
+    // its far corner, makes a stair read from afar as a column of lights, the way up in the dark.
     let axis = vec3(
         (lx as f32 + 0.5) * super::city::LOT,
         0.0,
         (lz as f32 + 0.5) * super::city::LOT,
     );
-    let every = (steps.len() / (MAX_LIGHTS - 4)).max(5);
-    for i in (every / 2..steps.len().saturating_sub(1)).step_by(every) {
-        let (p, next) = (steps[i], steps[i + 1]);
-        // At the back of the step and toward its outer side, clear of the steps above.
-        let ahead = vec3(next.x - p.x, 0.0, next.z - p.z).normalize_or_zero();
-        let out = vec3(p.x - axis.x, 0.0, p.z - axis.z).normalize_or_zero();
+    let landings = blocks.iter().filter(|blk| {
+        let s = blk.aabb.size();
+        blk.kind == BlockKind::Stair && s.x > 1.5 && s.z > 1.5
+    });
+    for blk in landings {
+        let a = &blk.aabb;
+        // Clear of the rails along the landing's edges.
+        const INSET: f32 = 1.0;
+        let far = |lo: f32, hi: f32, c: f32| {
+            if (hi - c).abs() > (lo - c).abs() {
+                hi - INSET
+            } else {
+                lo + INSET
+            }
+        };
+        let side = |lo: f32, hi: f32, rng: &mut Rng| {
+            if rng.chance(0.5) {
+                lo + INSET
+            } else {
+                hi - INSET
+            }
+        };
+        // The far edge runs across the long side of the landing.
+        let (x, z) = if a.size().x < a.size().z {
+            (far(a.min.x, a.max.x, axis.x), side(a.min.z, a.max.z, b.rng))
+        } else {
+            (side(a.min.x, a.max.x, b.rng), far(a.min.z, a.max.z, axis.z))
+        };
         let r = b.rng.range(0.24, 0.32);
         b.new_plant();
         let fc = b.flower_color();
-        b.flower(
-            p - ahead * 0.8 + out * 0.6 + Vec3::Y * r * 0.9,
-            r,
-            fc,
-            Vec3::Y,
-        );
+        b.flower(vec3(x, a.max.y + r * 0.9, z), r, fc, Vec3::Y);
     }
 
     for blk in blocks {
@@ -722,6 +733,10 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
                 ),
             ];
             for (origin, along, normal, w) in faces {
+                // Too narrow to climb (the end of a thin wall).
+                if w < 1.0 {
+                    continue;
+                }
                 let count = if b.rng.chance(0.8 * b.biome.climber_rate * dens.min(1.3)) {
                     b.rng.range_i(1, 4)
                 } else {
@@ -814,7 +829,11 @@ mod tests {
                     assert_eq!(g.lights.len(), g2.lights.len());
 
                     // Lights: budget, spacing, never inside a block.
-                    assert!(g.lights.len() <= MAX_LIGHTS);
+                    let mut per_floor = [0; floors::COUNT];
+                    for l in &g.lights {
+                        per_floor[floors::floor_at(l.pos.y)] += 1;
+                    }
+                    assert!(per_floor.iter().all(|&n| n <= MAX_LIGHTS));
                     for (i, l) in g.lights.iter().enumerate() {
                         if let Some(b) = all.iter().find(|b| inside(&b.aabb, l.pos, 0.0)) {
                             panic!(
@@ -841,5 +860,39 @@ mod tests {
             }
         }
         assert_eq!(crossing, 0);
+    }
+}
+
+#[cfg(test)]
+mod landing_tests {
+    use crate::world::{BlockKind, city};
+
+    #[test]
+    fn every_stair_landing_has_a_flower() {
+        for lz in -8..=8 {
+            for lx in -8..=8 {
+                if city::stair(1, lx, lz).is_none() {
+                    continue;
+                }
+                let mut blocks = Vec::new();
+                city::generate_lot(1, lx, lz, &mut blocks);
+                let g = super::grow_lot(1, lx, lz, &blocks);
+                let landings = blocks.iter().filter(|b| {
+                    let s = b.aabb.size();
+                    b.kind == BlockKind::Stair && s.x > 1.5 && s.z > 1.5
+                });
+                for a in landings {
+                    let lit = g
+                        .lights
+                        .iter()
+                        .any(|l| a.aabb.contains_xz(l.pos) && (l.pos.y - a.aabb.max.y).abs() < 1.0);
+                    assert!(
+                        lit,
+                        "lot {lx},{lz}: landing at {} has no flower",
+                        a.aabb.max.y
+                    );
+                }
+            }
+        }
     }
 }
