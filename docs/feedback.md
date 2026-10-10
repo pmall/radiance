@@ -43,7 +43,9 @@ What the project owner has said so far. Treat as requirements.
   moment is Wick panicking and breaking the fourth wall to address the player.
 - Climbing: D0 to D2 easy, D2 to D4 a bit less easy, D4 to D5 locked behind a code or similar,
   where Wick breaks the fourth wall for the first time. Not to be built yet.
-- Test mode places stairs to every floor right by the spawn, so testing never needs a long walk.
+- Stairs are generated as in the real game, even when testing. Test mode (G, on by default)
+  helps find things instead: the overlay gives the distance and clock direction of the nearest
+  stair up, stair down and crater, and the right mouse button makes Wick 4 times faster.
 
 ## Controls
 
