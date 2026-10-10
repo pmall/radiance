@@ -269,6 +269,54 @@ impl Debug {
     }
 }
 
+/// Folder of the P screenshots (gitignored).
+const SCREENSHOT_DIR: &str = "screenshots";
+
+/// Saves the frame drawn so far (call before the overlay) as `screenshots/radiance-<seed>-<n>.png`,
+/// with a text file beside it: where and when it was taken, and the command that renders the
+/// same view again. Returns the image path.
+pub fn save_screenshot(
+    seed: u64,
+    player: &Player,
+    cycle: &DayCycle,
+    effects: i32,
+) -> std::io::Result<std::path::PathBuf> {
+    use crate::world::floors;
+    std::fs::create_dir_all(SCREENSHOT_DIR)?;
+    let base = (1..)
+        .map(|n| std::path::Path::new(SCREENSHOT_DIR).join(format!("radiance-{seed}-{n:03}")))
+        .find(|p| !p.with_extension("png").exists())
+        .expect("a free screenshot name");
+    let png = base.with_extension("png");
+    let c = std::ffi::CString::new(png.to_string_lossy().as_bytes())
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    let ok = unsafe {
+        // Draws still queued in raylib's batch must reach the screen first.
+        sola_raylib::ffi::rlDrawRenderBatchActive();
+        let img = sola_raylib::ffi::LoadImageFromScreen();
+        let ok = sola_raylib::ffi::ExportImage(img, c.as_ptr());
+        sola_raylib::ffi::UnloadImage(img);
+        ok
+    };
+    if !ok {
+        return Err(std::io::Error::other("could not write the image"));
+    }
+    let p = player.pos;
+    let (yaw, pitch) = (player.yaw.to_degrees(), player.pitch.to_degrees());
+    let view = format!("{:.2},{:.2},{:.2},{yaw:.1},{pitch:.1}", p.x, p.y, p.z);
+    let note = format!(
+        "seed {seed}\nfloor {}\ntime {} ({})\nposition {view} (x,y,z,yaw,pitch)\n\n\
+         Render this view again:\n\
+         cargo run --release -- {seed} --time {:.4} --view {view} --fx {effects} --shot out.png\n",
+        floors::NAMES[floors::floor_at(p.y)],
+        cycle.clock(),
+        phase(cycle.t),
+        cycle.t,
+    );
+    std::fs::write(base.with_extension("txt"), note)?;
+    Ok(png)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -56,6 +56,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `cargo run -- <seed> --time 0.5 --view x,y,z,yaw,pitch --shot out.png`: render one frame at a
   given time of day (0 = midnight, 0.5 = noon) and camera, save it and exit. Use it to check looks.
 - `--overlay` keeps the debug panel in a shot. `--fx <mask>` sets effect bits for a shot, `--bench <frames>` prints ms/frame (no vsync). Shots and benchmarks are silent; `--no-audio` mutes a normal run, `RADIANCE_AUDIO_LOG=1` prints each note.
+- `P` in game saves a screenshot (no debug panel) to `screenshots/radiance-<seed>-<n>.png`
+  (gitignored), with a `.txt` beside it: seed, floor, time and the `--view ... --shot` command that
+  renders the same view. The owner uses them for feedback: run that command to see what they saw.
 - `V` in game starts/stops recording the run (screen and sound) to `recordings/radiance-<seed>-<time>.mp4` (needs `ffmpeg`; `src/recorder.rs`). `--record-for <seconds>` records that long and exits, to test it.
 - `cargo check` / `cargo clippy`: verify.
 - Rust lives in `~/.cargo/bin`; it may need adding to `PATH` in non-login shells.

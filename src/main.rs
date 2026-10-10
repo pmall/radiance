@@ -174,6 +174,8 @@ fn main() {
     let mut saving: Vec<recorder::Saving> = Vec::new();
     let mut start_recording = args.record_for.is_some();
     let mut toast: Option<(String, f32)> = None;
+    // P: save the next frame (without the overlay) to screenshots/.
+    let mut take_screenshot = false;
     if args.shot.is_some() {
         cycle.running = false;
         debug.show_overlay = args.overlay;
@@ -223,6 +225,9 @@ fn main() {
             && let Some(a) = audio.as_mut()
         {
             a.toggle_mute();
+        }
+        if rl.is_key_pressed(KEY_P) {
+            take_screenshot = true;
         }
         if rl.is_key_pressed(KEY_V) {
             match recorder.take() {
@@ -371,6 +376,15 @@ fn main() {
                 );
                 break;
             }
+        }
+        if take_screenshot {
+            take_screenshot = false;
+            toast = Some(
+                match debug::save_screenshot(world.seed, &player, &cycle, renderer.effects) {
+                    Ok(path) => (format!("screenshot saved: {}", path.display()), 4.0),
+                    Err(e) => (format!("screenshot failed: {e}"), 6.0),
+                },
+            );
         }
         // The overlay comes before the shot, which keeps it only with --overlay.
         debug.update(&world, &player);
