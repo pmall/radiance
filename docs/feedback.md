@@ -41,6 +41,9 @@ What the project owner has said so far. Treat as requirements.
 
 - The player is the consciousness of Wick, a meta presence inside the machine. The game's big
   moment is Wick panicking and breaking the fourth wall to address the player.
+- Climbing: D0 to D2 easy, D2 to D4 a bit less easy, D4 to D5 locked behind a code or similar,
+  where Wick breaks the fourth wall for the first time. Not to be built yet.
+- Test mode places stairs to every floor right by the spawn, so testing never needs a long walk.
 
 ## Controls
 

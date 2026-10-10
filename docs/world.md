@@ -33,8 +33,9 @@ plant bands, the shaders' floor heights, the souls' register, the debug overlay'
   canopy. A wide one always opens on D2 right in front of the spawn, which faces it.
 - **Stairs:** spirals in empty lots linking 1 to 3 floors, rarer the higher they start, lined
   with flowers (the souls of the people who climbed them) so they read from afar in the dark.
-  Two stairs next to the spawn (up to D4, down to D0) are **test scaffolding**: how the player
-  climbs is not designed yet (open question in `docs/game-ideas.md`).
+  **Test mode** (`city::TEST_STAIRS`): stairs right by the spawn reach every floor (D0 to D2
+  behind-right; D2 to D5 behind-left, then D5 to the top in the next lot). Scaffolding until the
+  climbing mechanics are built (`docs/game-ideas.md`).
 - **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can
   be unfinished skeletons with cranes. Roof and wall props that would pierce a deck are dropped.
 
