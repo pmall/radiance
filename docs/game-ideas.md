@@ -11,7 +11,7 @@ what the prototype can take from these ideas now.
 | --- | --- | --- |
 | A finite stack of many floors, each a finite map; no infinite horizontal city | Infinite, streamed in every horizontal direction, three deck layers | Owner's call: floors are finite (grow toward many); horizontal streaming stays unless it blocks more important work. |
 | Gameplay: POIs, dialogue, radio, credentials, fall damage, endings | No gameplay, no UI beyond debug tools | Future layer only. |
-| Upper floors built after humans vanished, yet the canopy has the most flowers | Canopy has the most flowers (`bloom` in `biome.rs`) | Reconciled in `docs/lore.md`. |
+| Upper floors built after humans vanished, yet the canopy has the most flowers | Canopy has the most flowers (floor profiles, `design.rs`) | Reconciled in `docs/lore.md`. |
 | Flower notes synthesized in code | Sampled upright piano | Matches the owner's own synth-piano idea (`docs/audio.md`). |
 | Ambient creaks and breathing textures | Only the hum plays; wind and groans were disliked | Owner's decision stands. |
 

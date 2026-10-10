@@ -2,11 +2,12 @@
 //! sees on each floor. Light falls through the city only where the gaps in the floors above line
 //! up (see `city::deck`); the shadow map alone reaches too short a distance for that.
 //!
-//! One RGBA texture of four `SIZE` x `SIZE` tiles, one texel per lot, centered on the camera:
-//! - tile 0, red: the lot's `city::cover_bits` (bit `f - 1` for a deck on floor `f`), read
-//!   exactly (`texelFetch`) to trace the sun through the floors;
-//! - tiles 1..=3: the sky view of the lot on floor `f` in tile `1 + f / 4`, channel `f % 4`
+//! One RGBA texture of `TILES` tiles of `SIZE` x `SIZE`, one texel per lot, centered on the camera:
+//! - tile 0, red and green: the lot's `city::cover_bits` (bit `f - 1` for a deck on floor `f`,
+//!   low byte in red), read exactly (`texelFetch`) to trace the sun through the floors;
+//! - tiles 1..: the sky view of the lot on floor `f` in tile `1 + f / 4`, channel `f % 4`
 //!   (0 = no sky, 1 = open sky), read with linear filtering so it blends between lots.
+//! Room for `floors::MAX` floors, whatever the run's count.
 //!
 //! Rebuilt when the camera changes lot; each lot's data is cached, so a move only computes the
 //! new edge. `SIZE` and the layout are mirrored in `shaders/scene.fs` and `shaders/post.fs`.
@@ -19,7 +20,7 @@ use sola_raylib::ffi;
 use crate::world::{city, floors};
 
 pub const SIZE: i32 = 64;
-const TILES: i32 = 4;
+const TILES: i32 = 1 + floors::MAX as i32 / 4;
 /// Directions traced per lot and floor to estimate its sky view.
 const VIEW_RAYS: usize = 24;
 
@@ -28,8 +29,8 @@ pub struct CoverMap {
     /// Lot coordinates of texel (0, 0) of each tile.
     pub origin: (i32, i32),
     seed: Option<u64>,
-    bits: HashMap<(i32, i32), u8>,
-    views: HashMap<(i32, i32), [u8; floors::COUNT]>,
+    bits: HashMap<(i32, i32), u16>,
+    views: HashMap<(i32, i32), [u8; floors::MAX]>,
     rays: [Vec3; VIEW_RAYS],
     pixels: Vec<u8>,
 }
@@ -51,16 +52,16 @@ fn lot_of(p: Vec2) -> (i32, i32) {
     )
 }
 
-fn bits_of(cache: &mut HashMap<(i32, i32), u8>, seed: u64, lot: (i32, i32)) -> u8 {
+fn bits_of(cache: &mut HashMap<(i32, i32), u16>, seed: u64, lot: (i32, i32)) -> u16 {
     *cache
         .entry(lot)
         .or_insert_with(|| city::cover_bits(seed, lot.0, lot.1))
 }
 
 /// Whether a ray from `p` along `dir` clears every deck above it.
-fn clears(cache: &mut HashMap<(i32, i32), u8>, seed: u64, p: Vec3, dir: Vec3) -> bool {
-    (1..floors::COUNT).all(|g| {
-        let y = floors::Y[g] - 0.6;
+fn clears(cache: &mut HashMap<(i32, i32), u16>, seed: u64, p: Vec3, dir: Vec3) -> bool {
+    (1..floors::count()).all(|g| {
+        let y = floors::y(g) - 0.6;
         if y < p.y + 0.2 {
             return true;
         }
@@ -93,13 +94,16 @@ impl CoverMap {
     }
 
     /// Sky view of a lot on every floor, 0..=255.
-    fn view(&mut self, seed: u64, lot: (i32, i32)) -> [u8; floors::COUNT] {
+    fn view(&mut self, seed: u64, lot: (i32, i32)) -> [u8; floors::MAX] {
         if let Some(v) = self.views.get(&lot) {
             return *v;
         }
         let center = Vec2::new(lot.0 as f32 + 0.5, lot.1 as f32 + 0.5) * city::LOT;
         let v = std::array::from_fn(|f| {
-            let p = vec3(center.x, floors::Y[f] + 2.0, center.y);
+            if f >= floors::count() {
+                return 255;
+            }
+            let p = vec3(center.x, floors::y(f) + 2.0, center.y);
             let open = self
                 .rays
                 .iter()
@@ -136,7 +140,9 @@ impl CoverMap {
             for tx in 0..SIZE {
                 let lot = (origin.0 + tx, origin.1 + tz);
                 let base = (tz as usize * row + tx as usize) * 4;
-                self.pixels[base] = bits_of(&mut self.bits, seed, lot);
+                let bits = bits_of(&mut self.bits, seed, lot);
+                self.pixels[base] = bits as u8;
+                self.pixels[base + 1] = (bits >> 8) as u8;
                 for (f, v) in self.view(seed, lot).into_iter().enumerate() {
                     let tile = 1 + f / 4;
                     self.pixels[base + tile * SIZE as usize * 4 + f % 4] = v;
@@ -171,7 +177,13 @@ impl CoverMap {
     }
 }
 
-/// Floor heights for the shaders' `uFloorY` uniform.
-pub fn floor_uniform() -> [f32; floors::COUNT] {
-    floors::Y
+/// Floor heights for the shaders' `uFloorY` uniform (unused entries far above).
+pub fn floor_uniform() -> [f32; floors::MAX] {
+    std::array::from_fn(|f| {
+        if f < floors::count() {
+            floors::y(f)
+        } else {
+            1e6
+        }
+    })
 }

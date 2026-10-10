@@ -227,12 +227,12 @@ mod tests {
                 lot: (3, -2),
                 index,
             };
-            let low = note_for(5, soul, floors::BOTTOM + 5.0, &mut rng);
-            let up = note_for(5, soul, floors::TOP, &mut rng);
+            let low = note_for(5, soul, floors::bottom() + 5.0, &mut rng);
+            let up = note_for(5, soul, floors::top(), &mut rng);
             assert!(piano::SCALE.contains(&(low % 12)) && piano::SCALE.contains(&(up % 12)));
             assert_eq!(
                 low,
-                note_for(5, soul, floors::BOTTOM + 5.0, &mut rng),
+                note_for(5, soul, floors::bottom() + 5.0, &mut rng),
                 "same soul, same note"
             );
             deep += low as f32;

@@ -4,6 +4,7 @@ mod debug;
 mod player;
 mod recorder;
 mod render;
+mod report;
 mod rng;
 mod world;
 
@@ -27,7 +28,7 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay] [--floors N] [--no-props] [--no-pois] [--report [radius]]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
@@ -44,6 +45,13 @@ struct Args {
     record_for: Option<f32>,
     /// Keep the debug overlay in a `--shot`.
     overlay: bool,
+    /// Number of floors in the stack (`world::floors::init`).
+    floors: Option<usize>,
+    /// Start with props or points of interest switched off (O and I in game).
+    no_props: bool,
+    no_pois: bool,
+    /// Print the design report over the lots within this radius of the spawn, and exit.
+    report: Option<i32>,
 }
 
 fn parse_args() -> Args {
@@ -57,14 +65,28 @@ fn parse_args() -> Args {
         no_audio: false,
         record_for: None,
         overlay: false,
+        floors: None,
+        no_props: false,
+        no_pois: false,
+        report: None,
     };
-    let mut it = std::env::args().skip(1);
+    let mut it = std::env::args().skip(1).peekable();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
             "--shot" => args.shot = it.next(),
             "--no-audio" => args.no_audio = true,
             "--overlay" => args.overlay = true,
+            "--floors" => args.floors = it.next().and_then(|s| s.parse().ok()),
+            "--no-props" => args.no_props = true,
+            "--no-pois" => args.no_pois = true,
+            "--report" => {
+                args.report = Some(5);
+                if let Some(r) = it.peek().and_then(|s| s.parse().ok()) {
+                    args.report = Some(r);
+                    it.next();
+                }
+            }
             "--record-for" => args.record_for = it.next().and_then(|s| s.parse().ok()),
             "--bench" => args.bench = it.next().and_then(|s| s.parse().ok()),
             "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
@@ -130,6 +152,13 @@ fn spawn_player(view: Option<[f32; 5]>) -> Player {
 
 fn main() {
     let args = parse_args();
+    world::floors::init(args.floors.unwrap_or(world::floors::DEFAULT_COUNT));
+    world::design::set_props(!args.no_props);
+    world::design::set_pois(!args.no_pois);
+    if let Some(radius) = args.report {
+        report::run(args.seed, radius);
+        return;
+    }
 
     let (mut rl, thread) = sola_raylib::init()
         .size(1600, 900)
@@ -241,12 +270,24 @@ fn main() {
         if rl.is_key_pressed(KEY_F10) {
             renderer.reload_shaders();
         }
+        // O / I: props / points of interest on or off; the city is generated again.
+        let mut regenerate = false;
+        if rl.is_key_pressed(KEY_O) {
+            world::design::set_props(!world::design::props_on());
+            regenerate = true;
+        }
+        if rl.is_key_pressed(KEY_I) {
+            world::design::set_pois(!world::design::pois_on());
+            regenerate = true;
+        }
         let new_seed = if rl.is_key_pressed(KEY_R) {
             Some(random_seed())
         } else if rl.is_key_pressed(KEY_RIGHT_BRACKET) || rl.is_key_pressed(KEY_KP_ADD) {
             Some(world.seed.wrapping_add(1))
         } else if rl.is_key_pressed(KEY_LEFT_BRACKET) || rl.is_key_pressed(KEY_KP_SUBTRACT) {
             Some(world.seed.wrapping_sub(1))
+        } else if regenerate {
+            Some(world.seed)
         } else {
             None
         };

@@ -61,6 +61,10 @@
       corner, facade, parking, vacant lot), 10 to 15 per lot and floor in the depths
       (`docs/world.md`, "Set dressing"). Candidates for better models: Poly Haven (CC0,
       realistic: covered car, metal trash can, utility boxes, roller shutters, payphone...).
+   2b. Organizational pass *(done)*: one design module with floor profiles (`world/design.rs`),
+      variable floor count, scenes declared by slot, kind and zone weights, points of interest
+      drawn apart at a controlled rate, O/I switches, `--report` to measure each floor.
+      8.3 ms/frame at 9 floors, 11.5 ms at 14.
    3. Points of interest *(first pass done)*: the armchair with a flower and the bench with two
       flowers on the start plaza; armchairs, benches and dead gardens with flowers elsewhere. Still
       to do: the catalog's other objects (notice board courtyard, vending machine, bus stop blocked

@@ -165,9 +165,8 @@ impl Debug {
         use crate::world::{city, floors};
         let p = player.pos;
         let floor = floors::floor_at(p.y);
-        let (code, name) = floors::NAMES[floor]
-            .split_once(' ')
-            .unwrap_or((floors::NAMES[floor], ""));
+        let full = floors::name(floor);
+        let (code, name) = full.split_once(' ').unwrap_or((&full, ""));
 
         // (text, color); the title is drawn on its own above.
         let mut lines: Vec<(String, Color)> = Vec::new();
@@ -182,8 +181,8 @@ impl Debug {
             format!(
                 "floor {} of {} (D0 is the bottom)   {:.0} m above its ground   {doing}, {:.0} m/s",
                 floor,
-                floors::COUNT - 1,
-                p.y - floors::Y[floor],
+                floors::count() - 1,
+                p.y - floors::y(floor),
                 glam::vec2(player.vel.x, player.vel.z).length()
             ),
             Color::RAYWHITE,
@@ -325,7 +324,7 @@ pub fn save_screenshot(
         "seed {seed}\nfloor {}\ntime {} ({})\nposition {view} (x,y,z,yaw,pitch)\n\n\
          Render this view again:\n\
          cargo run --release -- {seed} --time {:.4} --view {view} --fx {effects} --shot out.png\n",
-        floors::NAMES[floors::floor_at(p.y)],
+        floors::name(floors::floor_at(p.y)),
         cycle.clock(),
         phase(cycle.t),
         cycle.t,
@@ -352,9 +351,9 @@ mod tests {
     #[test]
     fn finder_finds_a_stair_up_even_from_high_floors() {
         use crate::world::floors;
-        for floor in 0..floors::COUNT - 1 {
+        for floor in 0..floors::count() - 1 {
             let mut f = Finder::default();
-            f.update(1, glam::vec3(0.0, floors::Y[floor] + 0.5, 0.0));
+            f.update(1, glam::vec3(0.0, floors::y(floor) + 0.5, 0.0));
             assert!(
                 f.found.iter().any(|(l, _)| l.starts_with("stair up")),
                 "no stair up from D{floor} within 1 km"

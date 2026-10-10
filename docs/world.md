@@ -15,30 +15,53 @@ drifting particles, flickering signs).
 - **Middle floors (D3–D5):** dimmer, lit by neon remnants and scattered bioluminescence.
 - **Depths (D0–D2):** dark streets and old infrastructure, lit almost only by plants.
 
-## The floor stack (implemented)
+## How the city is generated (the system)
 
-The city is a finite stack of 9 floors, one table in `src/world/floors.rs`: D0 (the original
-ground, y = -80) to D8 (the top deck, y = 216), 36 m apart above D1. The player wakes on **D2**
-(y = 0): two older floors below, six above. Everything height-dependent reads the table (decks,
-plant bands, the shaders' floor heights, the souls' register, the debug overlay's floor name).
+Generation is one system, tuned in one place. In order, for each lot (all pure functions of seed
+and lot coordinates):
 
-- **Decks:** each lot has a deck on a floor by chance (`Biome::deck_keep`, per band), a pure function
+1. **The floor stack** (`src/world/floors.rs`): a fixed but variable number of floors, chosen at
+   launch (`--floors N`, 9 by default, up to 16), 36 m apart, the player on D2 (y = 0) with two
+   older floors below. Three zones: **depths** (D0 to D2, the old human city), **middle** (the
+   floors people moved up to), **canopy** (the top half of the floors above the depths, built by
+   machines after the humans).
+2. **The floor profiles** (`src/world/design.rs`): for each floor, the chance of a deck per lot,
+   the plant density, the flower chances per source (bush, vine, climber branch, stair landing,
+   point of interest per lot), the chance of a stair up, and the prop and car densities. Written
+   per zone as values at its lowest and highest floor, interpolated in between, so they hold for
+   any number of floors. **Every generation number that depends on the floor lives there.**
+3. **Structure** (`city.rs`): ground, decks (`deck_keep`), craters, stairs (`stair`), towers,
+   bridges, lamps.
+4. **Dressing** (`dressing.rs`): props placed by the street layout (below), at the floor's
+   `props` and `cars` densities; points of interest drawn apart at the floor's `poi` rate.
+5. **Growth** (`growth.rs`): plants at the floor's density, flowers at the floor's chances; plants
+   grow around the props.
+
+`--report [radius]` prints the profiles next to what a seed actually produced on each floor
+(decks, stairs, flowers by source, props by kind): tuning is measured, not guessed. **O** and **I**
+in game (or `--no-props`, `--no-pois`) switch props and points of interest off and regenerate the
+city. Values are tuned with the report, then checked in game.
+
+### The floor stack in detail
+
+- **Decks:** each lot has a deck on a floor by chance (the profile's `deck_keep`), a pure function
   of seed, lot and floor (`city::deck`). Gaps open onto the floors below.
 - **Light under the decks:** the renderer keeps a cover map of the lots around the camera
-  (`src/render/cover.rs`): which decks exist, and how much sky each lot sees on each floor (24 rays
-  traced against the decks). The shaders block the sun with it (exact, at any distance), dim the
-  sky light and the fog by the sky view, and march the fog so sunbeams show through openings.
-- **Craters:** round clusters of lots with nothing built above a floor (mostly middle floors,
-  sometimes D2), one per 8x8 lots about half the time. Plants grow there as lushly as in the
-  canopy; flowers, which follow the sun like real ones, only 1.5x their floor's usual rate. A wide one always opens on D2 right in front of the spawn, which faces it.
-- **Stairs:** switchback stairwells in empty lots (straight flights going back and forth in two
-  lanes split by a central wall, landings at each turn, rails on the open sides), each linking one
-  floor to the next, rarer at every floor up (common in D0–D2, rare in the canopy): every floor
-  needs its own stair, so climbing gets harder and harder. A flower on every landing (the souls of
-  the people who climbed them) makes a stairwell read from afar as a column of lights.
+  (`src/render/cover.rs`, room for 16 floors): which decks exist, and how much sky each lot sees on
+  each floor (24 rays traced against the decks). The shaders block the sun with it (exact, at any
+  distance), dim the sky light and the fog by the sky view, and march the fog so sunbeams show
+  through openings.
+- **Craters:** round clusters of lots with nothing built above a floor (a middle floor, sometimes
+  D2), one per 8x8 lots about half the time. Plants grow there as lushly as in the canopy;
+  flowers 1.5x their floor's rate (`design::CRATER_FLOWERS`). A wide one always opens on D2 right
+  in front of the spawn, which faces it.
+- **Stairs:** switchback stairwells in lots without a tower (straight flights going back and forth
+  around a central wall, landings at each turn, rails on the open sides), each linking one floor
+  to the next, at the profile's `stair` chance: common in the depths, rare in the canopy, so
+  climbing gets harder and harder. Landings get a flower at the profile's `landing` chance.
   How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).
-- **Flower budget:** at most 24 flowers per lot *and floor*, so the lower floors, grown first,
-  don't use up the budget of the floors above.
+- **Flower budget:** at most 24 flowers per lot and floor, at least 3 m apart (except within a
+  point of interest).
 - **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can
   be unfinished skeletons with cranes. Roof and wall props that would pierce a deck are dropped.
 
@@ -73,8 +96,9 @@ unless marked):
 The map is split into large zones (typically 8 to 12 lots across), each with a biome. A biome is a
 `Biome` value in `src/world/biome.rs`: flower palette, an architecture `Palette` (neon, lit-window light,
 facade accent panels, billboard colors, wall tint; uploaded as a uniform array and picked per lot by the
-biome's index in `BIOMES`, so a new biome re-colors all the procedural materials with no shader work), plant and flower density per height layer,
-bush/vine/climber rates, and city parameters (empty-lot chance, deck, stair and bridge chances).
+biome's index in `BIOMES`, so a new biome re-colors all the procedural materials with no shader work),
+bush/vine/climber rates, and city parameters (empty-lot and bridge chances). What depends on the
+floor (decks, plant density, flower chances, stairs) is in the floor profiles, not the biome.
 `biome_at(seed, lot)` is pure, so zones stay deterministic and infinite. Zone sites come from a
 jittered grid and a lot joins the nearest site (distance divided by the biome's `size`), so each biome
 type has its own typical zone size. The spawn plaza is always the default biome.
@@ -99,18 +123,20 @@ places each scene in the kind of place it belongs to, never at random:
   D0–D1, a truck on D0. Nothing else ever stands in the road (tested).
 - **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other.
 
-Density follows the floor (`FLOOR_DENSITY` in `dressing.rs`): about 10 to 15 props per lot on
-D0–D2, thinning through D3–D5, almost none in the canopy. Cars: about one per lot on D0–D2,
-fading out by D5, none in the canopy (built after the humans). At most one flowered point of
-interest per lot. Bushes next to props grow smaller instead of not at all. No indoor furniture out in the street except as a story (moving out, a shop emptied),
+Every scene declares its slot, its kind (street furniture, leftovers, vehicles, points of
+interest) and a weight per zone; how many are tried per lot follows the floor's profile (about 10
+to 15 props per lot in the depths, thinning through the middle, almost none in the canopy; about
+one car per lot in the depths, none in the canopy). Bushes next to props grow smaller instead of
+not at all. No indoor furniture out in the street except as a story (moving out, a shop emptied),
 and no construction props in the depths (they belong to the construction front, not done yet).
 Every prop stands fully on a deck, clear of everything else, with a collision box; plants grow
 around them.
 
-Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): two flowers
-side by side on a bench (allowed closer than the usual 3 m), a flower growing out of an armchair
-left by a wall, a dead garden with one living flower. The armchair and the bench always stand on
-the start plaza, behind the curb before the crater, facing it.
+Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): a flower
+growing out of an armchair left by a wall, two flowers side by side on a bench (allowed closer
+than the usual 3 m), a dead garden with one living flower. They are rare on purpose (a few % of
+lots, the profile's `poi`): too many would spell out that flowers are souls. Only the armchair
+always stands on the start plaza, facing the crater.
 
 ### Ideas still to do (from the brainstorm's decoration lists)
 

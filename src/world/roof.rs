@@ -25,7 +25,7 @@ fn light_gray(rng: &mut Rng) -> Color {
 pub fn push_roof(rng: &mut Rng, roof: &Aabb, out: &mut Vec<Block>) {
     let y = roof.max.y;
     let (w, d) = (roof.max.x - roof.min.x, roof.max.z - roof.min.z);
-    let height = y - super::floors::BOTTOM;
+    let height = y - super::floors::bottom();
     let mut placed: Vec<Aabb> = Vec::new();
     let add = |aabb: Aabb, color: Color, kind: BlockKind, out: &mut Vec<Block>| {
         out.push(Block { aabb, color, kind });

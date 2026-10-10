@@ -39,7 +39,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - `src/main.rs`: window, main loop, fixed 120 Hz simulation step, input routing.
 - `src/player.rs`: first-person controller (walk/run/jump, step-up, ledge grab, free-fly).
-- `src/world/`: world data, collision index and generation (`floors.rs`: the finite stack of floors, every height rule reads it; `biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton (decks, craters, stairs, towers), each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks; `props.rs`: model-kit props loaded and recolored to the material families; `dressing.rs`: props and points of interest placed in scenes by the seed).
+- `src/world/`: world data, collision index and generation (`floors.rs`: the stack of floors, fixed per run but variable (`--floors N`) and its zones; `design.rs`: the floor profiles, every generation number that depends on the floor (decks, plants, flower chances, stairs, props, cars) and the props/POI switches; `biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton (decks, craters, stairs, towers), each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks; `props.rs`: model-kit props loaded and recolored to the material families; `dressing.rs`: props and points of interest placed in scenes by the seed).
 - `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
   post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `particles.rs` drifting motes and spores; `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors). `look.rs` holds the per-time-of-day palettes.
 - `assets/models/`: CC0 Kenney model kits used as props (see its README).
@@ -61,6 +61,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   (gitignored), with a `.txt` beside it: seed, floor, time and the `--view ... --shot` command that
   renders the same view. The owner uses them for feedback: run that command to see what they saw.
 - `V` in game starts/stops recording the run (screen and sound) to `recordings/radiance-<seed>-<time>.mp4` (needs `ffmpeg`; `src/recorder.rs`). `--record-for <seconds>` records that long and exits, to test it.
+- `--report [radius]`: print the floor profiles next to what the seed produced (decks, stairs,
+  flowers by source, props by kind), then exit. Use it to tune generation. `--floors N` sets the
+  number of floors; `--no-props` / `--no-pois` (O / I in game) switch props and points of interest.
 - `cargo check` / `cargo clippy`: verify.
 - Rust lives in `~/.cargo/bin`; it may need adding to `PATH` in non-login shells.
 - If bindgen fails with `'stdarg.h' file not found`, the clang builtin headers are missing

@@ -3,6 +3,7 @@
 pub mod biome;
 pub mod city;
 pub mod construction;
+pub mod design;
 pub mod dressing;
 pub mod facade;
 pub mod floors;
