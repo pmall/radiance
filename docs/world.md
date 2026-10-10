@@ -83,7 +83,21 @@ Status: the machinery is in place with a single biome, `default` (the original l
 more biomes (including a rare "rainbow" one with every flower color), blending across zone borders,
 per-biome fog and sky tint, and per-biome plant species and tower styles.
 
-## Set dressing (ideas, from the brainstorm's decoration lists)
+## Set dressing (first pass implemented)
+
+`src/world/dressing.rs` places props from model kits (`assets/models/`) in small scenes, per lot
+and floor: about 7 in the depths, 3 in the middle floors, 1 in the canopy. Scenes: benches, bins
+and boxes, dumpsters, barrels, roadworks, barriers, carts, tires, signs, traffic lights; old cars
+and a truck on D0–D1; human places on D1–D3 (a café table, the laundromat, an office corner, a
+living room in the open, a coat rack, a fridge). Every prop stands fully on a deck, clear of
+everything else, and has a collision box; plants grow around them.
+
+Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): a flower
+growing out of an armchair, two flowers side by side on a bench (allowed closer than the usual
+3 m), a dead garden with one living flower. The armchair and the bench always stand on the start
+plaza, facing the crater.
+
+### Ideas still to do (from the brainstorm's decoration lists)
 
 Streets and interiors should be cluttered: as a starting point, rarely more than about ten meters
 without passing a prop. Props vary in condition (intact, broken, overgrown, half-swallowed) and

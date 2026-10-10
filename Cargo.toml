@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 glam = "0.33"
+gltf = { version = "1.4.1", default-features = false, features = ["utils", "names", "KHR_materials_unlit"] }
 sola-raylib = "6"
 
 # Keep dependencies fast in debug builds so the dev loop stays smooth.

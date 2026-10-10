@@ -597,6 +597,13 @@ void main()
             albedo = skylight(albedo, fragWorldPos, n, fragLoc, px);
         } else if (kind == 12) {
             albedo = lamp(albedo, fragWorldPos);
+        } else if (kind == 14) {
+            // Props from model kits: their family color, worn by the same photo detail as the
+            // walls (same scale), darker at the foot.
+            vec3 an = abs(n);
+            vec2 puv = an.y > 0.6 ? fragWorldPos.xz : (an.x > an.z ? fragWorldPos.zy : fragWorldPos.xy);
+            albedo *= mix(1.0, grit(puv / 3.0).a, 0.45) * (0.85 + 0.3 * fbm(puv * 0.8));
+            albedo *= mix(0.7, 1.0, smoothstep(0.0, 0.8, aboveFloor(fragWorldPos.y)));
         } else if (kind == 13) {
             albedo = steel(albedo, fragWorldPos, n, px);
         }

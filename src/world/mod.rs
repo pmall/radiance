@@ -3,9 +3,11 @@
 pub mod biome;
 pub mod city;
 pub mod construction;
+pub mod dressing;
 pub mod facade;
 pub mod floors;
 pub mod growth;
+pub mod props;
 pub mod roof;
 
 use std::collections::HashMap;
@@ -75,9 +77,12 @@ pub enum BlockKind {
     Steel,
     /// Street lamp post (unlit: the city is dead, only flowers glow).
     Lamp,
+    /// The collision box of a prop (`props.rs`); not drawn, the prop's own mesh is.
+    Prop,
 }
 
 /// A solid, drawable box.
+#[derive(Clone, Copy)]
 pub struct Block {
     pub aabb: Aabb,
     pub color: Color,
@@ -124,6 +129,8 @@ pub struct Light {
 pub struct Lot {
     pub blocks: Vec<Block>,
     pub plants: Vec<PlantVert>,
+    /// Prop triangles (`props.rs`), drawn like plants but with the prop material.
+    pub props: Vec<PlantVert>,
     pub lights: Vec<Light>,
     /// Material variant (palette index) of the lot's biome.
     pub variant: u8,
@@ -163,13 +170,32 @@ impl World {
         missing.sort_by_key(|&(x, z)| (x - cx).pow(2) + (z - cz).pow(2));
         for (x, z) in missing.into_iter().take(budget) {
             let mut blocks = Vec::new();
-            city::generate_lot(self.seed, x, z, &mut blocks);
+            let dressing = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
             let growth::Growth { plants, lights } = growth::grow_lot(self.seed, x, z, &blocks);
+            let props = dressing
+                .props
+                .iter()
+                .enumerate()
+                .flat_map(|(i, p)| {
+                    // Own outline id per prop, so it reads apart from what it stands on.
+                    let id =
+                        1 + (crate::rng::hash_coords(self.seed, x, 100 + i as i32, z) % 255) as u8;
+                    p.world_verts().map(move |v| PlantVert {
+                        pos: v.pos,
+                        normal: v.normal,
+                        color: Color::new(v.color[0], v.color[1], v.color[2], 255),
+                        id,
+                        glow: 0,
+                        uv: NO_UV,
+                    })
+                })
+                .collect();
             self.lots.insert(
                 (x, z),
                 Lot {
                     blocks,
                     plants,
+                    props,
                     lights,
                     variant: biome::variant_of(biome::biome_at(self.seed, x, z)) as u8,
                 },

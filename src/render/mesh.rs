@@ -62,6 +62,10 @@ impl WorldMesh {
         // Material variant of the lot's biome rides in the kind code (16 per variant).
         let variant = lot.variant as f32 * 16.0;
         for (i, b) in lot.blocks.iter().enumerate() {
+            // Prop boxes are only collision; the props draw their own mesh below.
+            if b.kind == BlockKind::Prop {
+                continue;
+            }
             // Object id for outline detection between touching blocks; 0 is reserved for sky.
             let id = 1.0 + (mix64(key ^ i as u64) % 255) as f32;
             let size = b.aabb.size();
@@ -81,6 +85,7 @@ impl WorldMesh {
                     BlockKind::Skylight => 11.0,
                     BlockKind::Lamp => 12.0,
                     BlockKind::Steel => 13.0,
+                    BlockKind::Prop => unreachable!(),
                 };
             for (n, corners) in FACES {
                 // Faces resting on the ground can never be seen.
@@ -118,6 +123,15 @@ impl WorldMesh {
             uv.extend_from_slice(&[v.id as f32 / 255.0, variant + 1.0]);
             uv2.extend_from_slice(&v.uv);
             col.extend_from_slice(&[v.color.r, v.color.g, v.color.b, v.glow]);
+        }
+
+        for v in &lot.props {
+            pos.extend_from_slice(&v.pos.to_array());
+            nrm.extend_from_slice(&v.normal.to_array());
+            // Material 14: props from model kits (see shaders/scene.fs).
+            uv.extend_from_slice(&[v.id as f32 / 255.0, variant + 14.0]);
+            uv2.extend_from_slice(&v.uv);
+            col.extend_from_slice(&[v.color.r, v.color.g, v.color.b, 0]);
         }
 
         let count = pos.len() / 3;

@@ -31,6 +31,10 @@ scene shader in world space and multiplied over the procedural colors.
 
 ### Props and external assets: consistency rules
 
+*(Implemented, first pass: `src/world/props.rs`. Material families with ramps, kit colors remapped
+by lightness, props baked into the lot meshes so they share all the shading, photo detail at the
+walls' scale with grime at the foot. Not yet: biome and depth tint of the ramps.)*
+
 Points of interest and set dressing (`docs/world.md`, `docs/poi-catalog.md`) need far more objects
 than code alone can model well, so props come from free external model kits. The owner leaves these
 rules to the project agent. Goal: a prop from a kit must look painted by the same hand as the
