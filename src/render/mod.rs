@@ -354,7 +354,10 @@ impl Renderer {
         p.set_vec3("uFog", look.fog);
         p.set_vec2("uCoverOrigin", cover_origin);
         p.set_f32_array("uFloorY", &cover::floor_uniform());
-        p.set_f32("uFogBase", crate::world::floors::Y[crate::world::floors::START]);
+        p.set_f32(
+            "uFogBase",
+            crate::world::floors::Y[crate::world::floors::START],
+        );
         p.set_f32("uFogDensity", look.fog_density);
         // The looks were tuned for a city a third as tall: stretch the thinning over the stack.
         p.set_f32("uFogFalloff", look.fog_falloff * FOG_STACK_SCALE);
