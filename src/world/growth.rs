@@ -63,6 +63,8 @@ struct Builder<'a> {
     biome: &'static Biome,
     /// Blocks near the lot, neighbors included: what plants must keep clear of.
     solids: &'a [Block],
+    /// Least distance between two flowers (`MIN_FLOWER_GAP`, except in points of interest).
+    min_gap: f32,
 }
 
 impl Builder<'_> {
@@ -104,7 +106,7 @@ impl Builder<'_> {
             || self
                 .lights
                 .iter()
-                .any(|l| l.pos.distance(at) < MIN_FLOWER_GAP)
+                .any(|l| l.pos.distance(at) < self.min_gap)
         {
             return;
         }
@@ -568,6 +570,12 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         max: hi + reach,
     };
     around.retain(|b| b.aabb.overlaps(&near));
+    // Without the props' boxes, for the flowers that grow in them.
+    let around_bare: Vec<Block> = around
+        .iter()
+        .filter(|blk| blk.kind != BlockKind::Prop)
+        .copied()
+        .collect();
     // Under a crater the sun gets in: plants grow as lushly as in the canopy, and flowers, which
     // follow the sun like real ones, a little more than on their floor.
     let crater = super::city::crater_at(seed, lx, lz);
@@ -582,6 +590,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         glow: 0,
         biome: biome_at(seed, lx, lz),
         solids: &around,
+        min_gap: MIN_FLOWER_GAP,
     };
 
     // Souls line the stairs: people climbed them as the city rose. A flower on each landing, in
@@ -624,6 +633,20 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         let fc = b.flower_color();
         b.flower(vec3(x, a.max.y + r * 0.9, z), r, fc, Vec3::Y);
     }
+
+    // Flowers of the points of interest: in an armchair, on a bench, in a pot (`dressing.rs`).
+    // They grow in the prop itself, so its collision box does not count, and they may stand close
+    // together (two flowers side by side on a bench, like two people sitting).
+    b.solids = &around_bare;
+    b.min_gap = 0.5;
+    for at in super::dressing::dress_lot(seed, lx, lz, blocks).blooms {
+        let r = b.rng.range(0.26, 0.32);
+        b.new_plant();
+        let fc = b.flower_color();
+        b.flower(at + Vec3::Y * r * 0.5, r, fc, Vec3::Y);
+    }
+    b.solids = &around;
+    b.min_gap = MIN_FLOWER_GAP;
 
     for blk in blocks {
         let a = &blk.aabb;
@@ -834,8 +857,15 @@ mod tests {
                         per_floor[floors::floor_at(l.pos.y)] += 1;
                     }
                     assert!(per_floor.iter().all(|&n| n <= MAX_LIGHTS));
+                    // Flowers of points of interest grow in props and may stand close together.
+                    let blooms = crate::world::dressing::dress_lot(seed, lx, lz, &own).blooms;
+                    let poi = |p: Vec3| blooms.iter().any(|b| b.distance(p) < 1.0);
                     for (i, l) in g.lights.iter().enumerate() {
-                        if let Some(b) = all.iter().find(|b| inside(&b.aabb, l.pos, 0.0)) {
+                        if let Some(b) = all
+                            .iter()
+                            .filter(|b| b.kind != BlockKind::Prop || !poi(l.pos))
+                            .find(|b| inside(&b.aabb, l.pos, 0.0))
+                        {
                             panic!(
                                 "seed {seed} lot {lx},{lz}: light {:?} inside block {:?}..{:?}",
                                 l.pos, b.aabb.min, b.aabb.max
@@ -843,17 +873,25 @@ mod tests {
                         }
                         assert!(l.y_lo <= l.pos.y && l.pos.y <= l.y_hi);
                         for m in &g.lights[..i] {
-                            assert!(m.pos.distance(l.pos) >= MIN_FLOWER_GAP);
+                            assert!(
+                                m.pos.distance(l.pos) >= MIN_FLOWER_GAP
+                                    || (poi(l.pos) && poi(m.pos))
+                            );
                         }
                     }
 
                     // No triangle edge goes through a block.
                     for t in g.plants.chunks(3) {
-                        let hit = all.iter().any(|b| {
-                            (0..3).any(|e| {
-                                segment_crosses(t[e].pos, t[(e + 1) % 3].pos, &b.aabb, 0.01)
-                            })
-                        });
+                        // A point of interest's flower grows in its prop (an armchair's seat).
+                        let in_prop = poi(t[0].pos);
+                        let hit = all
+                            .iter()
+                            .filter(|b| b.kind != BlockKind::Prop || !in_prop)
+                            .any(|b| {
+                                (0..3).any(|e| {
+                                    segment_crosses(t[e].pos, t[(e + 1) % 3].pos, &b.aabb, 0.01)
+                                })
+                            });
                         crossing += hit as usize;
                     }
                 }

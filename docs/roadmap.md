@@ -56,10 +56,15 @@
       tris from the spawn on the 3060 (was 3 ms, 1.4 M tris).
       Known issues: small bright chips flicker in the far fog of the crater; deck slabs read as
       square tiles from above; the depths band is uniform (no older architecture yet).
-   2. Props *(next)*: free model kits drawn in our style (rules in `docs/art-direction.md`), set
-      dressing over D0–D2 (`docs/world.md`).
-   3. Points of interest: silent tableaux from `docs/poi-catalog.md` placed by the seed near the
-      start (the notice board courtyard, the armchair with a flower, the bench with two flowers...).
+   2. Props *(first pass done)*: 41 CC0 Kenney models recolored to the material families, ~25
+      scenes placed by the seed, dense in the depths (`docs/world.md`, "Set dressing"). About
+      7.3 ms/frame and 5.6 M tris from the spawn (cars are ~2k tris each).
+   3. Points of interest *(first pass done)*: the armchair with a flower and the bench with two
+      flowers on the start plaza; armchairs, benches and dead gardens with flowers elsewhere. Still
+      to do: the catalog's other objects (notice board courtyard, vending machine, bus stop blocked
+      by a column, phone booth...), which need models not in these kits.
+      Open question: the depths are so dark that props are only readable near flowers or in a
+      crater.
 
 ## Debug and art-iteration tools
 

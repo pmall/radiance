@@ -230,8 +230,31 @@ pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
     })
 }
 
-/// Appends every block belonging to one lot.
+/// Appends every block belonging to one lot, prop collision boxes included.
 pub fn generate_lot(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
+    generate_lot_dressed(seed, lx, lz, out);
+}
+
+/// `generate_lot`, also returning the lot's props and their flowers (`dressing.rs`).
+pub fn generate_lot_dressed(
+    seed: u64,
+    lx: i32,
+    lz: i32,
+    out: &mut Vec<Block>,
+) -> super::dressing::Dressing {
+    let first = out.len();
+    generate_structure(seed, lx, lz, out);
+    let dressing = super::dressing::dress_lot(seed, lx, lz, &out[first..]);
+    out.extend(dressing.props.iter().map(|p| Block {
+        kind: BlockKind::Prop,
+        aabb: p.aabb(),
+        color: Color::new(0, 0, 0, 255),
+    }));
+    dressing
+}
+
+/// The lot's architecture: ground, decks, stairs, tower, bridges, lamps.
+fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     let first = out.len();
     let o = lot_origin(lx, lz);
     let mid = o + vec3(LOT * 0.5, 0.0, LOT * 0.5);

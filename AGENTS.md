@@ -39,9 +39,10 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - `src/main.rs`: window, main loop, fixed 120 Hz simulation step, input routing.
 - `src/player.rs`: first-person controller (walk/run/jump, step-up, ledge grab, free-fly).
-- `src/world/`: world data, collision index and generation (`floors.rs`: the finite stack of floors, every height rule reads it; `biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton (decks, craters, stairs, towers), each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks).
+- `src/world/`: world data, collision index and generation (`floors.rs`: the finite stack of floors, every height rule reads it; `biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton (decks, craters, stairs, towers), each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks; `props.rs`: model-kit props loaded and recolored to the material families; `dressing.rs`: props and points of interest placed in scenes by the seed).
 - `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
   post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `particles.rs` drifting motes and spores; `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors). `look.rs` holds the per-time-of-day palettes.
+- `assets/models/`: CC0 Kenney model kits used as props (see its README).
 - `assets/textures/`: CC0 photo textures and the packed `detail.png` (see its README); `tools/pack_textures.py` rebuilds it.
 - `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback).
 - `src/audio/`: sound. `piano.rs` (sampled upright piano, one note per soul/flower), `ambient.rs` (synthesized hum, wind, creaks), `reverb.rs` (Freeverb on the master bus). Samples in `assets/audio/`.
