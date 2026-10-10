@@ -30,8 +30,10 @@ plant bands, the shaders' floor heights, the souls' register, the debug overlay'
   sky light and the fog by the sky view, and march the fog so sunbeams show through openings.
 - **Craters:** round clusters of lots with nothing built above a floor (mostly middle floors,
   sometimes D2), one per 8x8 lots about half the time. Plants grow there as lushly as in the
-  canopy. A wide one always opens on D2 right in front of the spawn, which faces it.
-- **Stairs:** spirals in empty lots linking 1 to 3 floors, rarer the higher they start, lined
+  canopy; flowers, which follow the sun like real ones, only 1.5x their floor's usual rate. A wide one always opens on D2 right in front of the spawn, which faces it.
+- **Stairs:** spirals in empty lots, each linking one floor to the next, rarer at every floor up
+  (common in D0–D2, rare in the canopy): every floor needs its own stair, so climbing gets harder
+  and harder. Lined
   with flowers (the souls of the people who climbed them) so they read from afar in the dark.
   Generation is the same as in the real game; a test checks a stair up from D2 always stands
   within 8 lots of the spawn. How the player climbs is not built yet (`docs/game-ideas.md`).

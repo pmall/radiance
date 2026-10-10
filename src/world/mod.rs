@@ -181,10 +181,6 @@ impl World {
         self.lots.iter().map(|(&k, v)| (k, v))
     }
 
-    pub fn block_count(&self) -> usize {
-        self.lots.values().map(|l| l.blocks.len()).sum()
-    }
-
     /// Colliders in the lots touched by `b` (a superset of the ones overlapping it).
     pub fn colliders_near<'a>(&'a self, b: &Aabb) -> impl Iterator<Item = &'a Aabb> + 'a {
         let (x0, x1) = (lot_of(b.min.x), lot_of(b.max.x));

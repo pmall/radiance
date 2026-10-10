@@ -136,12 +136,13 @@ pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
         .min()
 }
 
-/// How often a stair starts on each floor (bottom to the one under the top): mostly low in the
-/// city, where people built stairs everywhere; rarely high up, where machines built for machines.
-const STAIR_START_WEIGHTS: [i32; COUNT - 1] = [3, 3, 3, 2, 2, 2, 1, 1];
+/// How often a stair starts on each floor (bottom to the one under the top): common low in the
+/// city, where people built stairs everywhere, and rarer at every floor up, where machines built
+/// for machines. Each floor needs its own stair: climbing gets harder and harder.
+const STAIR_START_WEIGHTS: [i32; COUNT - 1] = [6, 6, 4, 3, 2, 1, 1, 1];
 
-/// The floors a lot's spiral stair links (bottom, top), if it has one. Stairs stand in empty
-/// lots and get rarer higher up: going down is easy, going up is not.
+/// The floors a lot's spiral stair links (bottom, top = bottom + 1), if it has one. Stairs stand
+/// in empty lots, one floor each, and get rarer higher up: going down is easy, going up is not.
 pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
     if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
         return None;
@@ -159,8 +160,7 @@ pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
             roll < 0
         })
         .unwrap_or(0);
-    let hi = (lo + rng.range_i(1, 4) as usize).min(COUNT - 1);
-    Some((lo, hi))
+    Some((lo, lo + 1))
 }
 
 /// What covers a lot on a floor. Pure, so the renderer can map the decks around the camera.
