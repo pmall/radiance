@@ -105,22 +105,14 @@ impl Finder {
     }
 }
 
-/// "62 m behind you": distance and direction from the player's position and heading.
+/// "62 m at 6 o'clock": distance and direction from the player's position and heading
+/// (12 o'clock straight ahead, 3 o'clock to the right).
 fn bearing(player: &Player, target: glam::Vec3) -> String {
     let v = target - player.pos;
     let (ahead, right) = (v.dot(player.forward_flat()), v.dot(player.right()));
-    let sector = (right.atan2(ahead) / std::f32::consts::TAU * 8.0).round() as i32;
-    let way = [
-        "ahead",
-        "ahead, to the right",
-        "to your right",
-        "behind you, to the right",
-        "behind you",
-        "behind you, to the left",
-        "to your left",
-        "ahead, to the left",
-    ][sector.rem_euclid(8) as usize];
-    format!("{:.0} m {way}", glam::vec2(v.x, v.z).length())
+    let hour = (right.atan2(ahead) / std::f32::consts::TAU * 12.0).round() as i32;
+    let hour = (hour + 11).rem_euclid(12) + 1;
+    format!("{:.0} m at {hour} o'clock", glam::vec2(v.x, v.z).length())
 }
 
 /// Key of each effect in `EFFECTS`, same order as the bindings in `main`.
@@ -188,9 +180,9 @@ impl Debug {
         };
         say(
             format!(
-                "floor {} of {} from the bottom   {:.0} m above its ground   {doing}, {:.0} m/s",
-                floor + 1,
-                floors::COUNT,
+                "floor {} of {} (D0 is the bottom)   {:.0} m above its ground   {doing}, {:.0} m/s",
+                floor,
+                floors::COUNT - 1,
                 p.y - floors::Y[floor],
                 glam::vec2(player.vel.x, player.vel.z).length()
             ),
@@ -220,7 +212,8 @@ impl Debug {
 
         if self.test_mode {
             say(
-                "Nearby (test mode: G hides, hold right click to go fast)".into(),
+                "Nearby, 12 o'clock is straight ahead (test mode: G hides, hold right click to go fast)"
+                    .into(),
                 HEADING,
             );
             if self.finder.found.is_empty() {
