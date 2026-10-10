@@ -62,6 +62,18 @@ What the project owner has said so far. Treat as requirements.
   street (no bench in the road), no construction props in the depths, no indoor furniture out in
   the street without a story. Darkness of the depths: keep it, the owner loves it.
 
+## How to work on generation (owner's direction)
+
+- Think of the game as one consistent system, not fix after fix. The code must be as consistent
+  as the design: modular, every rule in its place.
+- Perfect control of flower probabilities on every floor; control of every prop's placement logic
+  and probability; props and points of interest can be switched off; the number of floors is
+  fixed per run but variable (more may come, depending on how hard climbing is).
+- Flowers on benches and chairs must stay rare: too many make it obvious they are human souls.
+- Everything random is random: stair landings get flowers by chance, like any other spot.
+- Implemented as `world/design.rs` (floor profiles), `--report`, O/I switches, `--floors N`
+  (see "How the city is generated" in `docs/world.md`).
+
 ## Controls
 
 - The owner uses an AZERTY keyboard: movement works with ZQSD, WASD and arrow keys.

@@ -19,11 +19,11 @@ const SALT_GROWTH: i32 = 3;
 
 /// Flowers (light sources) kept per lot and floor; the renderer picks the nearest ones overall.
 /// Per floor, so the floors grown first (the lower ones) don't use up a lot's whole budget.
-const MAX_LIGHTS: usize = 24;
+const MAX_LIGHTS: usize = super::design::MAX_FLOWERS_PER_LOT;
 /// Emission of flowers, out of 255. Foliage never glows: only flowers are light sources.
 const FLOWER_GLOW: u8 = 235;
 /// Minimum distance between two flowers of a lot, so their glows never pile up.
-const MIN_FLOWER_GAP: f32 = 3.0;
+const MIN_FLOWER_GAP: f32 = super::design::MIN_FLOWER_GAP;
 
 /// Blocks smaller than this on both horizontal axes (stair steps, parapets) stay bare.
 const MIN_HOST: f32 = 3.5;
@@ -53,12 +53,12 @@ struct Builder<'a> {
     out: Vec<PlantVert>,
     lights: Vec<Light>,
     /// Flowers planted on each floor so far (see `MAX_LIGHTS`).
-    per_floor: [usize; floors::COUNT],
+    per_floor: [usize; floors::MAX],
     id: u8,
     /// Growth density of the block being planted.
     dens: f32,
-    /// Flower multiplier of the block being planted.
-    bloom: f32,
+    /// Flower chances of the block being planted (its floor's profile).
+    flowers: super::design::Flowers,
     glow: u8,
     biome: &'static Biome,
     /// Blocks near the lot, neighbors included: what plants must keep clear of.
@@ -423,7 +423,7 @@ impl Builder<'_> {
             let root = base + vec3(yaw.cos(), 0.0, yaw.sin()) * scale * 0.15 * spread;
             tips.push(self.frond(root, yaw, el, len, w, shade(color, k)));
         }
-        if self.rng.chance((0.25 * self.bloom).min(0.6)) {
+        if self.rng.chance(self.flowers.bush) {
             let fc = self.flower_color();
             for _ in 0..self.rng.range_i(1, 3) {
                 // Of two random tips, take the higher: flowers sit on upright fronds, not on
@@ -490,7 +490,7 @@ impl Builder<'_> {
                 self.leaf(*p, dir, size, leaf_col);
             }
         }
-        if self.rng.chance((0.25 * self.bloom).min(0.6)) {
+        if self.rng.chance(self.flowers.vine) {
             let fc = self.flower_color();
             let p = pts[self.rng.range_i(2, SEGS as i32 + 1) as usize];
             let r = self.rng.range(0.2, 0.3);
@@ -536,7 +536,7 @@ impl Builder<'_> {
                     let size = self.rng.range(1.0, 1.9);
                     self.leaf(p, dir, size, leaf_col);
                 }
-                if self.rng.chance(0.05 * self.bloom) {
+                if self.rng.chance(self.flowers.climber) {
                     let fc = self.flower_color();
                     let r = self.rng.range(0.25, 0.35);
                     self.flower(p + normal * 0.3, r, fc, normal);
@@ -604,10 +604,10 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         rng: &mut rng,
         out: Vec::new(),
         lights: Vec::new(),
-        per_floor: [0; floors::COUNT],
+        per_floor: [0; floors::MAX],
         id: 1,
         dens: 1.0,
-        bloom: 1.0,
+        flowers: super::design::profile(floors::START).flowers,
         glow: 0,
         biome: biome_at(seed, lx, lz),
         solids: &around,
@@ -627,6 +627,13 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
     });
     for blk in landings {
         let a = &blk.aabb;
+        if !b.rng.chance(
+            super::design::profile(floors::floor_at(a.max.y))
+                .flowers
+                .landing,
+        ) {
+            continue;
+        }
         // Clear of the rails along the landing's edges.
         const INSET: f32 = 1.0;
         let far = |lo: f32, hi: f32, c: f32| {
@@ -676,17 +683,14 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
             continue;
         }
         let y = a.max.y.min(a.min.y + 1.0);
-        let band = floors::band_at(y);
-        let sunlit = crater.is_some_and(|f| y >= floors::Y[f] - 1.0);
-        let dens = b.biome.plant_density[if sunlit { 0 } else { band }];
+        let floor = floors::floor_at(y);
+        let profile = match crater {
+            Some(f) if y >= floors::y(f) - 1.0 => super::design::sunlit(floor),
+            _ => *super::design::profile(floor),
+        };
+        let dens = profile.plants;
         b.dens = dens;
-        // Flowers come per plant, so compensate for the extra plants: 1.5x the floor's flowers.
-        b.bloom = b.biome.bloom[band]
-            * if sunlit {
-                1.5 * b.biome.plant_density[band] / dens
-            } else {
-                1.0
-            };
+        b.flowers = profile.flowers;
 
         // Bushes on top surfaces (not on parapets, machinery or signs).
         let plantable = matches!(
@@ -714,7 +718,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         }
 
         // Hanging vines from the edges of decks and bridges.
-        if plantable && size.y < MAX_SLAB && a.min.y > floors::BOTTOM + 3.0 {
+        if plantable && size.y < MAX_SLAB && a.min.y > floors::bottom() + 3.0 {
             let perimeter = 2.0 * (size.x + size.z);
             let mut n = perimeter * 0.3 * dens * b.biome.vine_rate;
             while n > 0.0 {
@@ -787,7 +791,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
                     0
                 };
                 for _ in 0..count {
-                    let start = floors::Y[b.rng.range_i(0, floors::COUNT as i32) as usize];
+                    let start = floors::y(b.rng.range_i(0, floors::count() as i32) as usize);
                     if start + 3.0 > a.max.y || start < a.min.y {
                         continue;
                     }
@@ -873,7 +877,7 @@ mod tests {
                     assert_eq!(g.lights.len(), g2.lights.len());
 
                     // Lights: budget, spacing, never inside a block.
-                    let mut per_floor = [0; floors::COUNT];
+                    let mut per_floor = [0; floors::MAX];
                     for l in &g.lights {
                         per_floor[floors::floor_at(l.pos.y)] += 1;
                     }
@@ -924,34 +928,39 @@ mod tests {
 
 #[cfg(test)]
 mod landing_tests {
-    use crate::world::{BlockKind, city};
+    use crate::world::{BlockKind, city, design, floors};
 
     #[test]
-    fn every_stair_landing_has_a_flower() {
-        for lz in -8..=8 {
-            for lx in -8..=8 {
+    fn landing_flowers_follow_the_floor_profiles() {
+        let (mut landings, mut flowered, mut expected) = (0, 0, 0.0);
+        for lz in -12..=12 {
+            for lx in -12..=12 {
                 if city::stair(1, lx, lz).is_none() {
                     continue;
                 }
                 let mut blocks = Vec::new();
                 city::generate_lot(1, lx, lz, &mut blocks);
                 let g = super::grow_lot(1, lx, lz, &blocks);
-                let landings = blocks.iter().filter(|b| {
+                for a in blocks.iter().filter(|b| {
                     let s = b.aabb.size();
                     b.kind == BlockKind::Stair && s.x > 1.5 && s.z > 1.5
-                });
-                for a in landings {
-                    let lit = g
-                        .lights
-                        .iter()
-                        .any(|l| a.aabb.contains_xz(l.pos) && (l.pos.y - a.aabb.max.y).abs() < 1.0);
-                    assert!(
-                        lit,
-                        "lot {lx},{lz}: landing at {} has no flower",
-                        a.aabb.max.y
-                    );
+                }) {
+                    landings += 1;
+                    expected += design::profile(floors::floor_at(a.aabb.max.y))
+                        .flowers
+                        .landing;
+                    flowered +=
+                        g.lights.iter().any(|l| {
+                            a.aabb.contains_xz(l.pos) && (l.pos.y - a.aabb.max.y).abs() < 1.0
+                        }) as usize;
                 }
             }
         }
+        assert!(landings > 50, "only {landings} landings");
+        let ratio = flowered as f32 / expected;
+        assert!(
+            (0.6..1.3).contains(&ratio),
+            "{flowered} flowered landings, expected about {expected:.0}"
+        );
     }
 }

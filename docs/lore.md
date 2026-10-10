@@ -22,7 +22,7 @@ guide decisions about what the city looks like and sounds like.
 - **Humanity rose with the city.** As machines built upward, people moved up to the new levels and
   abandoned the depths long before the end. So the depths are the oldest and emptiest part. This is
   why there are more flowers (souls) high up than deep down, which is also the biologically accurate
-  direction (sunlight). It matches `bloom` in `src/world/biome.rs` (canopy > middle > depths).
+  direction (sunlight). It matches the flower chances of the floor profiles in `src/world/design.rs` (canopy > middle > depths).
 - **Above the last humans, machines built for machines.** The newest floors were built after humans
   vanished. Owner's call: flowers behave like real flowers (they follow sunlight) and are, as a
   metaphor, the souls of the dead, so whether a few grow at the very top is a detail. Leaning: keep

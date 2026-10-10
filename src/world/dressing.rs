@@ -18,6 +18,7 @@
 use glam::{Vec3, vec3};
 
 use super::city::LOT;
+use super::design;
 use super::floors;
 use super::props::{Placed, Prop, mesh};
 use super::{Aabb, Block, BlockKind};
@@ -63,272 +64,273 @@ const fn part(prop: Prop, x: f32, z: f32, turn: f32) -> Part {
 /// A flower growing in a scene: (x, height, z) from the first prop's center, in the scene's frame.
 type Bloom = (f32, f32, f32);
 
+/// What a scene is, for the switches and for how it is drawn.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Kind {
+    /// Street furniture: benches, bins, signs, traffic lights.
+    Street,
+    /// What people left: dumpsters, crates, carts, café terraces, piles from moving out.
+    Leftovers,
+    /// Parked cars.
+    Vehicle,
+    /// Points of interest with flowers growing in them (drawn apart, at the floor's rate).
+    Poi,
+}
+
 struct Scene {
     slot: Slot,
+    kind: Kind,
     parts: &'static [Part],
     blooms: &'static [Bloom],
-    /// Weight per height band: canopy, middle, depths.
+    /// Weight per zone of the stack: depths, middle, canopy (`floors::Zone`).
     weight: [u32; 3],
-    /// Only on these floors (inclusive), if set.
-    floors: Option<(usize, usize)>,
+}
+
+const fn scene(slot: Slot, kind: Kind, parts: &'static [Part], weight: [u32; 3]) -> Scene {
+    Scene {
+        slot,
+        kind,
+        parts,
+        blooms: &[],
+        weight,
+    }
 }
 
 use Prop::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 
 const SCENES: &[Scene] = &[
-    // 0..=4: along the curb, facing the road.
-    Scene {
-        slot: Slot::Curb,
-        parts: &[part(Bench, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 2, 5],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Curb,
-        parts: &[part(Bench, 0.0, 0.0, 0.0), part(Trashcan, 1.4, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 1, 4],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Curb,
-        parts: &[part(Trashcan, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 2, 4],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Curb,
-        parts: &[part(StreetSign, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 1, 2],
-        floors: None,
-    },
-    Scene {
-        // Two flowers side by side on a bench, about the distance two people sit (D1-09).
-        slot: Slot::Curb,
-        parts: &[part(Bench, 0.0, 0.0, 0.0)],
-        blooms: &[(-0.32, 0.5, 0.05), (0.32, 0.5, 0.05)],
-        weight: [0, 1, 1],
-        floors: None,
-    },
-    // 5..=6: street corners.
-    Scene {
-        slot: Slot::Corner,
-        parts: &[part(TrafficLight, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 0, 3],
-        floors: Some((0, 2)),
-    },
-    Scene {
-        slot: Slot::Corner,
-        parts: &[part(StreetSign, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 1, 2],
-        floors: None,
-    },
-    // 7..=18: against the facades, facing out.
-    Scene {
-        slot: Slot::Facade,
-        parts: &[part(DumpsterClosed, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 2, 4],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Facade,
-        parts: &[
+    // Along the curb, facing the road.
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(Bench, 0.0, 0.0, 0.0)],
+        [5, 2, 0],
+    ),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(Bench, 0.0, 0.0, 0.0), part(Trashcan, 1.4, 0.0, 0.0)],
+        [4, 1, 0],
+    ),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(Trashcan, 0.0, 0.0, 0.0)],
+        [4, 2, 0],
+    ),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(StreetSign, 0.0, 0.0, 0.0)],
+        [2, 1, 0],
+    ),
+    // Street corners.
+    scene(
+        Slot::Corner,
+        Kind::Street,
+        &[part(TrafficLight, 0.0, 0.0, 0.0)],
+        [3, 0, 0],
+    ),
+    scene(
+        Slot::Corner,
+        Kind::Street,
+        &[part(StreetSign, 0.0, 0.0, 0.0)],
+        [2, 1, 0],
+    ),
+    // Against the facades, facing out.
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[part(DumpsterClosed, 0.0, 0.0, 0.0)],
+        [4, 2, 0],
+    ),
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
             part(DumpsterOpen, 0.0, 0.0, 0.0),
             part(Pallet, 1.9, 0.0, 0.1),
         ],
-        blooms: &[],
-        weight: [0, 1, 3],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Facade,
-        parts: &[
+        [3, 1, 0],
+    ),
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
             part(Barrel, 0.0, 0.0, 0.0),
             part(Barrel, 0.8, 0.0, 1.0),
             part(Crate, 1.7, 0.0, 0.05),
         ],
-        blooms: &[],
-        weight: [1, 2, 3],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Facade,
-        parts: &[
+        [3, 2, 1],
+    ),
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
             part(Crate, 0.0, 0.0, 0.0),
             part(Crate, 1.0, 0.0, -0.1),
             part(BoxClosed, 1.9, 0.0, 0.3),
         ],
-        blooms: &[],
-        weight: [1, 2, 2],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Facade,
-        parts: &[part(ShoppingCart, 0.0, 0.0, 0.4)],
-        blooms: &[],
-        weight: [0, 1, 3],
-        floors: Some((1, 3)),
-    },
-    Scene {
-        slot: Slot::Facade,
-        parts: &[
+        [2, 2, 1],
+    ),
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[part(ShoppingCart, 0.0, 0.0, 0.4)],
+        [3, 1, 0],
+    ),
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
             part(Trashcan, 0.0, 0.0, 0.0),
             part(BoxClosed, 0.8, 0.0, 0.3),
             part(BoxOpen, 1.6, 0.0, -0.2),
         ],
-        blooms: &[],
-        weight: [0, 2, 3],
-        floors: None,
-    },
-    Scene {
-        // A café terrace in front of a shop: a table, a chair on each side.
-        slot: Slot::Facade,
-        parts: &[
-            // A quarter turn left (+) or right (-) of the frame's front: each chair faces the table.
+        [3, 2, 0],
+    ),
+    // A café terrace in front of a shop: a table, a chair on each side, a quarter turn left (+)
+    // or right (-) of the frame's front so each faces the table.
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
             part(Chair, -0.85, 0.35, -FRAC_PI_2),
             part(TableRound, 0.0, 0.2, 0.0),
             part(Chair, 0.85, 0.35, FRAC_PI_2),
         ],
-        blooms: &[],
-        weight: [0, 1, 4],
-        floors: Some((1, 3)),
-    },
-    Scene {
-        // Someone moving out, never finished: a sofa, boxes and a lamp by the wall.
-        slot: Slot::Facade,
-        parts: &[
+        [4, 1, 0],
+    ),
+    // Someone moving out, never finished: a sofa, boxes and a lamp by the wall.
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
             part(Sofa, 0.0, 0.0, 0.0),
             part(BoxClosed, 1.5, 0.0, 0.2),
             part(BoxOpen, 1.5, 0.7, -0.3),
             part(FloorLamp, -1.4, 0.0, 0.0),
         ],
-        blooms: &[],
-        weight: [0, 0, 2],
-        floors: Some((1, 2)),
-    },
+        [2, 0, 0],
+    ),
+    // A shop emptied onto the sidewalk.
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[part(Fridge, 0.0, 0.0, 0.0), part(Freezer, 1.4, 0.0, 0.0)],
+        [1, 0, 0],
+    ),
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[part(Tire, 0.0, 0.0, 0.0), part(Tire, 0.7, 0.0, 0.6)],
+        [2, 1, 0],
+    ),
+    // Parked along the curb.
+    scene(
+        Slot::Parking,
+        Kind::Vehicle,
+        &[part(Sedan, 0.0, 0.0, 0.0)],
+        [3, 3, 0],
+    ),
+    scene(
+        Slot::Parking,
+        Kind::Vehicle,
+        &[part(Hatchback, 0.0, 0.0, 0.0)],
+        [2, 2, 0],
+    ),
+    scene(
+        Slot::Parking,
+        Kind::Vehicle,
+        &[part(Van, 0.0, 0.0, 0.0)],
+        [2, 2, 0],
+    ),
+    scene(
+        Slot::Parking,
+        Kind::Vehicle,
+        &[part(Taxi, 0.0, 0.0, 0.0)],
+        [1, 1, 0],
+    ),
+    scene(
+        Slot::Parking,
+        Kind::Vehicle,
+        &[part(Suv, 0.0, 0.0, 0.0)],
+        [1, 1, 0],
+    ),
+    scene(
+        Slot::Parking,
+        Kind::Vehicle,
+        &[part(Truck, 0.0, 0.0, 0.0)],
+        [1, 0, 0],
+    ),
+    // Lots with no tower.
+    scene(
+        Slot::Vacant,
+        Kind::Leftovers,
+        &[
+            part(DumpsterOpen, 0.0, 0.0, 0.0),
+            part(Tire, 2.0, 0.5, 0.0),
+            part(Pallet, -2.2, 0.3, 0.3),
+        ],
+        [3, 1, 0],
+    ),
+    // A small square: two benches facing each other.
+    scene(
+        Slot::Vacant,
+        Kind::Street,
+        &[part(Bench, 0.0, -1.8, 0.0), part(Bench, 0.0, 1.8, PI)],
+        [2, 1, 0],
+    ),
+    scene(
+        Slot::Vacant,
+        Kind::Leftovers,
+        &[
+            part(ShoppingCart, 0.0, 0.0, 0.0),
+            part(BoxOpen, 1.2, 0.4, 0.5),
+            part(Crate, -1.3, 0.2, 0.2),
+        ],
+        [2, 1, 0],
+    ),
+    // Points of interest with flowers (foreshadowing: flowers in human places), drawn apart at
+    // each floor's `Flowers::poi` rate. Last in the table: `START_SCENES` counts from the end.
+    // A flower growing out of an armchair left by a wall (D2-07).
     Scene {
-        // A shop emptied onto the sidewalk.
         slot: Slot::Facade,
-        parts: &[part(Fridge, 0.0, 0.0, 0.0), part(Freezer, 1.4, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 0, 1],
-        floors: Some((1, 2)),
-    },
-    Scene {
-        slot: Slot::Facade,
-        parts: &[part(Tire, 0.0, 0.0, 0.0), part(Tire, 0.7, 0.0, 0.6)],
-        blooms: &[],
-        weight: [0, 1, 2],
-        floors: Some((0, 1)),
-    },
-    Scene {
-        // A flower growing out of an armchair left by the wall (D2-07).
-        slot: Slot::Facade,
+        kind: Kind::Poi,
         parts: &[part(Armchair, 0.0, 0.0, 0.0)],
         blooms: &[(0.0, 0.5, 0.05)],
-        weight: [0, 0, 1],
-        floors: Some((1, 2)),
+        weight: [2, 1, 0],
     },
+    // Two flowers side by side on a bench, about the distance two people sit (D1-09).
     Scene {
-        // A dead garden by the wall, one flower alive in a pot (D1-13).
+        slot: Slot::Curb,
+        kind: Kind::Poi,
+        parts: &[part(Bench, 0.0, 0.0, 0.0)],
+        blooms: &[(-0.32, 0.5, 0.05), (0.32, 0.5, 0.05)],
+        weight: [1, 1, 0],
+    },
+    // A dead garden by the wall, one flower alive in a pot (D1-13).
+    Scene {
         slot: Slot::Facade,
+        kind: Kind::Poi,
         parts: &[
             part(PottedPlant, 0.0, 0.0, 0.0),
             part(PottedPlant, 0.8, 0.0, 0.3),
             part(PottedPlant, 1.6, 0.0, -0.1),
         ],
         blooms: &[(1.6, 1.15, 0.0)],
-        weight: [0, 0, 1],
-        floors: Some((1, 2)),
-    },
-    // 19..=24: parked along the curb, on the oldest streets.
-    Scene {
-        slot: Slot::Parking,
-        parts: &[part(Sedan, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 3, 3],
-        floors: Some((0, 5)),
-    },
-    Scene {
-        slot: Slot::Parking,
-        parts: &[part(Hatchback, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 2, 2],
-        floors: Some((0, 5)),
-    },
-    Scene {
-        slot: Slot::Parking,
-        parts: &[part(Van, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 2, 2],
-        floors: Some((0, 5)),
-    },
-    Scene {
-        slot: Slot::Parking,
-        parts: &[part(Taxi, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 1, 1],
-        floors: Some((0, 5)),
-    },
-    Scene {
-        slot: Slot::Parking,
-        parts: &[part(Suv, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 1, 1],
-        floors: Some((0, 5)),
-    },
-    Scene {
-        slot: Slot::Parking,
-        parts: &[part(Truck, 0.0, 0.0, 0.0)],
-        blooms: &[],
-        weight: [0, 1, 1],
-        floors: Some((0, 1)),
-    },
-    // 25..=27: lots with no tower.
-    Scene {
-        slot: Slot::Vacant,
-        parts: &[
-            part(DumpsterOpen, 0.0, 0.0, 0.0),
-            part(Tire, 2.0, 0.5, 0.0),
-            part(Pallet, -2.2, 0.3, 0.3),
-        ],
-        blooms: &[],
-        weight: [0, 1, 3],
-        floors: None,
-    },
-    Scene {
-        // A small square: two benches facing each other.
-        slot: Slot::Vacant,
-        parts: &[part(Bench, 0.0, -1.8, 0.0), part(Bench, 0.0, 1.8, PI)],
-        blooms: &[],
-        weight: [0, 1, 2],
-        floors: None,
-    },
-    Scene {
-        slot: Slot::Vacant,
-        parts: &[
-            part(ShoppingCart, 0.0, 0.0, 0.0),
-            part(BoxOpen, 1.2, 0.4, 0.5),
-            part(Crate, -1.3, 0.2, 0.2),
-        ],
-        blooms: &[],
-        weight: [0, 1, 2],
-        floors: Some((0, 3)),
+        weight: [2, 1, 0],
     },
 ];
 
-/// Points of interest always standing on the plaza where the player wakes up, behind the curb of
-/// the street before the crater, facing it: (scene index, x, z).
-const START_SCENES: &[(usize, f32, f32)] = &[(17, -7.0, -20.0), (4, 8.0, -20.2)];
+/// The point of interest always standing on the plaza where the player wakes up, behind the curb
+/// of the street before the crater, facing it: (scene index, x, z). Only one, so the secret of the
+/// flowers is not spelled out from the first step.
+const START_SCENES: &[(usize, f32, f32)] = &[(SCENES.len() - 3, -7.0, -20.0)];
 
-/// Scenes tried per lot and floor for each slot on the oldest floors; scaled by `FLOOR_DENSITY`.
+/// Props tried per lot and floor for each slot, before the floor's profile scales them
+/// (`FloorProfile::props`, and `FloorProfile::cars` for parking).
 const TRIES: [(Slot, f32); 5] = [
     (Slot::Curb, 9.0),
     (Slot::Corner, 2.0),
@@ -337,15 +339,15 @@ const TRIES: [(Slot, f32); 5] = [
     (Slot::Vacant, 3.0),
 ];
 
-/// How much of `TRIES` each floor gets: people lived longest in the depths and moved up with
-/// the city, so human leftovers thin out going up; the canopy, built by machines after them,
-/// is nearly bare.
-const FLOOR_DENSITY: [f32; floors::COUNT] = [1.0, 1.0, 0.9, 0.7, 0.55, 0.4, 0.12, 0.08, 0.05];
+/// Attempts at placing a lot's point of interest once the floor's chance says it has one.
+const POI_ATTEMPTS: usize = 6;
 
 /// What dressing adds to a lot.
 #[derive(Default)]
 pub struct Dressing {
     pub props: Vec<Placed>,
+    /// Kind of the scene each prop belongs to (same order as `props`).
+    pub kinds: Vec<Kind>,
     /// Flowers growing in the scenes (points of interest).
     pub blooms: Vec<Vec3>,
 }
@@ -448,8 +450,99 @@ impl LotDressing<'_> {
                     .push(first.pos + frame.right() * x + frame.front * z + Vec3::Y * h);
             }
         }
+        self.out.kinds.extend(placed.iter().map(|_| scene.kind));
         self.out.props.extend(placed);
         true
+    }
+}
+
+/// What the spots of a lot depend on.
+struct Context {
+    /// The tower's main body, whose walls the facade scenes stand against.
+    tower: Option<Aabb>,
+    /// No tower, no stair, not the plaza: a vacant lot.
+    vacant: bool,
+}
+
+impl Context {
+    /// A spot for a scene on the walking surface at height `y`, in its slot's frame.
+    fn frame(&self, scene: &Scene, y: f32, rng: &mut Rng, lot: &LotDressing) -> Option<Frame> {
+        let s = rng.range_i(0, 4) as usize;
+        let first = mesh(scene.parts[0].prop).half;
+        match scene.slot {
+            Slot::Curb => {
+                // Facing the road, the front edge just behind the curb.
+                let t = rng.range(ROAD + 1.5, LOT - ROAD - 1.5);
+                let (inward, at) = side(s, ROAD + CURB_GAP + first.z, t);
+                Some(Frame {
+                    origin: lot.origin + at + Vec3::Y * y,
+                    front: -inward,
+                    from_back: false,
+                })
+            }
+            Slot::Corner => {
+                let (a, b) = (s & 1, 2 + (s >> 1));
+                let (na, _) = side(a, 0.0, 0.0);
+                let (nb, _) = side(b, 0.0, 0.0);
+                let d = ROAD + CORNER_GAP;
+                let at = vec3(
+                    if a == 0 { d } else { LOT - d },
+                    y,
+                    if b == 2 { d } else { LOT - d },
+                );
+                Some(Frame {
+                    origin: lot.origin + at,
+                    front: -(na + nb).normalize(),
+                    from_back: false,
+                })
+            }
+            Slot::Facade => {
+                // Against a face of the tower standing on this floor, at a spot along it.
+                let t = self.tower.filter(|t| t.min.y <= y && t.max.y > y + 3.0)?;
+                let (front, along, wall) = match s {
+                    0 => (Vec3::NEG_X, (t.min.z, t.max.z), t.min.x - WALL_GAP),
+                    1 => (Vec3::X, (t.min.z, t.max.z), t.max.x + WALL_GAP),
+                    2 => (Vec3::NEG_Z, (t.min.x, t.max.x), t.min.z - WALL_GAP),
+                    _ => (Vec3::Z, (t.min.x, t.max.x), t.max.z + WALL_GAP),
+                };
+                if along.1 - along.0 <= 2.0 {
+                    return None;
+                }
+                let u = rng.range(along.0 + 1.0, along.1 - 1.0);
+                Some(Frame {
+                    origin: if s < 2 {
+                        vec3(wall, y, u)
+                    } else {
+                        vec3(u, y, wall)
+                    },
+                    front,
+                    from_back: true,
+                })
+            }
+            Slot::Parking => {
+                // In the road along the curb, nose along the street, clear of crossings.
+                let reach = ROAD + first.z + 1.5;
+                let (inward, at) = side(s, ROAD - 0.25 - first.x, rng.range(reach, LOT - reach));
+                let along = vec3(inward.z, 0.0, inward.x);
+                Some(Frame {
+                    origin: lot.origin + at + Vec3::Y * y,
+                    front: if rng.chance(0.5) { along } else { -along },
+                    from_back: false,
+                })
+            }
+            Slot::Vacant => {
+                if !self.vacant {
+                    return None;
+                }
+                let fronts = [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z];
+                let (a, b) = (ROAD + 3.0, LOT - ROAD - 3.0);
+                Some(Frame {
+                    origin: lot.origin + vec3(rng.range(a, b), y, rng.range(a, b)),
+                    front: fronts[s],
+                    from_back: false,
+                })
+            }
+        }
     }
 }
 
@@ -479,14 +572,16 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
         out: Dressing::default(),
         poi: false,
     };
+    let props_on = design::props_on();
+    let pois_on = design::pois_on();
     let plaza = super::city::is_plaza(lx, lz);
 
-    if plaza {
+    if plaza && pois_on {
         for &(i, x, z) in START_SCENES {
             let inside = |v: f32, o: f32| v >= o && v < o + LOT;
             if inside(x, lot.origin.x) && inside(z, lot.origin.z) {
                 let frame = Frame {
-                    origin: vec3(x, floors::Y[floors::START], z),
+                    origin: vec3(x, floors::y(floors::START), z),
                     front: Vec3::NEG_Z,
                     from_back: false,
                 };
@@ -510,125 +605,58 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
         .map(|b| b.aabb);
     let vacant = tower.is_none() && !plaza && super::city::stair(seed, lx, lz).is_none();
 
+    let ctx = Context { tower, vacant };
     for y in levels {
         let floor = floors::floor_at(y);
-        let band = floors::band(floor);
-        let standing = tower.filter(|t| t.min.y <= y && t.max.y > y + 3.0);
-        for (slot, tries) in TRIES {
-            let eligible: Vec<&Scene> = SCENES
+        let zone = floors::zone(floor) as usize;
+        let profile = design::profile(floor);
+        let pick = |rng: &mut Rng, wanted: &dyn Fn(&Scene) -> bool| -> Option<&'static Scene> {
+            let pool: Vec<&'static Scene> = SCENES
                 .iter()
-                .filter(|s| {
-                    s.slot == slot
-                        && s.weight[band] > 0
-                        && s.floors.is_none_or(|(a, b)| (a..=b).contains(&floor))
-                })
+                .filter(|s| wanted(s) && s.weight[zone] > 0)
                 .collect();
-            let total: u32 = eligible.iter().map(|s| s.weight[band]).sum();
+            let total: u32 = pool.iter().map(|s| s.weight[zone]).sum();
             if total == 0 {
-                continue;
+                return None;
             }
+            let mut roll = rng.range_i(0, total as i32) as u32;
+            pool.into_iter().find(|s| {
+                let hit = roll < s.weight[zone];
+                roll = roll.saturating_sub(s.weight[zone]);
+                hit
+            })
+        };
+        // A point of interest first, at the floor's rate, so it gets a good spot.
+        if pois_on && rng.chance(profile.flowers.poi) {
+            if let Some(scene) = pick(&mut rng, &|s| s.kind == Kind::Poi) {
+                for _ in 0..POI_ATTEMPTS {
+                    if let Some(frame) = ctx.frame(scene, y, &mut rng, &lot) {
+                        if lot.try_place(scene, &frame) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if !props_on {
+            continue;
+        }
+        for (slot, tries) in TRIES {
             // Fractional tries happen by chance.
-            let want = tries * FLOOR_DENSITY[floor];
+            let rate = if slot == Slot::Parking {
+                profile.cars
+            } else {
+                profile.props
+            };
+            let want = tries * rate;
             let n = want as usize + rng.chance(want.fract()) as usize;
             for _ in 0..n {
-                let mut roll = rng.range_i(0, total as i32) as u32;
-                let Some(&scene) = eligible.iter().find(|s| {
-                    let w = s.weight[band];
-                    let hit = roll < w;
-                    roll = roll.saturating_sub(w);
-                    hit
-                }) else {
+                let Some(scene) = pick(&mut rng, &|s| s.slot == slot && s.kind != Kind::Poi) else {
                     continue;
                 };
-                let s = rng.range_i(0, 4) as usize;
-                let frame = match slot {
-                    Slot::Curb => {
-                        // Facing the road, the front edge just behind the curb.
-                        let depth = mesh(scene.parts[0].prop).half.z;
-                        let t = rng.range(ROAD + 1.5, LOT - ROAD - 1.5);
-                        let (inward, at) = side(s, ROAD + CURB_GAP + depth, t);
-                        Frame {
-                            origin: lot.origin + at + Vec3::Y * y,
-                            front: -inward,
-                            from_back: false,
-                        }
-                    }
-                    Slot::Corner => {
-                        let (a, b) = (s & 1, 2 + (s >> 1));
-                        let (na, _) = side(a, 0.0, 0.0);
-                        let (nb, _) = side(b, 0.0, 0.0);
-                        let d = ROAD + CORNER_GAP;
-                        let at = vec3(
-                            if a == 0 { d } else { LOT - d },
-                            y,
-                            if b == 2 { d } else { LOT - d },
-                        );
-                        Frame {
-                            origin: lot.origin + at,
-                            front: -(na + nb).normalize(),
-                            from_back: false,
-                        }
-                    }
-                    Slot::Facade => {
-                        let Some(t) = standing else { continue };
-                        // A face of the tower and a spot along it.
-                        let (front, along) = match s {
-                            0 | 1 => (
-                                if s == 0 { Vec3::NEG_X } else { Vec3::X },
-                                (t.min.z + 1.0, t.max.z - 1.0),
-                            ),
-                            _ => (
-                                if s == 2 { Vec3::NEG_Z } else { Vec3::Z },
-                                (t.min.x + 1.0, t.max.x - 1.0),
-                            ),
-                        };
-                        if along.1 <= along.0 {
-                            continue;
-                        }
-                        let u = rng.range(along.0, along.1);
-                        let wall = match s {
-                            0 => t.min.x - WALL_GAP,
-                            1 => t.max.x + WALL_GAP,
-                            2 => t.min.z - WALL_GAP,
-                            _ => t.max.z + WALL_GAP,
-                        };
-                        Frame {
-                            origin: if s < 2 {
-                                vec3(wall, y, u)
-                            } else {
-                                vec3(u, y, wall)
-                            },
-                            front,
-                            from_back: true,
-                        }
-                    }
-                    Slot::Parking => {
-                        // In the road along the curb, nose along the street, clear of crossings.
-                        let half = mesh(scene.parts[0].prop).half;
-                        let reach = ROAD + half.z + 1.5;
-                        let (inward, at) =
-                            side(s, ROAD - 0.25 - half.x, rng.range(reach, LOT - reach));
-                        let along = vec3(inward.z, 0.0, inward.x);
-                        Frame {
-                            origin: lot.origin + at + Vec3::Y * y,
-                            front: if rng.chance(0.5) { along } else { -along },
-                            from_back: false,
-                        }
-                    }
-                    Slot::Vacant => {
-                        if !vacant {
-                            continue;
-                        }
-                        let fronts = [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z];
-                        let (a, b) = (ROAD + 3.0, LOT - ROAD - 3.0);
-                        Frame {
-                            origin: lot.origin + vec3(rng.range(a, b), y, rng.range(a, b)),
-                            front: fronts[s],
-                            from_back: false,
-                        }
-                    }
-                };
-                lot.try_place(scene, &frame);
+                if let Some(frame) = ctx.frame(scene, y, &mut rng, &lot) {
+                    lot.try_place(scene, &frame);
+                }
             }
         }
     }
@@ -656,7 +684,7 @@ mod tests {
             let near = blooms
                 .iter()
                 .filter(|b| {
-                    b.y < floors::Y[floors::START] + 2.0 && vec3(x, b.y, z).distance(**b) < 1.2
+                    b.y < floors::y(floors::START) + 2.0 && vec3(x, b.y, z).distance(**b) < 1.2
                 })
                 .count();
             assert!(near >= 1, "no flower at the start scene at {x},{z}");
