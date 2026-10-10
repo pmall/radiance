@@ -15,8 +15,9 @@ pub struct Debug {
     finder: Finder,
 }
 
-/// How far the finder looks, in lots around the player.
-const FIND_RADIUS: i32 = 20;
+/// How far the finder looks, in lots around the player: only what is loaded, so everything it
+/// points to is really there to be seen.
+const FIND_RADIUS: i32 = crate::world::LOAD_RADIUS;
 
 /// Nearest stairs and crater from the player's lot and floor, recomputed when either changes.
 #[derive(Default)]
@@ -98,19 +99,10 @@ fn bearing(player: &Player, target: glam::Vec3) -> String {
 /// Key of each effect in `EFFECTS`, same order as the bindings in `main`.
 const EFFECT_KEYS: [&str; 8] = ["F3", "F4", "F5", "F6", "F7", "F8", "F11", "X"];
 
-pub const HELP: &[&str] = &[
-    "Move: WASD / ZQSD / arrows   Shift: run   Space or left click: jump (hold toward a ledge to climb)",
-    "F1: hide this panel   F2: free-fly (Space/Ctrl: up/down)   G: test mode",
-    "Time: T pause   Home/End rewind/advance   PgUp/PgDn speed   1-4 dawn/day/dusk/night",
-    "Seed: R random   [ ] previous/next      M mute   V record video   F12 screenshot",
-    "Look: F3-F8, F11, X effects   F9 resolution   F10 reload shaders   Esc free the mouse   Ctrl+Q quit",
-];
-
 const TITLE_SIZE: i32 = 32;
 const TEXT_SIZE: i32 = 18;
 const LINE: i32 = 21;
 const HEADING: Color = Color::new(255, 214, 120, 255);
-const DIM: Color = Color::new(170, 170, 180, 255);
 
 /// Name of the time of day at clock position `t` (0 midnight, 0.5 noon).
 fn phase(t: f32) -> &'static str {
@@ -205,7 +197,10 @@ impl Debug {
                 HEADING,
             );
             if self.finder.found.is_empty() {
-                say("  nothing within 500 m".into(), Color::RAYWHITE);
+                say(
+                    "  nothing in the loaded area (about 170 m around)".into(),
+                    Color::RAYWHITE,
+                );
             }
             for (label, target) in &self.finder.found {
                 say(
@@ -251,10 +246,6 @@ impl Debug {
                 Color::RED,
             );
         }
-        say("Keys".into(), HEADING);
-        for h in HELP {
-            say(format!("  {h}"), DIM);
-        }
 
         let measure = |s: &str, size: i32| {
             let c = std::ffi::CString::new(s).unwrap_or_default();
@@ -285,7 +276,7 @@ mod tests {
     #[test]
     fn finder_points_to_a_stair_up_and_a_crater_from_the_spawn() {
         let mut f = Finder::default();
-        f.update(7, glam::vec3(0.0, 1.7, 0.0));
+        f.update(1, glam::vec3(0.0, 1.7, 0.0));
         for (label, p) in &f.found {
             println!("{label} at {p}");
         }
