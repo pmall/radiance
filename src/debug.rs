@@ -15,9 +15,10 @@ pub struct Debug {
     finder: Finder,
 }
 
-/// How far the finder looks, in lots around the player: only what is loaded, so everything it
-/// points to is really there to be seen.
-const FIND_RADIUS: i32 = crate::world::LOAD_RADIUS;
+/// How far the finder looks, in lots around the player (about 1 km). Things beyond the loaded
+/// area exist (the city is a pure function of the seed) but are not drawn until the player gets
+/// closer, so they are marked as such.
+const FIND_RADIUS: i32 = 40;
 
 /// Nearest stairs and crater from the player's lot and floor, recomputed when either changes.
 #[derive(Default)]
@@ -55,19 +56,45 @@ impl Finder {
                 *best = Some((d, label, p));
             }
         };
-        for z in lz - FIND_RADIUS..=lz + FIND_RADIUS {
-            for x in lx - FIND_RADIUS..=lx + FIND_RADIUS {
-                if let Some((lo, hi)) = city::stair(seed, x, z) {
-                    if lo <= floor && floor < hi {
-                        keep(&mut up, center(x, z), format!("stair up to D{hi}"));
+        // Ring by ring outward; stop once nothing farther out can beat what was found.
+        let done = |best: &Option<(f32, String, glam::Vec3)>, d: i32| {
+            best.as_ref()
+                .is_some_and(|b| b.0.sqrt() < (d as f32 - 0.5) * city::LOT)
+        };
+        for d in 0..=FIND_RADIUS {
+            if done(&up, d) && done(&down, d) && done(&crater, d) {
+                break;
+            }
+            for z in lz - d..=lz + d {
+                for x in lx - d..=lx + d {
+                    if (x - lx).abs().max((z - lz).abs()) != d {
+                        continue;
                     }
-                    if lo < floor && floor <= hi {
-                        keep(&mut down, center(x, z), format!("stair down to D{lo}"));
+                    if let Some((lo, hi)) = city::stair(seed, x, z) {
+                        if lo <= floor && floor < hi {
+                            keep(&mut up, center(x, z), format!("stair up to D{hi}"));
+                        }
+                        if lo < floor && floor <= hi {
+                            keep(&mut down, center(x, z), format!("stair down to D{lo}"));
+                        }
+                    }
+                    if let Some(f) = city::crater_at(seed, x, z) {
+                        keep(&mut crater, center(x, z), format!("crater open above D{f}"));
                     }
                 }
-                if let Some(f) = city::crater_at(seed, x, z) {
-                    keep(&mut crater, center(x, z), format!("crater open above D{f}"));
-                }
+            }
+        }
+        // Beyond the loaded area: real, but not drawn yet.
+        let loaded = |p: glam::Vec3| {
+            let (x, z) = (
+                (p.x / city::LOT).floor() as i32,
+                (p.z / city::LOT).floor() as i32,
+            );
+            (x - lx).abs().max((z - lz).abs()) <= crate::world::LOAD_RADIUS
+        };
+        for best in [&mut up, &mut down, &mut crater].into_iter().flatten() {
+            if !loaded(best.2) {
+                best.1.push_str(" (far, not loaded yet)");
             }
         }
         self.found = [up, down, crater]
@@ -197,10 +224,7 @@ impl Debug {
                 HEADING,
             );
             if self.finder.found.is_empty() {
-                say(
-                    "  nothing in the loaded area (about 170 m around)".into(),
-                    Color::RAYWHITE,
-                );
+                say("  nothing within 1 km".into(), Color::RAYWHITE);
             }
             for (label, target) in &self.finder.found {
                 say(
@@ -330,5 +354,18 @@ mod tests {
         }
         assert!(f.found.iter().any(|(l, _)| l.starts_with("stair up")));
         assert!(f.found.iter().any(|(l, _)| l.starts_with("crater")));
+    }
+
+    #[test]
+    fn finder_finds_a_stair_up_even_from_high_floors() {
+        use crate::world::floors;
+        for floor in 0..floors::COUNT - 1 {
+            let mut f = Finder::default();
+            f.update(1, glam::vec3(0.0, floors::Y[floor] + 0.5, 0.0));
+            assert!(
+                f.found.iter().any(|(l, _)| l.starts_with("stair up")),
+                "no stair up from D{floor} within 1 km"
+            );
+        }
     }
 }
