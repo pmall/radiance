@@ -39,3 +39,7 @@ the timbre adjustable on the fly:
 - Suggested approach: modal/additive string model with a short hammer noise burst, possibly layered
   over the recorded attack to keep the realism; runs in an audio-stream callback like the reverb.
   Only `piano.rs` would be replaced. It needs the owner's ears to judge against the recorded notes.
+- The brainstorm (`docs/game-ideas.md`) also wants synthesized flower notes, for its **melodic
+  gradient**: notes grow consonant and warm and form a motif near a target (option 6 in
+  `docs/guidance-ideas.md`). It also imagines voices (a dry inner voice, crackly radio), which are
+  out of scope for the prototype.

@@ -29,6 +29,37 @@ Working method: get the look as far as possible with code, then add a layer of r
 The second layer is `assets/textures/detail.png` (CC0 concrete, asphalt, wall, metal), sampled in the
 scene shader in world space and multiplied over the procedural colors.
 
+### Props and external assets: consistency rules
+
+Points of interest and set dressing (`docs/world.md`, `docs/poi-catalog.md`) need far more objects
+than code alone can model well, so props come from free external model kits. The owner leaves these
+rules to the project agent. Goal: a prop from a kit must look painted by the same hand as the
+procedural city. The pipeline, not the asset, guarantees that.
+
+- **Sources.** CC0 first (e.g. Kenney, Quaternius, Poly Haven, ambientCG); anything else only with a
+  license that allows it and a credit in the asset folder's README. Prefer **low-poly, stylized
+  kits** with clear silhouettes over photo-scanned models: flat shapes read as illustration, dense
+  scans read as photos and clash.
+- **Geometry only.** A kit's own textures and colors are never shown. Each material slot of a model
+  is mapped, in a plain-text table, to a **material family** (metal, concrete, glass, plastic,
+  fabric, paper, wood, vegetation), with a light or dark shade.
+- **One palette.** Each family has a small color ramp; the existing procedural block colors move
+  onto the same ramps when the first props land, so city and props share one palette. The biome
+  `Palette` and the depth band shift the ramps slightly (cold and dim deep down, warmer near the
+  canopy).
+- **Detail.** Surface texture comes from the same grayscale photo-detail layer as the walls,
+  sampled in world space at the same scale, with capped contrast: a small prop is neither sharper
+  nor blurrier than the wall behind it. (If photo detail ever reads as "photo" on props, switch it
+  from a multiply to a gradient map onto the family ramp.)
+- **Same rendering.** Props go through the scene shader like every block: same cel bands, outlines,
+  shadows, fog, grain and flower lights. No baked or unlit kit lighting.
+- **Human scale.** Props are scaled to real sizes (a door 2.1 m, a bench 0.45 m high); their size
+  is what makes the architecture feel immense.
+- **Seed places, asset dresses.** What appears where always comes from the seed; a prop gets a
+  simple box for collision; many copies are instanced.
+- **Review.** Every new prop or kit is checked with `--shot` renders, day and night, next to
+  existing architecture, before moving on.
+
 ## Day/night cycle
 
 Time of day evolves continuously. Sun direction, sky, fog color, palette and grading all follow it,

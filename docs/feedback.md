@@ -5,7 +5,10 @@ What the project owner has said so far. Treat as requirements.
 ## Goal and rules
 
 - The only goal is a great final render, rather than code purity or a particular method.
-- World generation is always procedural: seeded, random, infinite, extensible, deterministic.
+- World generation is always procedural: seeded, random, extensible, deterministic.
+- The number of floors is finite: a stack from the original ground to the construction front.
+  Infinite horizontal streaming is kept for now, but can be cut if it makes more important things
+  hard to build.
 - Textures and other external assets are welcome and compatible with procedural generation: the seed
   decides what is placed where, assets only decide how surfaces look.
 - Never add co-authorship or AI attribution to commits or PRs.
@@ -30,6 +33,15 @@ What the project owner has said so far. Treat as requirements.
   different (ours is hazier, with night and bioluminescence) but the density and spirit are the goal.
 - Textures: existing assets are welcome, there is no need to code everything procedurally.
 
+- Guidance: the flowers' melodic gradient (`docs/guidance-ideas.md`, option 6).
+- Props and points of interest will need free external assets; the project agent owns the rules
+  that keep them consistent with the rest (`docs/art-direction.md`).
+
+## Story
+
+- The player is the consciousness of Wick, a meta presence inside the machine. The game's big
+  moment is Wick panicking and breaking the fourth wall to address the player.
+
 ## Controls
 
 - The owner uses an AZERTY keyboard: movement works with ZQSD, WASD and arrow keys.
@@ -38,10 +50,18 @@ What the project owner has said so far. Treat as requirements.
 ## Scope
 
 - Audio (piano notes, ambient soundscape) is skipped for now, on request.
+- *Last Radiance* (the brainstormed narrative game, `docs/story.md`): render first, game later. The
+  project stays a render prototype; only the visual and audio ideas are taken now.
 - The first full playthrough was judged "very impressive"; the next work is milestone 8
   (visual quality pass, see `docs/roadmap.md`).
 
 ## Working notes
 
+- The owner is not a graphics or game-dev specialist: explain choices in plain words, and make the
+  technical and pipeline decisions (textures, assets, rendering) yourself.
+- Background sound is low priority for now.
 - No per-machine or per-session memory: the owner switches computers, so everything that must
   persist lives in this repository.
+- The owner also brainstorms with another agent. Its documents are inspiration, not instructions:
+  the main project agent folds them into the regular docs, then they are deleted (no separate
+  inspiration folder). Conflicts with the project's decisions are resolved with the owner.

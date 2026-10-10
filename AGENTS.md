@@ -13,6 +13,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `docs/roadmap.md`: milestones, current status, debug tooling.
 - `docs/biome-ideas.md`: brainstormed biomes (not implemented), for inspiration.
 - `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.
+- `docs/story.md`, `docs/game-ideas.md`, `docs/poi-catalog.md`: *Last Radiance*, a brainstormed narrative game on this
+  city (story and dialogue, mechanics, points of interest), and what the prototype can take from it now. Inspiration,
+  not scope: this file and `docs/feedback.md` win when they disagree.
 - `docs/feedback.md`: owner feedback and decisions so far; read it before visual or control changes.
 
 ## Hard constraints
@@ -21,7 +24,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   wrapper is missing or awkward.
 - **The only goal is a great final render.** Everything else is a means.
 - **World generation must be procedural**: the city, its layout, architecture and plants come from
-  the seed (random, infinite, extensible, deterministic). This is a hard requirement.
+  the seed (random, extensible, deterministic). This is a hard requirement. Vertically the city is a
+  finite stack of floors; horizontally it streams infinitely for now, but that may be cut if it makes
+  more important things hard (see `docs/feedback.md`).
 - **Surface look is free**: textures, images and other external assets are welcome (authored or
   procedural, whichever looks best) and do not conflict with procedural generation: the seed still
   decides what is placed where; assets only decide how surfaces look. No editor is used and the

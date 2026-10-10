@@ -4,7 +4,7 @@ The city is huge and has no UI, so the world itself must lead the player toward 
 (see "Guidance" in `docs/vision.md`). Wind and drifting pollen, as in *Ghost of Tsushima*, was judged
 too obvious: the owner wants a real "aha" moment with the sound. Nothing here is implemented.
 
-All of these fit the lore (the player is a machine listening to human souls, `docs/lore.md`).
+All of these fit the lore (the player is the consciousness of a machine listening to human souls, `docs/lore.md`).
 
 1. **Harmony as a compass.** The city's low hum sounds slightly out of tune, with notes grinding
    against each other. Heading toward a point of interest, it slowly resolves into a clean consonant
@@ -22,9 +22,18 @@ All of these fit the lore (the player is a machine listening to human souls, `do
 5. **Quiet visual cue (pairs with 1 or 2).** Flowers lean their petals slightly toward the nearest
    interest point, like sunflowers. Very subtle, found by chance.
 
-Owner's choice: *to be decided.* Suggested: 1 and 2 together (harmony guides from afar, the choir
-pays off on arrival), the echo later as an on-demand version.
+6. **The melodic gradient (from the brainstorm, `docs/game-ideas.md`).** The flowers themselves
+   guide. Far from a target their notes are sparse and unresolved; nearer, they grow more consonant
+   and warmer and start forming a motif, which completes on arrival. Close to ideas 1 and 4, but
+   carried only by the souls. Never explained. The first target sits near the start with a strong
+   gradient; later ones are subtler. A visual echo exists only as an accessibility option, off by
+   default. In the story, the dead are leading the player toward the truth, and the faintest
+   gradient of all leads to the unique rainbow biome.
 
-Open question: what a point of interest is in the lore (where many souls gathered, the last place
-humans lived, something the machines were building). Points of interest must be generated from the
-seed.
+**Owner's choice: 6, the melodic gradient** ("it is cool"). The other ideas stay as options to
+enrich it later (e.g. 5, flowers leaning toward the target, as a subtle visual twin).
+
+Open question: what a point of interest is in the lore. The brainstorm answers with places that
+hold human traces (a notice board in a courtyard dense with flowers, the foundation stone at the
+bottom), craters of sunlight, the empty top, and the rainbow biome; see `docs/game-ideas.md`.
+Points of interest must be generated from the seed.
