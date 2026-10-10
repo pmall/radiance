@@ -86,7 +86,7 @@ pub struct Block {
 
 /// Lots kept loaded around the player (Chebyshev distance, in lots) and the distance at which
 /// they are dropped; the gap avoids thrashing at the boundary.
-const LOAD_RADIUS: i32 = 7;
+pub const LOAD_RADIUS: i32 = 7;
 const UNLOAD_RADIUS: i32 = 9;
 
 type LotKey = (i32, i32);
