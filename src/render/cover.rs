@@ -7,6 +7,7 @@
 //!   low byte in red), read exactly (`texelFetch`) to trace the sun through the floors;
 //! - tiles 1..: the sky view of the lot on floor `f` in tile `1 + f / 4`, channel `f % 4`
 //!   (0 = no sky, 1 = open sky), read with linear filtering so it blends between lots.
+//!
 //! Room for `floors::MAX` floors, whatever the run's count.
 //!
 //! Rebuilt when the camera changes lot; each lot's data is cached, so a move only computes the

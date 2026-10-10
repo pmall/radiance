@@ -627,14 +627,14 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
             })
         };
         // A point of interest first, at the floor's rate, so it gets a good spot.
-        if pois_on && rng.chance(profile.flowers.poi) {
-            if let Some(scene) = pick(&mut rng, &|s| s.kind == Kind::Poi) {
-                for _ in 0..POI_ATTEMPTS {
-                    if let Some(frame) = ctx.frame(scene, y, &mut rng, &lot) {
-                        if lot.try_place(scene, &frame) {
-                            break;
-                        }
-                    }
+        if pois_on
+            && rng.chance(profile.flowers.poi)
+            && let Some(scene) = pick(&mut rng, &|s| s.kind == Kind::Poi)
+        {
+            for _ in 0..POI_ATTEMPTS {
+                let frame = ctx.frame(scene, y, &mut rng, &lot);
+                if frame.is_some_and(|f| lot.try_place(scene, &f)) {
+                    break;
                 }
             }
         }
