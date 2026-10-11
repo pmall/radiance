@@ -66,7 +66,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `--report [radius]`: print the floor profiles next to what the seed produced (decks, stairs,
   flowers by source, props by kind), then exit. Use it to tune generation. `--floors N` sets the
   number of floors; `--no-props` / `--no-pois` (O / I in game) switch props and points of interest.
-- `cargo check` / `cargo clippy`: verify.
+- `cargo check` / `cargo clippy`: verify. `cargo test --release`: the whole suite must stay fast
+  (a few seconds) so iterating is quick: a test sweeps as few lots and seeds as prove its point,
+  and filters cheaply before costly checks. A slow test gets fixed, not tolerated.
 - **At the end of every coding session, format the code and the markdown** (owner's rule):
   `cargo fmt`, then `dprint fmt` (markdown, configured in `dprint.json`; install once with
   `cargo install --locked dprint`).

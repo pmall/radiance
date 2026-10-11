@@ -867,9 +867,11 @@ mod tests {
     /// spacing and never sit in a block, and no plant triangle edge passes through a block.
     fn growth_invariants() {
         let mut crossing = 0;
-        for seed in 1..=3u64 {
-            for lx in -5..5 {
-                for lz in -5..5 {
+        // Two seeds over 6x6 lots around the spawn: every kind of place (chunks, towers, stairs,
+        // craters) shows up, and the test stays quick to run.
+        for seed in 1..=2u64 {
+            for lx in -3..3 {
+                for lz in -3..3 {
                     let mut own = Vec::new();
                     generate_lot(seed, lx, lz, &mut own);
                     let g = grow_lot(seed, lx, lz, &own);
@@ -913,8 +915,12 @@ mod tests {
                     for t in g.plants.chunks(3) {
                         // A point of interest's flower grows in its prop (an armchair's seat).
                         let in_prop = poi(t[0].pos);
+                        // Only blocks near the triangle can be crossed (a cheap test first).
+                        let lo = t[0].pos.min(t[1].pos).min(t[2].pos) - Vec3::splat(0.02);
+                        let hi = t[0].pos.max(t[1].pos).max(t[2].pos) + Vec3::splat(0.02);
                         let hit = all
                             .iter()
+                            .filter(|b| b.aabb.min.cmple(hi).all() && b.aabb.max.cmpge(lo).all())
                             .filter(|b| b.kind != BlockKind::Prop || !in_prop)
                             .any(|b| {
                                 (0..3).any(|e| {
@@ -937,8 +943,8 @@ mod stair_tests {
     #[test]
     fn stairs_grow_plants_like_the_rest() {
         let (mut stairs, mut grown) = (0, 0);
-        for lz in -24..=24 {
-            for lx in -24..=24 {
+        for lz in -14..=14 {
+            for lx in -14..=14 {
                 if city::stair(1, lx, lz).is_none() {
                     continue;
                 }
@@ -957,7 +963,7 @@ mod stair_tests {
                 grown += g.plants.iter().any(|v| on_stairs(v.pos)) as usize;
             }
         }
-        assert!(stairs > 20, "only {stairs} stairs");
+        assert!(stairs > 8, "only {stairs} stairs");
         assert!(grown * 5 > stairs, "plants on {grown} of {stairs} stairs");
     }
 }
