@@ -310,7 +310,7 @@ fn wood() -> Tile {
             v += 0.12;
         }
         // Plank ends and knots.
-        if (x + shift) % 32 == 0 {
+        if (x + shift).is_multiple_of(32) {
             v = 0.0;
         }
         if hash(x as i32, y as i32, 63) > 0.985 {
