@@ -1,0 +1,37 @@
+// The construction front: a fenced yard where the machines keep building. A building going up in
+// each quarter, a crane over the middle, stacks of beams and pallets of blocks, site cabins.
+// Entrances in the middle of each side. Only up where the city is still being built.
+Chunk(
+    name: "construction_yard",
+    size: (6, 6),
+    zones: [Middle, Canopy],
+    labels: ["construction"],
+    weight: 2,
+    spacing: 30,
+    ground: Some(Concrete),
+    parts: [
+        Module(name: "tower_crane", at: (72.0, 0.0, 72.0)),
+        Mirror2(axis: X, at: 72.0, parts: [
+            Mirror2(axis: Z, at: 72.0, parts: [
+                // The fence along both sides of this quarter, a gap at the middle for the gate.
+                Repeat(from: (6.0, 0.0, 6.0), step: (3.0, 0.0, 0.0), count: 20, parts: [
+                    Module(name: "fence_panel"),
+                ]),
+                Repeat(from: (6.0, 0.0, 9.0), step: (0.0, 0.0, 3.0), count: 19, parts: [
+                    Module(name: "fence_panel", turn: 3),
+                ]),
+                Slot(at: (36.0, 0.0, 36.0), pick: [Some("skeleton"), Some("skeleton"), None]),
+                Slot(at: (56.0, 0.0, 20.0), pick: [Some("beam_stack"), Some("beam_stack"), None]),
+                Repeat(from: (18.0, 0.0, 58.0), step: (2.0, 0.0, 0.0), count: 4, parts: [
+                    Slot(at: (0.0, 0.0, 0.0), pick: [Some("block_pallet"), Some("block_pallet"), None]),
+                ]),
+                Slot(at: (58.0, 0.0, 52.0), turn: 1, pick: [Some("site_cabin"), None],
+                    accents: [(210, 170, 40), (200, 200, 196), (70, 110, 150)]),
+                Module(name: "lamp", at: (64.0, 0.0, 10.0), turn: 1),
+            ]),
+        ]),
+        // Keep the gates and the paths to the crane clear.
+        Growth(area: ((66.0, 0.0), (78.0, 144.0)), kind: Bare),
+        Growth(area: ((0.0, 66.0), (144.0, 78.0)), kind: Bare),
+    ],
+)

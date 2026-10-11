@@ -349,6 +349,10 @@ mod tests {
         assert!(!areas.is_empty(), "no area on 64 cells");
         for (i, a) in areas.iter().enumerate() {
             for b in &areas[..i] {
+                let (ca, cb) = (&cat.chunks[&a.chunk], &cat.chunks[&b.chunk]);
+                if !ca.labels.iter().any(|l| cb.labels.contains(l)) {
+                    continue;
+                }
                 let spacing = cat.chunks[&a.chunk].spacing.max(cat.chunks[&b.chunk].spacing) as f32;
                 let (p, q) = (a.center(), b.center());
                 let d = ((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt();

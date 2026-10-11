@@ -1,0 +1,140 @@
+// Housing and shop units: the repeated, varied cells that make a Nivalis wall. Each stands on its
+// origin, its front toward +z. `Accent` surfaces take the color the chunk gives.
+[
+    // A window with a sill; under it, sometimes, an air conditioner, a cage or laundry.
+    Module(
+        name: "unit_window",
+        parts: [
+            Box(at: (-0.6, 0.0, 0.0), size: (1.2, 1.8, 0.1), mat: Glass),
+            Box(at: (-0.7, -0.12, 0.0), size: (1.4, 0.12, 0.3), mat: Concrete),
+            Box(at: (-0.7, 1.8, 0.0), size: (1.4, 0.15, 0.2), mat: Concrete),
+            Slot(at: (0.0, 0.0, 0.0), pick: [Some("ac_unit"), Some("window_cage"), Some("laundry"), None, None]),
+        ],
+    ),
+    // An air conditioner hanging under the window, its fan grille dark.
+    Module(
+        name: "ac_unit",
+        parts: [
+            Box(at: (-0.4, -0.75, 0.0), size: (0.8, 0.55, 0.45), mat: Metal),
+            Box(at: (-0.3, -0.68, 0.45), size: (0.45, 0.4, 0.03), mat: Paint((40, 42, 46))),
+            Box(at: (-0.05, -0.2, 0.1), size: (0.1, 0.2, 0.1), mat: Metal),
+        ],
+    ),
+    // A burglar cage over the window: thin bars, top and bottom rails.
+    Module(
+        name: "window_cage",
+        parts: [
+            Box(at: (-0.75, -0.1, 0.0), size: (1.5, 0.08, 0.4), mat: Metal),
+            Box(at: (-0.75, 1.9, 0.0), size: (1.5, 0.08, 0.4), mat: Metal),
+            Repeat(from: (-0.72, -0.1, 0.34), step: (0.24, 0.0, 0.0), count: 7, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.05, 2.08, 0.05), mat: Rust),
+            ]),
+        ],
+    ),
+    // Laundry left out on a line in front of the window: a cloth in the accent color, two pale.
+    Module(
+        name: "laundry",
+        parts: [
+            Box(at: (-0.9, 1.6, 0.5), size: (1.8, 0.03, 0.03), mat: Metal),
+            Box(at: (-0.8, 0.9, 0.5), size: (0.45, 0.7, 0.04), mat: Accent),
+            Box(at: (-0.25, 1.1, 0.5), size: (0.5, 0.5, 0.04), mat: Paint((200, 196, 180))),
+            Box(at: (0.35, 0.8, 0.5), size: (0.4, 0.8, 0.04), mat: Paint((120, 140, 170))),
+        ],
+    ),
+    // A water tank on four legs, for roofs.
+    Module(
+        name: "water_tank",
+        parts: [
+            Mirror2(axis: X, at: 0.0, parts: [
+                Mirror2(axis: Z, at: 0.0, parts: [
+                    Box(at: (0.6, 0.0, 0.6), size: (0.15, 1.2, 0.15), mat: Metal),
+                ]),
+            ]),
+            Box(at: (-0.9, 1.2, -0.9), size: (1.8, 1.6, 1.8), mat: Rust),
+            Box(at: (-0.95, 2.8, -0.95), size: (1.9, 0.12, 1.9), mat: Metal),
+        ],
+    ),
+    // A narrow shophouse, 6 m wide and 12 m deep: a shop with a striped awning and a sign band at
+    // street level, two stories of windows above in the accent color, a flat roof.
+    Module(
+        name: "shophouse",
+        parts: [
+            Box(at: (-3.0, 0.0, -12.0), size: (6.0, 4.0, 11.6), mat: Concrete),
+            Box(at: (-3.0, 0.0, -0.4), size: (0.6, 4.0, 0.4), mat: Concrete),
+            Box(at: (2.4, 0.0, -0.4), size: (0.6, 4.0, 0.4), mat: Concrete),
+            Box(at: (-2.4, 0.3, -0.4), size: (4.8, 2.4, 0.1), mat: Glass),
+            Slot(at: (0.0, 0.0, 0.0), pick: [Some("shutter_half"), Some("shutter_down"), None]),
+            Box(at: (-3.0, 3.05, -0.4), size: (6.0, 0.9, 0.3), mat: Accent),
+            Repeat(from: (-3.0, 2.75, -0.1), step: (1.0, 0.0, 0.0), count: 6, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.5, 0.1, 1.6), mat: Accent),
+                Box(at: (0.5, 0.0, 0.0), size: (0.5, 0.1, 1.6), mat: Paint((222, 210, 180))),
+            ]),
+            Box(at: (-3.0, 4.0, -12.0), size: (6.0, 8.5, 11.6), mat: Accent),
+            Box(at: (-3.1, 4.0, -0.4), size: (6.2, 0.3, 0.5), mat: Concrete),
+            Box(at: (-3.1, 8.2, -0.4), size: (6.2, 0.3, 0.5), mat: Concrete),
+            Box(at: (-3.1, 12.5, -12.1), size: (6.2, 0.6, 12.2), mat: Concrete),
+            Repeat(from: (-1.5, 5.0, -0.4), step: (3.0, 0.0, 0.0), count: 2, parts: [
+                Repeat(step: (0.0, 4.2, 0.0), count: 2, parts: [
+                    Module(name: "unit_window"),
+                ]),
+            ]),
+            Slot(at: (0.0, 13.1, -6.0), pick: [Some("water_tank"), None, None]),
+        ],
+    ),
+    // The same, one story taller.
+    Module(
+        name: "shophouse_tall",
+        parts: [
+            Module(name: "shophouse"),
+            Box(at: (-3.0, 13.1, -12.0), size: (6.0, 4.2, 11.6), mat: Accent),
+            Box(at: (-3.1, 17.3, -12.1), size: (6.2, 0.6, 12.2), mat: Concrete),
+            Repeat(from: (-1.5, 13.6, -0.4), step: (3.0, 0.0, 0.0), count: 2, parts: [
+                Module(name: "unit_window"),
+            ]),
+        ],
+    ),
+    // Shop shutters, half or fully down.
+    Module(
+        name: "shutter_half",
+        parts: [
+            Box(at: (-2.4, 1.6, -0.3), size: (4.8, 1.1, 0.12), mat: Metal),
+        ],
+    ),
+    Module(
+        name: "shutter_down",
+        parts: [
+            Box(at: (-2.4, 0.3, -0.3), size: (4.8, 2.4, 0.12), mat: Metal),
+        ],
+    ),
+    // A string of small flags across a lane, in the accent color and pale.
+    Module(
+        name: "banner_string",
+        parts: [
+            Box(at: (-0.02, 0.0, 0.0), size: (0.04, 0.04, 14.0), mat: Metal),
+            Repeat(from: (-0.02, -0.6, 0.6), step: (0.0, 0.0, 2.0), count: 7, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.04, 0.6, 0.7), mat: Accent),
+            ]),
+            Repeat(from: (-0.02, -0.5, 1.6), step: (0.0, 0.0, 2.0), count: 6, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.04, 0.5, 0.6), mat: Paint((222, 210, 180))),
+            ]),
+        ],
+    ),
+    // The covered market hall: a metal roof with skylight strips on a grid of concrete pillars.
+    // 96 x 56 m, centered on its origin.
+    Module(
+        name: "market_hall",
+        parts: [
+            Repeat(from: (-44.0, 0.0, -24.0), step: (8.0, 0.0, 0.0), count: 12, parts: [
+                Repeat(step: (0.0, 0.0, 8.0), count: 7, parts: [
+                    Box(at: (-0.4, 0.0, -0.4), size: (0.8, 8.0, 0.8), mat: Concrete),
+                ]),
+            ]),
+            Box(at: (-48.0, 8.0, -28.0), size: (96.0, 0.8, 56.0), mat: Metal),
+            Repeat(from: (-40.0, 8.8, -26.0), step: (16.0, 0.0, 0.0), count: 6, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (4.0, 0.4, 52.0), mat: Glass),
+            ]),
+            Box(at: (-48.0, 7.4, -28.0), size: (96.0, 0.6, 0.4), mat: Accent),
+            Box(at: (-48.0, 7.4, 27.6), size: (96.0, 0.6, 0.4), mat: Accent),
+        ],
+    ),
+]

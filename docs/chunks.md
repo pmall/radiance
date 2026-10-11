@@ -90,9 +90,12 @@ The vocabulary (`src/world/chunks.rs`), grown only when a chunk needs it:
 
 - `Box(at, size, mat)`: a solid box, `at` its lowest corner (collides, carries plants). Materials:
   `Stone`, `StoneDark`, `Concrete`, `Brick`, `Tile`, `Metal`, `Rust`, `Wood`, `Glass`, `Soil`,
-  `Paint((r, g, b))`.
-- `Module(name, at, turn)`: a module from the catalog, turned by `turn` quarter turns.
-- `Slot(at, turn, pick)`: one of several modules, or nothing (`None`), picked by the seed.
+  `Paint((r, g, b))`, and `Accent`: paint in the color given by the module or slot using it.
+- `Module(name, at, turn, accent)`: a module from the catalog, turned by `turn` quarter turns,
+  its `Accent` surfaces in `accent`.
+- `Slot(at, turn, pick, accents)`: one of several modules, or nothing (`None`), picked by the
+  seed, with an accent color picked among `accents`: one shophouse module, every shop its color.
+  Optional values need no `Some(...)` (RON's implicit-some extension), except in `pick` lists.
 - `Mirror2(axis, at, parts)`: the parts and their mirror image; two of them nested give the four-way
   symmetry of a square. `Mirror4(center, parts)`: the parts turned four times around a center (a
   pinwheel). `Repeat(from, step, count, parts)`: rhythm (columns, windows, rows of beds).
@@ -234,9 +237,13 @@ Each phase ends with shots the owner can judge.
    - No stair is guaranteed on every walkable island (owner: going down to reach another stair is
      fine). Bridges cross the gaps of a bridge's size instead (`city::bridges_through`).
    - Not yet: holes as chunks, filling `Sub` openings, blocks other than hubs, fillers. The planner answers are cached per cell.
-5. **First catalog:** a great square (10x10), a market district (8x6), two stair hub blocks, a
-   light well block, a construction yard area, a few habitation fillers. Check that rules plus
-   random flowers give the intended feel.
+5. **First catalog** *(in progress)*: areas `great_square` (10x10, depths and middle),
+   `market_district` (8x6, depths and middle: shophouse lanes, stalls, flags, a covered hall),
+   `construction_yard` (6x6, middle and canopy: fence, crane, skeletons, stacks, cabins); stair
+   hubs `stair_hub_square` and `stair_hub_market`; modules for street furniture, architecture,
+   housing units (shophouses with caged windows, air conditioners, laundry, water tanks) and
+   construction. Still to do: fill out the great square (too empty at 240 m), a light well block,
+   housing fillers (they need the planner's filler step).
 6. **Facade modules** for towers.
 7. **Props as modules;** the photoscans are removed.
 8. **Grow the catalog.**
