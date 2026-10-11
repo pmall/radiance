@@ -64,15 +64,21 @@ city. Values are tuned with the report, then checked in game.
 - **Stairs:** switchback stairwells (straight flights going back and forth around a central wall,
   landings at each turn, rails on the open sides), each linking one floor to the next, standing in
   the middle of a hand-written stair hub chunk placed by the planner (`docs/chunks.md`): at most
-  one per 6x6-lot cell and floor, at the profile's `stair` chance per cell, common in the depths,
-  rare in the canopy, so climbing gets harder and harder. Stairs are part of the city like
+  one per 6x6-lot cell and floor, at the profile's `stair` chance per cell: rare everywhere (35 %
+  of cells on D0, about 10 % below the top), rarer going up, so climbing gets harder and harder.
+  Not every part of a floor has a stair: going down to reach another one is part of the climb. Stairs are part of the city like
   the rest: steps and landings grow bushes, and flowers on them, at the floor's rates, the bushes
   shrinking to fit between the rails and the next flight.
   How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).
+- **Footbridges:** a gap of one or two lots between two decks of a floor (24 or 48 m; wider would
+  be physically unlikely) gets a footbridge 60 % of the time, along the lots' middle line, unless
+  a tower stands in the way (`city::bridges_through`): a metal walkway with railings, rusted
+  girders and crossbeams underneath (vines hang from them). Gaps line up from floor to floor, so
+  bridges often stack across the same shaft. They add ways across a floor, which matters now
+  that stairs are rare.
 - **Growth by floor:** plants and flowers rise with the light and culminate on the canopy's first
   floor (D6 with 9 floors), then thin out on the floors above, too new for much to have grown
-  (owner's direction). Stairs grow rarer smoothly from D0 (16 % of tower-free lots) to the last
-  floor with a stair up (4 %).
+  (owner's direction).
 - **Flower budget:** at most 24 flowers per lot and floor, at least 3 m apart (except within a
   point of interest).
 - **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can

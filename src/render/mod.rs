@@ -45,9 +45,6 @@ pub const FX_SHADOWS: i32 = 32;
 pub const FX_PARTICLES: i32 = 64;
 pub const FX_TEXTURE: i32 = 128;
 pub const FX_ALL: i32 = 255;
-/// The look by default (owner's choice after the chunk style test, `docs/chunks.md`): no ink
-/// outlines and no flat light bands, like Nivalis; F3 and F5 bring them back.
-pub const FX_DEFAULT: i32 = FX_ALL & !FX_OUTLINES & !FX_CEL;
 
 /// Effect bits with their names, for the debug overlay.
 pub const EFFECTS: [(i32, &str); 8] = [
@@ -183,7 +180,7 @@ impl Renderer {
             particles: Particles::new(),
             halos,
             lights_in_use: 0,
-            effects: FX_DEFAULT,
+            effects: FX_ALL,
             render_scale: 1.0,
             reload_timer: 0.0,
         }

@@ -41,6 +41,14 @@ const SALT_STAIR: i32 = 7;
 const SALT_SECTION: i32 = 10;
 const SALT_SECTION_TINT: i32 = 11;
 const SALT_CHUNK: i32 = 13;
+const SALT_GAP_BRIDGE: i32 = 14;
+
+/// Widest gap, in lots, a footbridge crosses: wider would be physically unlikely.
+const GAP_BRIDGE_MAX: i32 = 2;
+/// Chance that a gap narrow enough gets a footbridge.
+const GAP_BRIDGE_CHANCE: f32 = 0.6;
+/// Width of a footbridge's walkway.
+const GAP_BRIDGE_WIDTH: f32 = 4.0;
 
 /// Side, in lots, of a district: the square that is split into deck sections.
 const DISTRICT: i32 = 6;
@@ -427,6 +435,83 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     });
 
     push_chunks(seed, lx, lz, first, out);
+    for f in 1..floors::count() {
+        for along_x in bridges_through(seed, lx, lz, f) {
+            push_gap_bridge(lot_origin(lx, lz), along_x, floors::y(f), out);
+        }
+    }
+}
+
+/// The footbridges crossing this lot on a floor, by axis (true: along x). A floor's gaps of one
+/// or two lots between two decks get one now and then, along the lot's middle line, unless a
+/// tower stands in the way; each axis is decided for the whole gap, so two bridges may cross.
+/// Pure, like the decks.
+pub fn bridges_through(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
+    if floor == 0 || deck(seed, lx, lz, floor) != Deck::None {
+        return Vec::new();
+    }
+    let crosses = |along_x: bool| {
+        let lot = |i: i32| if along_x { (lx + i, lz) } else { (lx, lz + i) };
+        let hole = |i: i32| {
+            let (x, z) = lot(i);
+            deck(seed, x, z, floor) == Deck::None
+        };
+        // The gap's ends: the first decks on each side, within reach.
+        let back = (1..=GAP_BRIDGE_MAX).find(|&i| !hole(-i))?;
+        let ahead = (1..=GAP_BRIDGE_MAX).find(|&i| !hole(i))?;
+        if back + ahead - 1 > GAP_BRIDGE_MAX {
+            return None;
+        }
+        let start = lot(1 - back);
+        let free = (1 - back..ahead).all(|i| {
+            let (x, z) = lot(i);
+            tower(seed, x, z).is_none_or(|t| t.top() < floors::y(floor) - 2.0)
+        });
+        let salt = SALT_GAP_BRIDGE + 64 * floor as i32 + along_x as i32;
+        let mut rng = Rng::new(hash_coords(seed, start.0, salt, start.1));
+        (free && rng.chance(GAP_BRIDGE_CHANCE)).then_some(along_x)
+    };
+    [true, false].into_iter().filter_map(crosses).collect()
+}
+
+/// One lot's span of a footbridge whose walkway is level with the floor at `top`: a metal deck,
+/// rusted girders and crossbeams under it, railings with posts every 2 m.
+fn push_gap_bridge(o: Vec3, along_x: bool, top: f32, out: &mut Vec<Block>) {
+    let c = LOT * 0.5;
+    let w = GAP_BRIDGE_WIDTH * 0.5;
+    // A box from bridge coordinates: u along the bridge (0..LOT), v across it (from the middle).
+    let mut push = |u: (f32, f32), v: (f32, f32), y: (f32, f32), mat: chunks::Mat| {
+        let (x, z) = if along_x {
+            (u, (c + v.0, c + v.1))
+        } else {
+            ((c + v.0, c + v.1), u)
+        };
+        out.push(Block {
+            kind: BlockKind::Built(mat),
+            aabb: Aabb {
+                min: vec3(o.x + x.0, y.0, o.z + z.0),
+                max: vec3(o.x + x.1, y.1, o.z + z.1),
+            },
+            color: mat.color(),
+        });
+    };
+    use chunks::Mat::{Metal, Rust};
+    push((0.0, LOT), (-w, w), (top - 0.3, top), Metal);
+    for side in [-1.0, 1.0] {
+        let v = if side < 0.0 { (-w, -w + 0.4) } else { (w - 0.4, w) };
+        push((0.0, LOT), v, (top - 1.3, top - 0.3), Rust);
+        let r = if side < 0.0 { (-w, -w + 0.12) } else { (w - 0.12, w) };
+        push((0.0, LOT), r, (top + 1.0, top + 1.12), Metal);
+        push((0.0, LOT), r, (top + 0.5, top + 0.58), Metal);
+        for i in 0..12 {
+            let u = 1.0 + 2.0 * i as f32;
+            push((u - 0.06, u + 0.06), r, (top, top + 1.0), Metal);
+        }
+    }
+    for i in 0..6 {
+        let u = 2.0 + 4.0 * i as f32;
+        push((u - 0.15, u + 0.15), (-w + 0.4, w - 0.4), (top - 1.1, top - 0.3), Rust);
+    }
 }
 
 /// The chunks covering a lot: the previewed one (`--chunk`), or the planner's (`planner.rs`).
