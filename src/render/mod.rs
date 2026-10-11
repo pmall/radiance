@@ -13,6 +13,7 @@ mod lights;
 pub mod look;
 mod mesh;
 mod particles;
+mod props;
 mod shader;
 mod shadow;
 mod surfaces;
@@ -62,6 +63,10 @@ const NEAR: f32 = 0.1;
 const FAR: f32 = 1500.0;
 /// Outline thickness in pixels at 1080p.
 const LINE_WIDTH: f32 = 2.4;
+/// Props are drawn this far (meters; height differences count more, see `props::Reach`), and
+/// cast shadows this far.
+const PROP_REACH: f32 = 110.0;
+const PROP_SHADOW_REACH: f32 = 45.0;
 /// How far ahead of the camera the shadow map is centered, in meters.
 const SHADOW_LEAD: f32 = 50.0;
 const RELOAD_POLL: f32 = 0.5;
@@ -101,6 +106,11 @@ pub struct Renderer {
     shadow: ShadowMap,
     targets: Option<SceneTargets>,
     meshes: HashMap<(i32, i32), WorldMesh>,
+    /// Props of each lot, drawn instanced (`props.rs`).
+    lots_props: HashMap<(i32, i32), Vec<crate::world::props::Placed>>,
+    prop_meshes: props::PropMeshes,
+    /// Prop triangles drawn last frame.
+    prop_triangles: i32,
     lots_lights: HashMap<(i32, i32), Vec<Light>>,
     /// Souls that are singing: their lights swell and fade back (1 = just started).
     pulses: HashMap<crate::audio::Soul, f32>,
@@ -146,6 +156,8 @@ impl Renderer {
         }
         let cover = CoverMap::new();
         unsafe { (*material.maps.add(surfaces::COVER_SLOT)).texture = cover.texture };
+        let prop_meshes = props::PropMeshes::new();
+        unsafe { (*material.maps.add(props::ATLAS_SLOT)).texture = prop_meshes.atlas };
         surfaces::bind_samplers(&mut material);
         let halos = Halos::new(light_grid.texture);
         Self {
@@ -155,6 +167,9 @@ impl Renderer {
             shadow,
             targets: None,
             meshes: HashMap::new(),
+            lots_props: HashMap::new(),
+            prop_meshes,
+            prop_triangles: 0,
             lots_lights: HashMap::new(),
             pulses: HashMap::new(),
             light_grid,
@@ -179,6 +194,7 @@ impl Renderer {
     pub fn clear_world(&mut self) {
         self.pulses.clear();
         self.meshes.clear();
+        self.lots_props.clear();
         self.lots_lights.clear();
     }
 
@@ -187,8 +203,12 @@ impl Renderer {
         self.seed = world.seed;
         let live: std::collections::HashSet<_> = world.lots().map(|(k, _)| k).collect();
         self.meshes.retain(|k, _| live.contains(k));
+        self.lots_props.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
         for (k, lot) in world.lots() {
+            self.lots_props
+                .entry(k)
+                .or_insert_with(|| lot.props.clone());
             self.lots_lights
                 .entry(k)
                 .or_insert_with(|| lot.lights.clone());
@@ -200,7 +220,7 @@ impl Renderer {
     }
 
     pub fn triangles(&self) -> i32 {
-        self.meshes.values().map(|m| m.triangles()).sum()
+        self.meshes.values().map(|m| m.triangles()).sum::<i32>() + self.prop_triangles
     }
 
     pub fn shaders_broken(&self) -> bool {
@@ -272,13 +292,34 @@ impl Renderer {
             projection: ffi::CameraProjection::CAMERA_PERSPECTIVE as i32,
         };
 
+        let lots_props = || self.lots_props.values().map(|v| v.as_slice());
+        let batches = self.prop_meshes.batches(
+            lots_props(),
+            &props::Reach {
+                eye: view.pos,
+                reach: PROP_REACH,
+                ahead: Some(view.dir),
+            },
+        );
+        self.prop_triangles = props::triangles(&batches);
+
         // Shadow pass.
         let shadows = self.effects & FX_SHADOWS != 0 && look.light.length_squared() > 0.0;
         let mut light_vp = glam::Mat4::ZERO;
         if shadows {
             let ahead = vec3(view.dir.x, 0.0, view.dir.z).normalize_or_zero() * SHADOW_LEAD;
+            // Small props' shadows only show up close.
+            let casters = self.prop_meshes.batches(
+                lots_props(),
+                &props::Reach {
+                    eye: view.pos,
+                    reach: PROP_SHADOW_REACH,
+                    ahead: None,
+                },
+            );
             light_vp = self.shadow.render(
                 self.meshes.values().map(|m| &m.raw),
+                &casters,
                 view.pos + ahead,
                 sky.light_dir,
             );
@@ -327,9 +368,13 @@ impl Renderer {
             ffi::BeginMode3D(camera);
             // Alpha carries the object id in the normal target: it must not blend.
             ffi::rlDisableColorBlend();
+            s.set_i32("uInstanced", 0);
             for mesh in self.meshes.values() {
                 ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
             }
+            s.set_i32("uInstanced", 1);
+            props::draw(&batches, self.material);
+            s.set_i32("uInstanced", 0);
             ffi::rlEnableColorBlend();
             ffi::EndMode3D();
             ffi::EndTextureMode();

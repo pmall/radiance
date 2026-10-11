@@ -4,11 +4,15 @@
 //! in any order, and the renderer can ask where the decks are without generating anything.
 //!
 //! - D0, the bottom: always solid ground. Towers rise from it.
-//! - Floors above: a deck slab per lot, kept by chance (the floor's profile, `design.rs`), so gaps open onto
-//!   the floors below and, where they line up, let the light down.
+//! - Floors above: the city was laid floor by floor, in sections. Each district of `DISTRICT` x
+//!   `DISTRICT` lots is split into rectangular sections of one to three lots a side, and each
+//!   section is built up to some floor (`built`): it has a deck on every floor up to that one and
+//!   none above. Holes are thus straight-edged and open to the sky, lining up like light wells:
+//!   rare low down, common at the construction front (the floor's `deck_keep`, `design.rs`).
 //! - Craters: round clusters of lots where nothing is built above some floor, so the sun pours
 //!   down into the dark. One always opens near the start.
-//! - Stairs: spirals in empty lots linking one to three floors, rarer higher up.
+//! - Stairs: switchbacks in lots without a tower, each linking one floor to the next, rarer higher
+//!   up, only where the section is built up to the stair's top.
 //! - The construction front: the tallest towers rise past the top deck, some still unfinished.
 
 use glam::{Vec3, vec3};
@@ -32,8 +36,13 @@ const SALT_DECOR: i32 = 2;
 const SALT_BRIDGE: i32 = 5;
 const SALT_CRATER: i32 = 6;
 const SALT_STAIR: i32 = 7;
-/// Deck streams use `SALT_DECK + 16 * floor`.
-const SALT_DECK: i32 = 8;
+const SALT_SECTION: i32 = 10;
+const SALT_SECTION_TINT: i32 = 11;
+
+/// Side, in lots, of a district: the square that is split into deck sections.
+const DISTRICT: i32 = 6;
+/// Longest side of a deck section, in lots.
+const MAX_SECTION: i32 = 3;
 
 /// Side, in lots, of the grid cell that may hold one crater.
 const CRATER_CELL: i32 = 8;
@@ -143,6 +152,9 @@ pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
 /// The floors a lot's stair links (bottom, top = bottom + 1), if it has one. Stairs stand in
 /// lots without a tower, one floor each; how often a stair starts on each floor is the floor's
 /// profile (`design.rs`): common in the depths, rare high up, so climbing gets harder and harder.
+///
+/// A stair needs its section built up to its top floor; the roll makes up for the sections that
+/// are not (`design::stair_roll`), so the profile's chances hold.
 pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
     if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
         return None;
@@ -151,10 +163,63 @@ pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
     let mut roll = rng.f32();
     (0..floors::count() - 1)
         .find(|&f| {
-            roll -= design::profile(f).stair;
+            roll -= design::stair_roll(f);
             roll < 0.0
         })
+        .filter(|&lo| built(seed, lx, lz) > lo)
         .map(|lo| (lo, lo + 1))
+}
+
+/// The deck section a lot belongs to, as its lot range `(x0, z0, x1, z1)` (half open): its
+/// district split again and again along its longer side until no side is longer than
+/// `MAX_SECTION`, and sometimes a little further.
+fn section(seed: u64, lx: i32, lz: i32) -> (i32, i32, i32, i32) {
+    let (x0, z0) = (
+        lx.div_euclid(DISTRICT) * DISTRICT,
+        lz.div_euclid(DISTRICT) * DISTRICT,
+    );
+    let mut r = (x0, z0, x0 + DISTRICT, z0 + DISTRICT);
+    loop {
+        let (w, h) = (r.2 - r.0, r.3 - r.1);
+        let mut rng = Rng::new(hash_coords(seed, r.0 * 8 + w, SALT_SECTION, r.1 * 8 + h));
+        let must = w.max(h) > MAX_SECTION;
+        if w.max(h) <= 1 || !(must || rng.chance(0.35)) {
+            return r;
+        }
+        let along_x = if w == h { rng.chance(0.5) } else { w > h };
+        if along_x {
+            let cut = r.0 + rng.range_i(1, w);
+            r = if lx < cut {
+                (r.0, r.1, cut, r.3)
+            } else {
+                (cut, r.1, r.2, r.3)
+            };
+        } else {
+            let cut = r.1 + rng.range_i(1, h);
+            r = if lz < cut {
+                (r.0, r.1, r.2, cut)
+            } else {
+                (r.0, cut, r.2, r.3)
+            };
+        }
+    }
+}
+
+/// The highest floor a lot's section is built up to: it has a deck on every floor up to this one
+/// and none above. The chance that a section reaches a floor is that floor's `deck_keep`.
+pub fn built(seed: u64, lx: i32, lz: i32) -> usize {
+    let r = section(seed, lx, lz);
+    let mut rng = Rng::new(hash_coords(
+        seed,
+        r.0 * 8 + r.2 - r.0,
+        SALT_SECTION + 64,
+        r.1 * 8 + r.3 - r.1,
+    ));
+    let u = rng.f32();
+    (1..floors::count())
+        .take_while(|&f| u < design::profile(f).deck_keep)
+        .last()
+        .unwrap_or(0)
 }
 
 /// What covers a lot on a floor. Pure, so the renderer can map the decks around the camera.
@@ -178,9 +243,7 @@ pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
             return Deck::Ring;
         }
     }
-    let keep = design::profile(floor).deck_keep;
-    let mut rng = Rng::new(hash_coords(seed, lx, SALT_DECK + 16 * floor as i32, lz));
-    if rng.chance(keep) {
+    if floor <= built(seed, lx, lz) {
         Deck::Full
     } else {
         Deck::None
@@ -250,7 +313,7 @@ pub fn generate_lot_dressed(
     dressing
 }
 
-/// The lot's architecture: ground, decks, stairs, tower, bridges, lamps.
+/// The lot's architecture: ground, decks, stairs, tower, bridges.
 fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     let first = out.len();
     let o = lot_origin(lx, lz);
@@ -275,9 +338,20 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         if kind == Deck::None {
             continue;
         }
+        // One tint per section and floor: a section's slab was poured in one go.
         let t = floors::depth01(y);
         let lo = 60 + (36.0 * t) as i32;
-        let color = tint(&mut decor, lo, lo + 18);
+        let r = section(seed, lx, lz);
+        let color = tint(
+            &mut Rng::new(hash_coords(
+                seed,
+                r.0 * 16 + f as i32,
+                SALT_SECTION_TINT,
+                r.1,
+            )),
+            lo,
+            lo + 18,
+        );
         levels.push(y);
         if kind == Deck::Ring {
             let hole = if stair_along_x(seed, lx, lz) {
@@ -321,8 +395,6 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
 
     push_bridges(seed, lx, lz, out);
 
-    push_lamps(seed, (lx, lz), &mut decor, &levels, first, out);
-
     // Roofs and wall props of towers ending just under a deck would pierce it: drop them.
     let decks: Vec<Aabb> = out[first..]
         .iter()
@@ -354,75 +426,6 @@ fn push_bridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
             && rng.chance(chance)
         {
             push_bridge(&mut rng, &a, &b, nx != lx, out);
-        }
-    }
-}
-
-/// Street lamp posts along the sidewalks of the lot's four borders, on every deck level the lot
-/// has. They are dead like the rest of the city (only flowers give light), and solid.
-fn push_lamps(
-    seed: u64,
-    (lx, lz): (i32, i32),
-    rng: &mut Rng,
-    levels: &[f32],
-    first: usize,
-    out: &mut Vec<Block>,
-) {
-    let origin = lot_origin(lx, lz);
-    // Bridges from the neighbors that end in this lot cross its streets too.
-    let mut incoming = Vec::new();
-    push_bridges(seed, lx - 1, lz, &mut incoming);
-    push_bridges(seed, lx, lz - 1, &mut incoming);
-    const SIDEWALK: f32 = 3.6;
-    const POLE: f32 = 0.22;
-    const HEIGHT: f32 = 5.6;
-    let color = Color::new(70, 76, 88, 255);
-    for &y in levels {
-        for side in 0..4 {
-            for t in [4.0_f32, 12.0, 20.0] {
-                if !rng.chance(0.3) {
-                    continue;
-                }
-                let along = t + rng.range(-1.5, 1.5);
-                // Position and the direction the lamp head leans, toward the street.
-                let (x, z, lean) = match side {
-                    0 => (origin.x + SIDEWALK, origin.z + along, vec3(-1.0, 0.0, 0.0)),
-                    1 => (
-                        origin.x + LOT - SIDEWALK,
-                        origin.z + along,
-                        vec3(1.0, 0.0, 0.0),
-                    ),
-                    2 => (origin.x + along, origin.z + SIDEWALK, vec3(0.0, 0.0, -1.0)),
-                    _ => (
-                        origin.x + along,
-                        origin.z + LOT - SIDEWALK,
-                        vec3(0.0, 0.0, 1.0),
-                    ),
-                };
-                let pole = Aabb {
-                    min: vec3(x - POLE * 0.5, y, z - POLE * 0.5),
-                    max: vec3(x + POLE * 0.5, y + HEIGHT, z + POLE * 0.5),
-                };
-                let c = vec3(x, y + HEIGHT - 0.15, z) + lean * 0.7;
-                let head = Aabb::from_center(
-                    c,
-                    vec3(0.4 + 1.0 * lean.x.abs(), 0.3, 0.4 + 1.0 * lean.z.abs()),
-                );
-                if out[first..]
-                    .iter()
-                    .chain(&incoming)
-                    .any(|b| b.aabb.overlaps(&pole) || b.aabb.overlaps(&head))
-                {
-                    continue;
-                }
-                for aabb in [pole, head] {
-                    out.push(Block {
-                        kind: BlockKind::Lamp,
-                        aabb,
-                        color,
-                    });
-                }
-            }
         }
     }
 }
@@ -766,26 +769,6 @@ mod tests {
                 near,
                 "seed {seed}: no stair up from the start floor within 8 lots"
             );
-        }
-    }
-
-    #[test]
-    fn lamps_stand_clear_of_everything_else() {
-        for seed in 1..=2u64 {
-            let mut all = Vec::new();
-            for lz in -4..4 {
-                for lx in -4..4 {
-                    generate_lot(seed, lx, lz, &mut all);
-                }
-            }
-            for l in all.iter().filter(|b| b.kind == BlockKind::Lamp) {
-                assert!(
-                    !all.iter()
-                        .any(|b| b.kind != BlockKind::Lamp && b.aabb.overlaps(&l.aabb)),
-                    "lamp at {:?} overlaps a block",
-                    l.aabb.min
-                );
-            }
         }
     }
 }

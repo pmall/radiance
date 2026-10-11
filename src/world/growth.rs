@@ -65,6 +65,9 @@ struct Builder<'a> {
     solids: &'a [Block],
     /// Least distance between two flowers (`MIN_FLOWER_GAP`, except in points of interest).
     min_gap: f32,
+    /// Bushes shrink to fit between nearby blocks instead of giving up (on stairs, between the
+    /// rails and the next flight).
+    squeeze: bool,
 }
 
 impl Builder<'_> {
@@ -369,11 +372,13 @@ impl Builder<'_> {
         let tuft = self.rng.chance(0.3);
         let mut scale = self.rng.range(1.0, 2.0);
         // Next to props (a bench, a bin), the bush grows smaller instead of not at all: its
-        // fronds, reaching about 1.8 * scale, stay clear of them.
+        // fronds, reaching about 1.8 * scale, stay clear of them. Squeezed (on stairs), every
+        // block around counts that way.
+        let squeeze = self.squeeze;
         let room = self
             .solids
             .iter()
-            .filter(|b| b.kind == BlockKind::Prop && b.aabb.max.y > base.y + 0.05)
+            .filter(|b| (squeeze || b.kind == BlockKind::Prop) && b.aabb.max.y > base.y + 0.05)
             .filter(|b| b.aabb.min.y < base.y + 2.5 * scale)
             .map(|b| {
                 let dx = (b.aabb.min.x - base.x).max(base.x - b.aabb.max.x).max(0.0);
@@ -382,25 +387,26 @@ impl Builder<'_> {
             })
             .fold(f32::MAX, f32::min);
         scale = scale.min(room / 1.9);
-        if scale < 0.55 {
+        if scale < if squeeze { 0.4 } else { 0.55 } {
             return;
         }
         // Fronds reach about 1.8 * scale sideways: keep clear of any other block, so none of
         // them is squashed against a wall or rooted in one (the host's top surface is fine).
         let reach = 1.8 * scale;
-        let crowded = self
-            .solids
-            .iter()
-            .filter(|b| b.kind != BlockKind::Prop)
-            .any(|b| {
-                let a = &b.aabb;
-                a.min.y < base.y + 2.5 * scale
-                    && a.max.y > base.y + 0.05
-                    && base.x > a.min.x - reach
-                    && base.x < a.max.x + reach
-                    && base.z > a.min.z - reach
-                    && base.z < a.max.z + reach
-            });
+        let crowded = !squeeze
+            && self
+                .solids
+                .iter()
+                .filter(|b| b.kind != BlockKind::Prop)
+                .any(|b| {
+                    let a = &b.aabb;
+                    a.min.y < base.y + 2.5 * scale
+                        && a.max.y > base.y + 0.05
+                        && base.x > a.min.x - reach
+                        && base.x < a.max.x + reach
+                        && base.z > a.min.z - reach
+                        && base.z < a.max.z + reach
+                });
         if crowded {
             return;
         }
@@ -612,55 +618,8 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         biome: biome_at(seed, lx, lz),
         solids: &around,
         min_gap: MIN_FLOWER_GAP,
+        squeeze: false,
     };
-
-    // Souls line the stairs: people climbed them as the city rose. A flower on each landing, in
-    // its far corner, makes a stair read from afar as a column of lights, the way up in the dark.
-    let axis = vec3(
-        (lx as f32 + 0.5) * super::city::LOT,
-        0.0,
-        (lz as f32 + 0.5) * super::city::LOT,
-    );
-    let landings = blocks.iter().filter(|blk| {
-        let s = blk.aabb.size();
-        blk.kind == BlockKind::Stair && s.x > 1.5 && s.z > 1.5
-    });
-    for blk in landings {
-        let a = &blk.aabb;
-        if !b.rng.chance(
-            super::design::profile(floors::floor_at(a.max.y))
-                .flowers
-                .landing,
-        ) {
-            continue;
-        }
-        // Clear of the rails along the landing's edges.
-        const INSET: f32 = 1.0;
-        let far = |lo: f32, hi: f32, c: f32| {
-            if (hi - c).abs() > (lo - c).abs() {
-                hi - INSET
-            } else {
-                lo + INSET
-            }
-        };
-        let side = |lo: f32, hi: f32, rng: &mut Rng| {
-            if rng.chance(0.5) {
-                lo + INSET
-            } else {
-                hi - INSET
-            }
-        };
-        // The far edge runs across the long side of the landing.
-        let (x, z) = if a.size().x < a.size().z {
-            (far(a.min.x, a.max.x, axis.x), side(a.min.z, a.max.z, b.rng))
-        } else {
-            (side(a.min.x, a.max.x, b.rng), far(a.min.z, a.max.z, axis.z))
-        };
-        let r = b.rng.range(0.24, 0.32);
-        b.new_plant();
-        let fc = b.flower_color();
-        b.flower(vec3(x, a.max.y + r * 0.9, z), r, fc, Vec3::Y);
-    }
 
     // Flowers of the points of interest: in an armchair, on a bench, in a pot (`dressing.rs`).
     // They grow in the prop itself, so its collision box does not count, and they may stand close
@@ -679,7 +638,10 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
     for blk in blocks {
         let a = &blk.aabb;
         let size = a.size();
-        if size.x.max(size.z) < MIN_HOST {
+        // Stairs are part of the city like the rest: their steps and landings grow plants too,
+        // squeezed between the rails and the flights.
+        let stair = blk.kind == BlockKind::Stair;
+        if !stair && size.x.max(size.z) < MIN_HOST {
             continue;
         }
         let y = a.max.y.min(a.min.y + 1.0);
@@ -695,7 +657,11 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         // Bushes on top surfaces (not on parapets, machinery or signs).
         let plantable = matches!(
             blk.kind,
-            BlockKind::Floor | BlockKind::Deck | BlockKind::Tower | BlockKind::Bridge
+            BlockKind::Floor
+                | BlockKind::Deck
+                | BlockKind::Tower
+                | BlockKind::Bridge
+                | BlockKind::Stair
         );
         let area = size.x * size.z;
         let mut n = if plantable {
@@ -703,22 +669,29 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         } else {
             0.0
         };
+        let inset = if stair { 0.15 } else { 1.0 };
+        b.squeeze = stair;
         while n > 0.0 {
             if n >= 1.0 || b.rng.chance(n) {
                 let p = vec3(
-                    b.rng
-                        .range(a.min.x + 1.0, (a.max.x - 1.0).max(a.min.x + 1.01)),
+                    b.rng.range(
+                        a.min.x + inset,
+                        (a.max.x - inset).max(a.min.x + inset + 0.01),
+                    ),
                     a.max.y,
-                    b.rng
-                        .range(a.min.z + 1.0, (a.max.z - 1.0).max(a.min.z + 1.01)),
+                    b.rng.range(
+                        a.min.z + inset,
+                        (a.max.z - inset).max(a.min.z + inset + 0.01),
+                    ),
                 );
                 b.bush(p);
             }
             n -= 1.0;
         }
+        b.squeeze = false;
 
         // Hanging vines from the edges of decks and bridges.
-        if plantable && size.y < MAX_SLAB && a.min.y > floors::bottom() + 3.0 {
+        if plantable && !stair && size.y < MAX_SLAB && a.min.y > floors::bottom() + 3.0 {
             let perimeter = 2.0 * (size.x + size.z);
             let mut n = perimeter * 0.3 * dens * b.biome.vine_rate;
             while n > 0.0 {
@@ -927,40 +900,33 @@ mod tests {
 }
 
 #[cfg(test)]
-mod landing_tests {
-    use crate::world::{BlockKind, city, design, floors};
+mod stair_tests {
+    use crate::world::{BlockKind, city};
 
     #[test]
-    fn landing_flowers_follow_the_floor_profiles() {
-        let (mut landings, mut flowered, mut expected) = (0, 0, 0.0);
+    fn stairs_grow_plants_like_the_rest() {
+        let (mut stairs, mut grown) = (0, 0);
         for lz in -12..=12 {
             for lx in -12..=12 {
                 if city::stair(1, lx, lz).is_none() {
                     continue;
                 }
+                stairs += 1;
                 let mut blocks = Vec::new();
                 city::generate_lot(1, lx, lz, &mut blocks);
                 let g = super::grow_lot(1, lx, lz, &blocks);
-                for a in blocks.iter().filter(|b| {
-                    let s = b.aabb.size();
-                    b.kind == BlockKind::Stair && s.x > 1.5 && s.z > 1.5
-                }) {
-                    landings += 1;
-                    expected += design::profile(floors::floor_at(a.aabb.max.y))
-                        .flowers
-                        .landing;
-                    flowered +=
-                        g.lights.iter().any(|l| {
-                            a.aabb.contains_xz(l.pos) && (l.pos.y - a.aabb.max.y).abs() < 1.0
-                        }) as usize;
-                }
+                let on_stairs = |p: glam::Vec3| {
+                    blocks.iter().any(|b| {
+                        b.kind == BlockKind::Stair
+                            && b.aabb.contains_xz(p)
+                            && p.y > b.aabb.max.y
+                            && p.y < b.aabb.max.y + 0.3
+                    })
+                };
+                grown += g.plants.iter().any(|v| on_stairs(v.pos)) as usize;
             }
         }
-        assert!(landings > 50, "only {landings} landings");
-        let ratio = flowered as f32 / expected;
-        assert!(
-            (0.6..1.3).contains(&ratio),
-            "{flowered} flowered landings, expected about {expected:.0}"
-        );
+        assert!(stairs > 20, "only {stairs} stairs");
+        assert!(grown * 5 > stairs, "plants on {grown} of {stairs} stairs");
     }
 }

@@ -26,14 +26,14 @@ and lot coordinates):
    floors people moved up to), **canopy** (the top half of the floors above the depths, built by
    machines after the humans).
 2. **The floor profiles** (`src/world/design.rs`): for each floor, the chance of a deck per lot,
-   the plant density, the flower chances per source (bush, vine, climber branch, stair landing,
-   point of interest per lot), the chance of a stair up, and the prop and car densities. Written
+   the plant density, the flower chances per source (bush, vine, climber branch, point of interest
+   per lot), the chance of a stair up, and the prop and car densities. Written
    per zone as values at its lowest and highest floor, interpolated in between, so they hold for
    any number of floors. **Every generation number that depends on the floor lives there.**
 3. **Structure** (`city.rs`): ground, decks (`deck_keep`), craters, stairs (`stair`), towers,
-   bridges, lamps.
-4. **Dressing** (`dressing.rs`): props placed by the street layout (below), at the floor's
-   `props` and `cars` densities; points of interest drawn apart at the floor's `poi` rate.
+   bridges.
+4. **Dressing** (`dressing.rs`): street lights at the crossroads, then props placed by the street
+   layout (below), at the floor's `props` and `cars` densities; points of interest drawn apart at the floor's `poi` rate.
 5. **Growth** (`growth.rs`): plants at the floor's density, flowers at the floor's chances; plants
    grow around the props.
 
@@ -44,8 +44,14 @@ city. Values are tuned with the report, then checked in game.
 
 ### The floor stack in detail
 
-- **Decks:** each lot has a deck on a floor by chance (the profile's `deck_keep`), a pure function
-  of seed, lot and floor (`city::deck`). Gaps open onto the floors below.
+- **Decks:** the city was laid floor by floor, in sections. Each district of 6 x 6 lots is split
+  into rectangular sections of one to three lots a side, and each section is built up to some
+  floor (`city::built`): a deck on every floor up to it, none above. The chance that a section
+  reaches a floor is the profile's `deck_keep`, which never grows going up (97 % on D1, 92 % on
+  D3, 45 % on the top floor). So holes are straight-edged, line up from floor to floor like light
+  wells and are open to the sky; rare in the depths, common at the construction front. All lots of
+  a section share one slab tint per floor. (Owner: the first version, one coin flip per lot and
+  floor, looked too random.)
 - **Light under the decks:** the renderer keeps a cover map of the lots around the camera
   (`src/render/cover.rs`, room for 16 floors): which decks exist, and how much sky each lot sees on
   each floor (24 rays traced against the decks). The shaders block the sun with it (exact, at any
@@ -58,8 +64,15 @@ city. Values are tuned with the report, then checked in game.
 - **Stairs:** switchback stairwells in lots without a tower (straight flights going back and forth
   around a central wall, landings at each turn, rails on the open sides), each linking one floor
   to the next, at the profile's `stair` chance: common in the depths, rare in the canopy, so
-  climbing gets harder and harder. Landings get a flower at the profile's `landing` chance.
+  climbing gets harder and harder. A stair only stands where its section is built up to its top
+  floor (the roll makes up for the others, `design::stair_roll`). Stairs are part of the city like
+  the rest: steps and landings grow bushes, and flowers on them, at the floor's rates, the bushes
+  shrinking to fit between the rails and the next flight.
   How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).
+- **Growth by floor:** plants and flowers rise with the light and culminate on the canopy's first
+  floor (D6 with 9 floors), then thin out on the floors above, too new for much to have grown
+  (owner's direction). Stairs grow rarer smoothly from D0 (16 % of tower-free lots) to the last
+  floor with a stair up (4 %).
 - **Flower budget:** at most 24 flowers per lot and floor, at least 3 m apart (except within a
   point of interest).
 - **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can
@@ -113,28 +126,45 @@ Every lot follows one street layout, the one the pavement shader draws: a road a
 (3 m deep on each lot's side), a curb, the sidewalk, then the tower's facades. `src/world/dressing.rs`
 places each scene in the kind of place it belongs to, never at random:
 
-- **Curb:** on the sidewalk just behind the curb, facing the road: benches, bench and bin, bins,
-  street signs.
-- **Corner:** the sidewalk corner of two streets: traffic lights (D0–D2), signs.
-- **Facade:** against a tower wall, facing out: dumpsters, barrels and crates, carts, bins and
-  boxes, café terraces (D1–D3), a sofa with boxes and a lamp (someone moving out), a fridge and a
-  freezer (a shop emptied), tires.
-- **Parking:** in the road along the curb, nose along the street, clear of crossings: old cars on
-  D0–D1, a truck on D0. Nothing else ever stands in the road (tested).
-- **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other.
+- **Streets only between decks:** a lot border is a street on a floor only if the lot across it
+  has a deck there; at the edge of a section the sidewalk runs to the edge instead (the pavement
+  shader reads the cover map), so a road is never cut in half along its length. Curb, corner and
+  parking spots and street lights only stand along real streets.
+- **Street lights:** not drawn at random but laid out like a real street: one per crossroads (two
+  streets meeting), on a sidewalk corner, its arm reaching over the crossing; each street keeps its lights on the same
+  side all along it, so they line up one per lot. Built in code (a modern pole and arm; no free
+  model fits). They follow the props switch (O).
+- **Curb:** on the sidewalk just behind the curb, facing the road: benches, bench and bin, metal
+  bins (clean or rusted), utility boxes.
+- **Corner:** the sidewalk corner of two streets: utility cabinets; jersey barriers in
+  the middle floors and up (works), never in the depths.
+- **Facade:** against a tower wall, facing out: trash bags, barrels and crates, a hand truck with
+  boxes, café terraces (D1–D3), a plastic chair by a door, a sofa with a suitcase, boxes and the
+  television (someone moving out), shelves and boxes (a shop emptied), tyres, a generator with its
+  fuel, utility cabinets.
+- **Parking:** in the road along the curb, nose along the street, clear of crossings. Empty for
+  now: no realistic, uncovered car model found yet (the owner rejected covered cars). Nothing
+  else ever stands in the road (tested).
+- **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other
+  or a picnic table, concrete barriers (middle floors and up).
+
+Props are photoscanned models from Poly Haven (CC0) or built in code (`docs/art-direction.md`,
+"Props and external assets").
 
 Every scene declares its slot, its kind (street furniture, leftovers, vehicles, points of
-interest) and a weight per zone; how many are tried per lot follows the floor's profile (about 10
-to 15 props per lot in the depths, thinning through the middle, almost none in the canopy; about
-one car per lot in the depths, none in the canopy). Bushes next to props grow smaller instead of
+interest) and a weight per zone; how many are tried per lot follows the floor's profile (about 4
+to 8 props per lot in the depths, a third of the first pass at the owner's request, thinning
+through the middle, almost none in the canopy). Bushes next to props grow smaller instead of
 not at all. No indoor furniture out in the street except as a story (moving out, a shop emptied),
 and no construction props in the depths (they belong to the construction front, not done yet).
 Every prop stands fully on a deck, clear of everything else, with a collision box; plants grow
 around them.
 
 Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): a flower
-growing out of an armchair left by a wall, two flowers side by side on a bench (allowed closer
-than the usual 3 m), a dead garden with one living flower. They are rare on purpose (a few % of
+growing out of an armchair (or a leather lounge chair) left by a wall, two flowers side by side on
+a bench (allowed closer than the usual 3 m), a dead garden of clay pots with one living flower, an
+empty wheelchair by the curb with a flower in its seat, an old bed frame against a wall with a
+flower where someone slept. They are rare on purpose (a few % of
 lots, the profile's `poi`): too many would spell out that flowers are souls. Only the armchair
 always stands on the start plaza, facing the crater.
 

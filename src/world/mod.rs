@@ -58,7 +58,7 @@ pub enum BlockKind {
     Tower,
     /// Walkway deck and parapets between two towers.
     Bridge,
-    /// Spiral stair steps.
+    /// Stair steps and landings.
     Stair,
     /// Hand-placed movement test blocks near spawn.
     Course,
@@ -76,8 +76,6 @@ pub enum BlockKind {
     Skylight,
     /// Steel: fire escape platforms, rails and ladders, sign brackets.
     Steel,
-    /// Street lamp post (unlit: the city is dead, only flowers glow).
-    Lamp,
     /// The collision box of a prop (`props.rs`); not drawn, the prop's own mesh is.
     Prop,
 }
@@ -130,8 +128,8 @@ pub struct Light {
 pub struct Lot {
     pub blocks: Vec<Block>,
     pub plants: Vec<PlantVert>,
-    /// Prop triangles (`props.rs`), drawn like plants but with the prop material.
-    pub props: Vec<PlantVert>,
+    /// Props standing in the lot (`dressing.rs`); the renderer draws them instanced.
+    pub props: Vec<props::Placed>,
     pub lights: Vec<Light>,
     /// Material variant (palette index) of the lot's biome.
     pub variant: u8,
@@ -173,24 +171,7 @@ impl World {
             let mut blocks = Vec::new();
             let dressing = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
             let growth::Growth { plants, lights } = growth::grow_lot(self.seed, x, z, &blocks);
-            let props = dressing
-                .props
-                .iter()
-                .enumerate()
-                .flat_map(|(i, p)| {
-                    // Own outline id per prop, so it reads apart from what it stands on.
-                    let id =
-                        1 + (crate::rng::hash_coords(self.seed, x, 100 + i as i32, z) % 255) as u8;
-                    p.world_verts().map(move |v| PlantVert {
-                        pos: v.pos,
-                        normal: v.normal,
-                        color: Color::new(v.color[0], v.color[1], v.color[2], 255),
-                        id,
-                        glow: 0,
-                        uv: NO_UV,
-                    })
-                })
-                .collect();
+            let props = dressing.props;
             self.lots.insert(
                 (x, z),
                 Lot {
