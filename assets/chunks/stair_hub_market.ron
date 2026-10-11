@@ -1,0 +1,23 @@
+// A stair hub with a market: stalls line the sidewalks around the stair lot, crates stacked
+// behind them, a signpost on each side. The stair stands in the middle lot (placed by the
+// planner).
+Chunk(
+    name: "stair_hub_market",
+    size: (3, 3),
+    zones: [Depths, Middle],
+    labels: ["stair_hub", "market"],
+    weight: 2,
+    parts: [
+        Growth(area: ((28.0, 28.0), (44.0, 44.0)), kind: Bare),
+        Mirror4(center: (36.0, 36.0), parts: [
+            Module(name: "lamp", at: (28.5, 0.0, 28.5), turn: 0),
+            Module(name: "sign_up", at: (36.0, 0.0, 28.0), turn: 2),
+            // Stalls on the next lot's sidewalk, their counters toward the stair.
+            Repeat(from: (29.0, 0.0, 19.5), step: (7.0, 0.0, 0.0), count: 3, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("stall"), Some("stall"), None]),
+            ]),
+            Slot(at: (31.0, 0.0, 15.5), pick: [Some("crate_stack"), None]),
+            Slot(at: (42.0, 0.0, 15.5), pick: [Some("crate_stack"), None]),
+        ]),
+    ],
+)

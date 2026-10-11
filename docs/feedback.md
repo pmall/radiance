@@ -87,6 +87,11 @@ What the project owner has said so far. Treat as requirements.
   abandoned, with flowers as the only light. Think the whole system ahead, test where it matters.
   Reference screenshots stay out of git. Plan: `docs/chunks.md`.
 
+- Style test on the great square (pixel-art materials): "this is all really good, keep going".
+  Taken as approval of the recommendations: no outlines or flat light bands by default, plants to
+  become pixel or voxel foliage. Chunks should be big ("don't be cheap on chunk size": a big
+  square might be 10x10 lots; 1x1 only for repetitive housing).
+
 ## How to work on generation (owner's direction)
 
 - Think of the game as one consistent system, not fix after fix. The code must be as consistent

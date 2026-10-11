@@ -20,6 +20,7 @@ use sola_raylib::prelude::Color;
 
 use super::biome::biome_at;
 use super::chunks;
+use super::planner::{self, Placement, Role};
 use super::design;
 use super::floors::{self, START};
 use super::{Aabb, Block, BlockKind};
@@ -56,7 +57,7 @@ pub struct Tower {
 }
 
 impl Tower {
-    fn top(&self) -> f32 {
+    pub fn top(&self) -> f32 {
         self.center.y + self.size.y * 0.5
     }
 }
@@ -139,7 +140,7 @@ fn crater_in_cell(seed: u64, cx: i32, cz: i32) -> Option<Crater> {
 
 /// The floor above which nothing is built on this lot, if it lies in a crater.
 pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
-    if is_plaza(lx, lz) || chunks::preview().is_some() {
+    if is_plaza(lx, lz) || chunks::preview().is_some() || planner::area_at(seed, lx, lz).is_some() {
         return None;
     }
     let (cx, cz) = (lx.div_euclid(CRATER_CELL), lz.div_euclid(CRATER_CELL));
@@ -151,28 +152,12 @@ pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
         .min()
 }
 
-/// The floors a lot's stair links (bottom, top = bottom + 1), if it has one. Stairs stand in
-/// lots without a tower, one floor each; how often a stair starts on each floor is the floor's
-/// profile (`design.rs`): common in the depths, rare high up, so climbing gets harder and harder.
-///
-/// A stair needs its section built up to its top floor; the roll makes up for the sections that
-/// are not (`design::stair_roll`), so the profile's chances hold.
+/// The floors a lot's stair links (bottom, top = bottom + 1), if it has one. Every stair stands in
+/// the middle lot of a stair hub chunk placed by the planner (`planner.rs`), at most one per hub
+/// cell and floor, at the floor's profile chance (`design.rs`): common in the depths, rare high up,
+/// so climbing gets harder and harder.
 pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
-    if chunks::preview().is_some() {
-        return None;
-    }
-    if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
-        return None;
-    }
-    let mut rng = Rng::new(hash_coords(seed, lx, SALT_STAIR, lz));
-    let mut roll = rng.f32();
-    (0..floors::count() - 1)
-        .find(|&f| {
-            roll -= design::stair_roll(f);
-            roll < 0.0
-        })
-        .filter(|&lo| built(seed, lx, lz) > lo)
-        .map(|lo| (lo, lo + 1))
+    planner::stair_hub(seed, lx, lz).map(|p| (p.floor, p.floor + 1))
 }
 
 /// The deck section a lot belongs to, as its lot range `(x0, z0, x1, z1)` (half open): its
@@ -240,6 +225,10 @@ pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
     if floor == 0 || (floor == START && is_plaza(lx, lz)) {
         return Deck::Full;
     }
+    // An area's floor is a full deck under it.
+    if planner::area_at(seed, lx, lz).is_some_and(|a| a.floor == floor) {
+        return Deck::Full;
+    }
     if let Some(f) = crater_at(seed, lx, lz) {
         if floor > f {
             return Deck::None;
@@ -272,7 +261,11 @@ pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u16 {
 
 /// The tower standing on a lot, if any. Pure, so neighbors can query it for bridges.
 pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
-    if chunks::preview().is_some() {
+    // Areas are designed spaces, and the start's stair needs its lot.
+    if chunks::preview().is_some()
+        || (lx, lz) == planner::START_HUB
+        || planner::area_at(seed, lx, lz).is_some()
+    {
         return None;
     }
     if is_plaza(lx, lz) || crater_at(seed, lx, lz).is_some() {
@@ -433,93 +426,112 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         !ours || !prop || !decks.iter().any(|d| d.overlaps(&b.aabb))
     });
 
-    push_preview_chunk(seed, lx, lz, out);
+    push_chunks(seed, lx, lz, first, out);
 }
 
-/// The previewed chunk's vegetation hints (`chunks::GrowthKind`) reaching into this lot.
+/// The chunks covering a lot: the previewed one (`--chunk`), or the planner's (`planner.rs`).
+pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
+    if let Some(((ox, oz), size)) = chunks::preview_footprint() {
+        let p = Placement {
+            chunk: chunks::preview().map(|p| p.name.clone()).unwrap_or_default(),
+            role: Role::Area,
+            origin: (ox, oz),
+            size,
+            floor: START,
+            turn: 0,
+            seed: hash_coords(seed, ox, SALT_CHUNK, oz),
+        };
+        return if p.covers(lx, lz) { vec![p] } else { Vec::new() };
+    }
+    planner::covering(seed, lx, lz)
+}
+
+/// A placed chunk, built in world coordinates.
+fn build_placement(p: &Placement) -> Option<(chunks::Chunk, chunks::Built)> {
+    let cat = chunks::catalog();
+    let chunk = cat.chunks.get(&p.chunk)?.clone();
+    let origin = lot_origin(p.origin.0, p.origin.1) + Vec3::Y * floors::y(p.floor);
+    let built = chunks::build(&chunk, &cat, origin, p.turn, p.seed);
+    Some((chunk, built))
+}
+
+/// The vegetation hints (`chunks::GrowthKind`) of the chunks covering this lot.
 pub fn growth_hints(seed: u64, lx: i32, lz: i32) -> Vec<(Aabb, chunks::GrowthKind)> {
-    let Some(((ox, oz), (w, d))) = chunks::preview_footprint() else {
-        return Vec::new();
-    };
-    if lx < ox || lz < oz || lx >= ox + w || lz >= oz + d {
-        return Vec::new();
-    }
-    let cat = chunks::catalog();
-    let Some(chunk) = chunks::preview().and_then(|p| cat.chunks.get(&p.name)) else {
-        return Vec::new();
-    };
-    let origin = lot_origin(ox, oz) + Vec3::Y * floors::y(START);
-    chunks::build(
-        chunk,
-        &cat,
-        origin,
-        0,
-        hash_coords(seed, ox, SALT_CHUNK, oz),
-    )
-    .growth
+    placements(seed, lx, lz)
+        .iter()
+        .filter_map(build_placement)
+        .flat_map(|(_, b)| b.growth)
+        .collect()
 }
 
-/// This lot's part of the previewed chunk (`chunks::preview`): the boxes whose center falls in the
-/// lot, and collision for those reaching in from the lots that own them.
-fn push_preview_chunk(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
-    let Some(((ox, oz), (w, d))) = chunks::preview_footprint() else {
-        return;
-    };
-    if lx < ox || lz < oz || lx >= ox + w || lz >= oz + d {
-        return;
-    }
-    let cat = chunks::catalog();
-    let Some(chunk) = chunks::preview().and_then(|p| cat.chunks.get(&p.name)) else {
-        return;
-    };
-    let y = floors::y(START);
-    // Paved over: the lot's deck takes the chunk's ground material.
-    if let Some(mat) = chunk.ground {
-        for b in out.iter_mut() {
-            if b.kind == BlockKind::Deck && (b.aabb.max.y - y).abs() < 0.01 {
-                b.kind = BlockKind::Built(mat);
-                b.color = mat.color();
-            }
-        }
-    }
-    let built = chunks::build(
-        chunk,
-        &cat,
-        lot_origin(ox, oz) + Vec3::Y * y,
-        0,
-        hash_coords(seed, ox, SALT_CHUNK, oz),
-    );
-    let mut blocks: Vec<Block> = built
-        .boxes
-        .iter()
-        .map(|&(aabb, mat)| Block {
-            kind: BlockKind::Built(mat),
-            aabb,
-            color: mat.color(),
-        })
-        .collect();
-    for &(at, along_x) in &built.stairs {
-        push_switchback_stair(at, along_x, at.y, at.y + floors::SPACING, &mut blocks);
-    }
+/// This lot's part of the chunks covering it: the boxes whose center falls in the lot, and
+/// collision for those reaching in from the lots that own them. A chunk's boxes give way to the
+/// lot's own architecture (a tower, a stair) and to the towers next door.
+fn push_chunks(seed: u64, lx: i32, lz: i32, first: usize, out: &mut Vec<Block>) {
     let o = lot_origin(lx, lz);
     let lot = Aabb {
         min: vec3(o.x, f32::MIN, o.z),
         max: vec3(o.x + LOT, f32::MAX, o.z + LOT),
     };
-    for b in blocks {
-        if !b.aabb.overlaps(&lot) {
+    let mut obstacles: Vec<Aabb> = out[first..]
+        .iter()
+        .filter(|b| !matches!(b.kind, BlockKind::Floor | BlockKind::Deck))
+        .map(|b| b.aabb)
+        .collect();
+    for (nx, nz) in [(lx - 1, lz), (lx + 1, lz), (lx, lz - 1), (lx, lz + 1)] {
+        if let Some(t) = tower(seed, nx, nz) {
+            obstacles.push(Aabb::from_center(t.center, t.size));
+        }
+    }
+    let all = placements(seed, lx, lz);
+    for p in &all {
+        // A hub's surroundings give way to an area, and need a deck to stand on.
+        if p.role == Role::Hub
+            && (all.iter().any(|a| a.role == Role::Area && a.floor == p.floor)
+                || deck(seed, lx, lz, p.floor) == Deck::None)
+        {
             continue;
         }
-        let c = (b.aabb.min + b.aabb.max) * 0.5;
-        let owned = (c.x / LOT).floor() as i32 == lx && (c.z / LOT).floor() as i32 == lz;
-        out.push(if owned {
-            b
-        } else {
-            Block {
-                kind: BlockKind::Collider,
-                ..b
+        let Some((chunk, built)) = build_placement(p) else {
+            continue;
+        };
+        let y = floors::y(p.floor);
+        // Paved over: the lot's deck takes the chunk's ground material.
+        if let Some(mat) = chunk.ground {
+            for b in out[first..].iter_mut() {
+                if b.kind == BlockKind::Deck && (b.aabb.max.y - y).abs() < 0.01 {
+                    b.kind = BlockKind::Built(mat);
+                    b.color = mat.color();
+                }
             }
-        });
+        }
+        let mut blocks: Vec<Block> = built
+            .boxes
+            .iter()
+            .map(|&(aabb, mat)| Block {
+                kind: BlockKind::Built(mat),
+                aabb,
+                color: mat.color(),
+            })
+            .collect();
+        for &(at, along_x) in &built.stairs {
+            push_switchback_stair(at, along_x, at.y, at.y + floors::SPACING, &mut blocks);
+        }
+        for b in blocks {
+            if !b.aabb.overlaps(&lot) || obstacles.iter().any(|o| o.overlaps(&b.aabb)) {
+                continue;
+            }
+            let c = (b.aabb.min + b.aabb.max) * 0.5;
+            let owned = (c.x / LOT).floor() as i32 == lx && (c.z / LOT).floor() as i32 == lz;
+            out.push(if owned {
+                b
+            } else {
+                Block {
+                    kind: BlockKind::Collider,
+                    ..b
+                }
+            });
+        }
     }
 }
 

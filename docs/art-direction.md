@@ -1,8 +1,10 @@
 # Art direction
 
 > **Changing:** the owner chose a new target, an abandoned *Nivalis* (box geometry, pixel-art
-> textures, dense modular facades). See `docs/chunks.md`; this page is rewritten after its style
-> test.
+> textures, dense modular facades). See `docs/chunks.md`. After its style test: no ink outlines
+> and no flat light bands by default (F3/F5 bring them back), pixel-art materials on hand-written
+> chunks, plants to become pixel or voxel foliage. The sections below describe the procedural
+> look, which the chunks replace step by step.
 
 **Core principle:** stylized 3D that reads like a 2D illustration. Shapes and color carry the image,
 not detail.

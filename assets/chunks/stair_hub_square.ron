@@ -1,0 +1,23 @@
+// A stair hub: the stair stands in the middle lot (placed by the planner, flights along x or z),
+// framed by a small square: lamps at the stairwell's corners, signposts pointing the way up,
+// benches and planters facing it from the surrounding sidewalks. Written once, turned four times.
+Chunk(
+    name: "stair_hub_square",
+    size: (3, 3),
+    labels: ["stair_hub"],
+    weight: 3,
+    parts: [
+        // Keep the stairwell and its approaches clear of plants.
+        Growth(area: ((28.0, 28.0), (44.0, 44.0)), kind: Bare),
+        Mirror4(center: (36.0, 36.0), parts: [
+            Module(name: "lamp", at: (28.5, 0.0, 28.5), turn: 0),
+            Module(name: "sign_up", at: (31.0, 0.0, 28.0), turn: 2),
+            // From the next lot's sidewalk, facing the stair.
+            Module(name: "bench", at: (36.0, 0.0, 20.0)),
+            Slot(at: (32.5, 0.0, 20.0), pick: [Some("planter"), Some("bin"), None]),
+            Slot(at: (39.5, 0.0, 20.0), pick: [Some("planter"), None]),
+            // The corner lot: a kiosk, crates, or nothing.
+            Slot(at: (12.0, 0.0, 12.0), turn: 0, pick: [Some("kiosk"), Some("crate_stack"), None, None]),
+        ]),
+    ],
+)

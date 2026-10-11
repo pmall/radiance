@@ -696,8 +696,16 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
         vacant,
         streets: [true; 4],
     };
+    // Floors where a hand-written chunk covers the lot: it brings its own furniture.
+    let chunked: Vec<usize> = super::city::placements(seed, lx, lz)
+        .iter()
+        .map(|p| p.floor)
+        .collect();
     for y in levels {
         let floor = floors::floor_at(y);
+        if chunked.contains(&floor) {
+            continue;
+        }
         ctx.streets = [(lx - 1, lz), (lx + 1, lz), (lx, lz - 1), (lx, lz + 1)]
             .map(|(x, z)| super::city::deck(seed, x, z, floor) != super::city::Deck::None);
         let zone = floors::zone(floor) as usize;

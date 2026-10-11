@@ -9,6 +9,7 @@ pub mod dressing;
 pub mod facade;
 pub mod floors;
 pub mod growth;
+pub mod planner;
 pub mod props;
 pub mod roof;
 
