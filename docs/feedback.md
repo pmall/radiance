@@ -20,8 +20,9 @@ What the project owner has said so far. Treat as requirements.
 - Bushes read as rocks or boulders on the ground: replace the faceted blobs with real foliage.
 - Only flowers emit light, never whole bushes or vines. Each light sits at its flower, with that
   flower's color and a visible glowing source, so it is clear which flower lights what.
-- Flowers: denser in the sunlit canopy, sparser in the depths (where each glow stands out); plants
-  themselves stay roughly even. Flowers keep at least 3 m apart.
+- Flowers: denser in the sunlit canopy, sparser in the depths (where each glow stands out).
+  Plants and flowers culminate on D6 (the canopy's first floor), then are less present on D7 and
+  D8. Flowers keep at least 3 m apart.
 - Plants must never traverse blocks: bush bases are not rooted in walls, stray leaf and stem
   vertices are pushed out of blocks (neighbor lots included), and a flower's light is clamped
   between the deck under it and the deck over it (no glow leaking through floors).
@@ -57,10 +58,26 @@ What the project owner has said so far. Treat as requirements.
   helps find things instead: the overlay gives the distance and clock direction of the nearest
   stair up, stair down and crater, and the right mouse button makes Wick 4 times faster.
 
-- Props: the Kenney kits look like a cheap mobile game ("too baby-like"); fine as prototypes,
-  to be replaced later. What matters most is smart placement: every prop where it belongs in a
+- Props: the Kenney kits looked like a cheap mobile game ("too baby-like"); replaced by realistic,
+  photoscanned models. What matters most is smart placement: every prop where it belongs in a
   street (no bench in the road), no construction props in the depths, no indoor furniture out in
   the street without a story. Darkness of the depths: keep it, the owner loves it.
+
+- After the generation refactor: holes in the floors looked too randomly placed (wanted: more
+  consistency, fewer holes in the lower floors; many holes at the top are fine, it is under
+  construction); street lamps too many and too random (wanted: evenly spaced along the roads,
+  exactly at the corners of crossroads, always facing the road); stairs only got flowers on their
+  landings (wanted: stairs as part of the world, random bushes and flowers on them); props still
+  toy-like (wanted: realistic assets). Done: decks by sections built up to a floor, one street
+  light per crossroads on a regular layout, plants on stairs at the usual rates, photoscanned
+  Poly Haven props.
+
+- On that pass: decks "way better". Still wrong: a road cut in the middle along the edge of a deck
+  section; far too many props overall (fewer for now), cars and hydrants judged horrible and far
+  too frequent, cars should not be covered; stairs seemed common then dropped suddenly around D7;
+  plants and flowers did not feel like they culminate on D6. The owner is not satisfied with the
+  props overall and has no direction yet. Done: no road where there is no deck across, cars and
+  hydrants removed, props cut to a third, a smooth stair curve, growth peaking on D6.
 
 ## How to work on generation (owner's direction)
 
@@ -70,7 +87,7 @@ What the project owner has said so far. Treat as requirements.
   and probability; props and points of interest can be switched off; the number of floors is
   fixed per run but variable (more may come, depending on how hard climbing is).
 - Flowers on benches and chairs must stay rare: too many make it obvious they are human souls.
-- Everything random is random: stair landings get flowers by chance, like any other spot.
+- Everything random is random: stairs grow plants and flowers by chance, like any other spot.
 - Implemented as `world/design.rs` (floor profiles), `--report`, O/I switches, `--floors N`
   (see "How the city is generated" in `docs/world.md`).
 

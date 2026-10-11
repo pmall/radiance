@@ -36,7 +36,7 @@
      curbs and markings; roofs, billboards, solar arrays, lamps; painted leaves with midribs and veins)
      plus a photo-detail layer from CC0 concrete, asphalt, wall and metal textures
      (`assets/textures/`, `tools/pack_textures.py`). Rooftops (parapets, machinery, masts, billboards)
-     and street lamps are solid blocks. Reference: Mirror's Edge (see `docs/feedback.md`).
+     and street lights are props (`src/world/props.rs`). Reference: Mirror's Edge (see `docs/feedback.md`).
      Also fire escapes and blade signs on tower walls (`src/world/facade.rs`), photo detail on roofs,
      foliage and rust (`detail2.png`), and per-biome architecture palettes (`Palette` in `biome.rs`).
    - Lore pass *(done)*: unfinished tower tiers with tower cranes (the machines never stopped
@@ -54,13 +54,19 @@
       the sun and sky through a cover map, fog beams, stairs rarer higher up, construction front
       past the top deck. See "The floor stack" in `docs/world.md`. About 6 ms/frame and 3.7 M
       tris from the spawn on the 3060 (was 3 ms, 1.4 M tris).
-      Known issues: small bright chips flicker in the far fog of the crater; deck slabs read as
-      square tiles from above; the depths band is uniform (no older architecture yet).
-   2. Props *(second pass done)*: 41 CC0 Kenney models recolored to the material families
-      (prototypes: judged too toy-like, to be replaced), placed by the street layout (curb,
-      corner, facade, parking, vacant lot), 10 to 15 per lot and floor in the depths
-      (`docs/world.md`, "Set dressing"). Candidates for better models: Poly Haven (CC0,
-      realistic: covered car, metal trash can, utility boxes, roller shutters, payphone...).
+      Known issues: small bright chips flicker in the far fog of the crater; the depths band is uniform (no older architecture yet).
+   2. Props *(third pass done, owner not satisfied, no direction yet)*: the Kenney kits (judged
+      toy-like) replaced by 34 photoscanned
+      Poly Haven models (CC0) with their own textures, decimated at import
+      (`tools/import_props.mjs`) and drawn instanced, plus a modern street light built in code,
+      laid out one per crossroads. Placed by the street layout (curb, corner, facade, parking,
+      vacant lot), 10 to 15 per lot and floor in the depths (`docs/world.md`, "Set dressing").
+      About 9 ms/frame from the spawn (8.5 before). Cars (covered) and hydrants removed on the
+      owner's feedback, density cut to a third. Missing models for: cars (uncovered), traffic
+      lights, street signs, dumpsters, shopping carts, bicycles, vending machines, a bus stop.
+   2c. Consistency pass *(done)*: decks laid by sections built up to a floor (holes line up as
+      light wells, rare low down), street lights on a regular layout, stairs grow plants like any
+      surface (no special landing flowers).
    2b. Organizational pass *(done)*: one design module with floor profiles (`world/design.rs`),
       variable floor count, scenes declared by slot, kind and zone weights, points of interest
       drawn apart at a controlled rate, O/I switches, `--report` to measure each floor.

@@ -71,7 +71,8 @@ pub enum Kind {
     Street,
     /// What people left: dumpsters, crates, carts, café terraces, piles from moving out.
     Leftovers,
-    /// Parked cars.
+    /// Parked cars (none until a fitting car model is found).
+    #[allow(dead_code)]
     Vehicle,
     /// Points of interest with flowers growing in them (drawn apart, at the floor's rate).
     Poi,
@@ -110,47 +111,58 @@ const SCENES: &[Scene] = &[
     scene(
         Slot::Curb,
         Kind::Street,
-        &[part(Bench, 0.0, 0.0, 0.0), part(Trashcan, 1.4, 0.0, 0.0)],
+        &[part(Bench, 0.0, 0.0, 0.0), part(TrashCan, 1.75, 0.0, 0.0)],
         [4, 1, 0],
     ),
     scene(
         Slot::Curb,
         Kind::Street,
-        &[part(Trashcan, 0.0, 0.0, 0.0)],
-        [4, 2, 0],
+        &[part(TrashCan, 0.0, 0.0, 0.0)],
+        [3, 2, 0],
     ),
     scene(
         Slot::Curb,
         Kind::Street,
-        &[part(StreetSign, 0.0, 0.0, 0.0)],
+        &[part(TrashCanRusty, 0.0, 0.0, 0.0)],
+        [2, 1, 0],
+    ),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(UtilityBox, 0.0, 0.0, PI)],
         [2, 1, 0],
     ),
     // Street corners.
     scene(
         Slot::Corner,
         Kind::Street,
-        &[part(TrafficLight, 0.0, 0.0, 0.0)],
-        [3, 0, 0],
+        &[part(UtilityBoxWide, 0.0, 0.0, PI)],
+        [2, 1, 0],
     ),
+    // Barriers closing a corner: works up in the newer floors, never in the old depths.
     scene(
         Slot::Corner,
         Kind::Street,
-        &[part(StreetSign, 0.0, 0.0, 0.0)],
-        [2, 1, 0],
+        &[part(BarrierJersey, 0.0, 0.0, 0.0)],
+        [0, 1, 1],
     ),
     // Against the facades, facing out.
     scene(
         Slot::Facade,
         Kind::Leftovers,
-        &[part(DumpsterClosed, 0.0, 0.0, 0.0)],
+        &[
+            part(TrashBag, 0.0, 0.0, 0.0),
+            part(TrashBag, 0.6, 0.15, 0.9),
+            part(TrashCanRusty, 1.4, 0.0, 0.0),
+        ],
         [4, 2, 0],
     ),
     scene(
         Slot::Facade,
         Kind::Leftovers,
         &[
-            part(DumpsterOpen, 0.0, 0.0, 0.0),
-            part(Pallet, 1.9, 0.0, 0.1),
+            part(TrashBag, 0.0, 0.0, 0.3),
+            part(TrashBag, 0.55, 0.1, -0.6),
         ],
         [3, 1, 0],
     ),
@@ -158,9 +170,9 @@ const SCENES: &[Scene] = &[
         Slot::Facade,
         Kind::Leftovers,
         &[
-            part(Barrel, 0.0, 0.0, 0.0),
-            part(Barrel, 0.8, 0.0, 1.0),
-            part(Crate, 1.7, 0.0, 0.05),
+            part(BarrelRusty, 0.0, 0.0, 0.0),
+            part(BarrelBlue, 0.75, 0.0, 1.0),
+            part(CrateLong, 1.8, 0.0, FRAC_PI_2),
         ],
         [3, 2, 1],
     ),
@@ -169,26 +181,19 @@ const SCENES: &[Scene] = &[
         Kind::Leftovers,
         &[
             part(Crate, 0.0, 0.0, 0.0),
-            part(Crate, 1.0, 0.0, -0.1),
-            part(BoxClosed, 1.9, 0.0, 0.3),
+            part(CardboardBox, 0.75, 0.0, -0.1),
+            part(CardboardBox, 1.25, 0.05, 0.3),
         ],
         [2, 2, 1],
     ),
     scene(
         Slot::Facade,
         Kind::Leftovers,
-        &[part(ShoppingCart, 0.0, 0.0, 0.4)],
-        [3, 1, 0],
-    ),
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
         &[
-            part(Trashcan, 0.0, 0.0, 0.0),
-            part(BoxClosed, 0.8, 0.0, 0.3),
-            part(BoxOpen, 1.6, 0.0, -0.2),
+            part(HandTruck, 0.0, 0.0, 0.3),
+            part(CardboardBox, 0.75, 0.0, 0.2),
         ],
-        [3, 2, 0],
+        [2, 1, 0],
     ),
     // A café terrace in front of a shop: a table, a chair on each side, a quarter turn left (+)
     // or right (-) of the frame's front so each faces the table.
@@ -196,21 +201,28 @@ const SCENES: &[Scene] = &[
         Slot::Facade,
         Kind::Leftovers,
         &[
-            part(Chair, -0.85, 0.35, -FRAC_PI_2),
-            part(TableRound, 0.0, 0.2, 0.0),
-            part(Chair, 0.85, 0.35, FRAC_PI_2),
+            part(TerraceChair, -0.75, 0.35, -FRAC_PI_2),
+            part(TerraceTable, 0.0, 0.2, 0.0),
+            part(TerraceChair, 0.75, 0.35, FRAC_PI_2),
         ],
         [4, 1, 0],
     ),
-    // Someone moving out, never finished: a sofa, boxes and a lamp by the wall.
+    // Someone sat by the door, a long time ago.
+    scene(
+        Slot::Facade,
+        Kind::Leftovers,
+        &[part(PlasticChair, 0.0, 0.0, 0.2)],
+        [2, 1, 0],
+    ),
+    // Someone moving out, never finished: a sofa, a suitcase, boxes and the television.
     scene(
         Slot::Facade,
         Kind::Leftovers,
         &[
             part(Sofa, 0.0, 0.0, 0.0),
-            part(BoxClosed, 1.5, 0.0, 0.2),
-            part(BoxOpen, 1.5, 0.7, -0.3),
-            part(FloorLamp, -1.4, 0.0, 0.0),
+            part(Suitcase, 1.75, 0.2, 0.0),
+            part(CardboardBox, 1.8, 0.6, 0.3),
+            part(Television, -1.75, 0.1, 0.3),
         ],
         [2, 0, 0],
     ),
@@ -218,64 +230,49 @@ const SCENES: &[Scene] = &[
     scene(
         Slot::Facade,
         Kind::Leftovers,
-        &[part(Fridge, 0.0, 0.0, 0.0), part(Freezer, 1.4, 0.0, 0.0)],
+        &[
+            part(Shelves, 0.0, 0.0, 0.0),
+            part(CardboardBox, 0.9, 0.2, 0.4),
+        ],
         [1, 0, 0],
     ),
     scene(
         Slot::Facade,
         Kind::Leftovers,
-        &[part(Tire, 0.0, 0.0, 0.0), part(Tire, 0.7, 0.0, 0.6)],
+        &[part(Tyre, 0.0, 0.0, 0.0), part(Tyre, 0.7, 0.0, 0.25)],
         [2, 1, 0],
     ),
-    // Parked along the curb.
+    // A generator and its fuel, from the last days of power.
     scene(
-        Slot::Parking,
-        Kind::Vehicle,
-        &[part(Sedan, 0.0, 0.0, 0.0)],
-        [3, 3, 0],
+        Slot::Facade,
+        Kind::Leftovers,
+        &[
+            part(Generator, 0.0, 0.0, 0.0),
+            part(Jerrycan, 0.75, 0.0, 0.3),
+            part(PropaneTank, -0.75, 0.0, 0.0),
+        ],
+        [2, 1, 0],
     ),
     scene(
-        Slot::Parking,
-        Kind::Vehicle,
-        &[part(Hatchback, 0.0, 0.0, 0.0)],
-        [2, 2, 0],
+        Slot::Facade,
+        Kind::Street,
+        &[part(UtilityBoxWide, 0.0, 0.0, 0.0)],
+        [2, 2, 1],
     ),
-    scene(
-        Slot::Parking,
-        Kind::Vehicle,
-        &[part(Van, 0.0, 0.0, 0.0)],
-        [2, 2, 0],
-    ),
-    scene(
-        Slot::Parking,
-        Kind::Vehicle,
-        &[part(Taxi, 0.0, 0.0, 0.0)],
-        [1, 1, 0],
-    ),
-    scene(
-        Slot::Parking,
-        Kind::Vehicle,
-        &[part(Suv, 0.0, 0.0, 0.0)],
-        [1, 1, 0],
-    ),
-    scene(
-        Slot::Parking,
-        Kind::Vehicle,
-        &[part(Truck, 0.0, 0.0, 0.0)],
-        [1, 0, 0],
-    ),
+    // Parked cars: none until a realistic, uncovered car model is found (the `Parking` slot
+    // and the profile's `cars` are ready for it).
     // Lots with no tower.
     scene(
         Slot::Vacant,
         Kind::Leftovers,
         &[
-            part(DumpsterOpen, 0.0, 0.0, 0.0),
-            part(Tire, 2.0, 0.5, 0.0),
-            part(Pallet, -2.2, 0.3, 0.3),
+            part(BarrelRusty, 0.0, 0.0, 0.0),
+            part(TrashBag, 1.0, 0.3, 0.0),
+            part(Tyre, -1.0, 0.2, 0.6),
         ],
         [3, 1, 0],
     ),
-    // A small square: two benches facing each other.
+    // A small square: two benches facing each other, or a picnic table.
     scene(
         Slot::Vacant,
         Kind::Street,
@@ -285,15 +282,21 @@ const SCENES: &[Scene] = &[
     scene(
         Slot::Vacant,
         Kind::Leftovers,
-        &[
-            part(ShoppingCart, 0.0, 0.0, 0.0),
-            part(BoxOpen, 1.2, 0.4, 0.5),
-            part(Crate, -1.3, 0.2, 0.2),
-        ],
+        &[part(PicnicTable, 0.0, 0.0, 0.0)],
         [2, 1, 0],
     ),
+    // Works in the newer floors.
+    scene(
+        Slot::Vacant,
+        Kind::Leftovers,
+        &[
+            part(BarrierConcrete, 0.0, 0.0, 0.0),
+            part(BarrierConcrete, 1.7, 0.0, 0.1),
+        ],
+        [0, 1, 1],
+    ),
     // Points of interest with flowers (foreshadowing: flowers in human places), drawn apart at
-    // each floor's `Flowers::poi` rate. Last in the table: `START_SCENES` counts from the end.
+    // each floor's `Flowers::poi` rate. Last in the table, the armchair first (`START_SCENES`).
     // A flower growing out of an armchair left by a wall (D2-07).
     Scene {
         slot: Slot::Facade,
@@ -302,12 +305,19 @@ const SCENES: &[Scene] = &[
         blooms: &[(0.0, 0.5, 0.05)],
         weight: [2, 1, 0],
     },
+    Scene {
+        slot: Slot::Facade,
+        kind: Kind::Poi,
+        parts: &[part(LoungeChair, 0.0, 0.0, 0.0)],
+        blooms: &[(0.0, 0.5, 0.1)],
+        weight: [1, 1, 0],
+    },
     // Two flowers side by side on a bench, about the distance two people sit (D1-09).
     Scene {
         slot: Slot::Curb,
         kind: Kind::Poi,
         parts: &[part(Bench, 0.0, 0.0, 0.0)],
-        blooms: &[(-0.32, 0.5, 0.05), (0.32, 0.5, 0.05)],
+        blooms: &[(-0.32, 0.47, 0.05), (0.32, 0.47, 0.05)],
         weight: [1, 1, 0],
     },
     // A dead garden by the wall, one flower alive in a pot (D1-13).
@@ -315,28 +325,58 @@ const SCENES: &[Scene] = &[
         slot: Slot::Facade,
         kind: Kind::Poi,
         parts: &[
-            part(PottedPlant, 0.0, 0.0, 0.0),
-            part(PottedPlant, 0.8, 0.0, 0.3),
-            part(PottedPlant, 1.6, 0.0, -0.1),
+            part(ClayPot, 0.0, 0.0, 0.0),
+            part(ClayPot, 0.45, 0.15, 0.3),
+            part(ClayPot, 0.9, 0.0, -0.1),
         ],
-        blooms: &[(1.6, 1.15, 0.0)],
+        blooms: &[(0.9, 0.24, 0.0)],
         weight: [2, 1, 0],
     },
+    // An empty wheelchair by the curb, a flower in its seat.
+    Scene {
+        slot: Slot::Curb,
+        kind: Kind::Poi,
+        parts: &[part(Wheelchair, 0.0, 0.0, 0.0)],
+        blooms: &[(0.0, 0.55, 0.0)],
+        weight: [1, 1, 0],
+    },
+    // An old bed frame against a wall, a flower where someone slept.
+    Scene {
+        slot: Slot::Facade,
+        kind: Kind::Poi,
+        parts: &[part(BedFrame, 0.0, 0.0, 0.0)],
+        blooms: &[(0.0, 0.5, -0.5)],
+        weight: [1, 0, 0],
+    },
 ];
+
+/// Points of interest at the end of `SCENES`.
+const POIS: usize = 6;
+
+/// The street light, placed by its own rule (`street_lights`), never drawn at random.
+const LIGHT: Scene = scene(
+    Slot::Corner,
+    Kind::Street,
+    &[part(StreetLight, 0.0, 0.0, 0.0)],
+    [0, 0, 0],
+);
+/// Distance of a street light's pole from the two curbs of its corner.
+const LIGHT_GAP: f32 = 0.5;
+const SALT_LIGHTS: i32 = 12;
 
 /// The point of interest always standing on the plaza where the player wakes up, behind the curb
 /// of the street before the crater, facing it: (scene index, x, z). Only one, so the secret of the
 /// flowers is not spelled out from the first step.
-const START_SCENES: &[(usize, f32, f32)] = &[(SCENES.len() - 3, -7.0, -20.0)];
+const START_SCENES: &[(usize, f32, f32)] = &[(SCENES.len() - POIS, -7.0, -20.0)];
 
 /// Props tried per lot and floor for each slot, before the floor's profile scales them
 /// (`FloorProfile::props`, and `FloorProfile::cars` for parking).
 const TRIES: [(Slot, f32); 5] = [
-    (Slot::Curb, 9.0),
-    (Slot::Corner, 2.0),
-    (Slot::Facade, 7.0),
+    (Slot::Curb, 3.0),
+    (Slot::Corner, 1.0),
+    (Slot::Facade, 3.0),
     (Slot::Parking, 1.0),
-    (Slot::Vacant, 3.0),
+    (Slot::Vacant, 1.5),
 ];
 
 /// Attempts at placing a lot's point of interest once the floor's chance says it has one.
@@ -462,6 +502,9 @@ struct Context {
     tower: Option<Aabb>,
     /// No tower, no stair, not the plaza: a vacant lot.
     vacant: bool,
+    /// Which sides of the lot (see `side`) are streets on the level being dressed: those with a
+    /// deck across the border. The others are the edge of the deck, a sidewalk with no road.
+    streets: [bool; 4],
 }
 
 impl Context {
@@ -471,6 +514,9 @@ impl Context {
         let first = mesh(scene.parts[0].prop).half;
         match scene.slot {
             Slot::Curb => {
+                if !self.streets[s] {
+                    return None;
+                }
                 // Facing the road, the front edge just behind the curb.
                 let t = rng.range(ROAD + 1.5, LOT - ROAD - 1.5);
                 let (inward, at) = side(s, ROAD + CURB_GAP + first.z, t);
@@ -482,6 +528,9 @@ impl Context {
             }
             Slot::Corner => {
                 let (a, b) = (s & 1, 2 + (s >> 1));
+                if !self.streets[a] || !self.streets[b] {
+                    return None;
+                }
                 let (na, _) = side(a, 0.0, 0.0);
                 let (nb, _) = side(b, 0.0, 0.0);
                 let d = ROAD + CORNER_GAP;
@@ -520,6 +569,9 @@ impl Context {
                 })
             }
             Slot::Parking => {
+                if !self.streets[s] {
+                    return None;
+                }
                 // In the road along the curb, nose along the street, clear of crossings.
                 let reach = ROAD + first.z + 1.5;
                 let (inward, at) = side(s, ROAD - 0.25 - first.x, rng.range(reach, LOT - reach));
@@ -543,6 +595,40 @@ impl Context {
                 })
             }
         }
+    }
+}
+
+/// Street lights stand at the crossroads, one per crossing, on a corner of the sidewalk with
+/// their arm reaching over the crossing. Each street keeps its lights on the same side all along
+/// it, so they line up evenly, one every lot. A lot holds the lights of the corners where both its
+/// streets have their lights on its side.
+fn street_lights(seed: u64, (lx, lz): (i32, i32), y: f32, ctx: &Context, lot: &mut LotDressing) {
+    for (cx, cz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        // The street along z at this corner has its lights east of it (the lot whose west border
+        // it is) or west; the street along x, south or north.
+        let east = hash_coords(seed, lx + cx, SALT_LIGHTS, 0) & 1 == 1;
+        let south = hash_coords(seed, 0, SALT_LIGHTS + 1, lz + cz) & 1 == 1;
+        // Only where two streets cross: both of the corner's sides are streets.
+        if east != (cx == 0)
+            || south != (cz == 0)
+            || !ctx.streets[cx as usize]
+            || !ctx.streets[2 + cz as usize]
+        {
+            continue;
+        }
+        let d = ROAD + LIGHT_GAP;
+        let at = vec3(
+            if cx == 0 { d } else { LOT - d },
+            y,
+            if cz == 0 { d } else { LOT - d },
+        );
+        let front = vec3(2.0 * cx as f32 - 1.0, 0.0, 2.0 * cz as f32 - 1.0).normalize();
+        let frame = Frame {
+            origin: lot.origin + at,
+            front,
+            from_back: false,
+        };
+        lot.try_place(&LIGHT, &frame);
     }
 }
 
@@ -605,9 +691,15 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
         .map(|b| b.aabb);
     let vacant = tower.is_none() && !plaza && super::city::stair(seed, lx, lz).is_none();
 
-    let ctx = Context { tower, vacant };
+    let mut ctx = Context {
+        tower,
+        vacant,
+        streets: [true; 4],
+    };
     for y in levels {
         let floor = floors::floor_at(y);
+        ctx.streets = [(lx - 1, lz), (lx + 1, lz), (lx, lz - 1), (lx, lz + 1)]
+            .map(|(x, z)| super::city::deck(seed, x, z, floor) != super::city::Deck::None);
         let zone = floors::zone(floor) as usize;
         let profile = design::profile(floor);
         let pick = |rng: &mut Rng, wanted: &dyn Fn(&Scene) -> bool| -> Option<&'static Scene> {
@@ -626,7 +718,11 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
                 hit
             })
         };
-        // A point of interest first, at the floor's rate, so it gets a good spot.
+        // Street lights first: they follow the street layout, not chance.
+        if props_on {
+            street_lights(seed, (lx, lz), y, &ctx, &mut lot);
+        }
+        // A point of interest next, at the floor's rate, so it gets a good spot.
         if pois_on
             && rng.chance(profile.flowers.poi)
             && let Some(scene) = pick(&mut rng, &|s| s.kind == Kind::Poi)
@@ -693,7 +789,7 @@ mod tests {
 
     #[test]
     fn only_parked_cars_stand_in_the_road() {
-        let cars = [Sedan, Hatchback, Van, Taxi, Suv, Truck];
+        let cars: [Prop; 0] = [];
         for seed in 1..=3 {
             for lz in -3..=3 {
                 for lx in -3..=3 {
@@ -709,6 +805,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn street_lights_stand_at_the_crossroads() {
+        let mut n = 0;
+        for lz in -3..=3 {
+            for lx in -3..=3 {
+                let o = vec3(lx as f32, 0.0, lz as f32) * LOT;
+                for p in dressed(1, lx, lz)
+                    .props
+                    .iter()
+                    .filter(|p| p.prop == StreetLight)
+                {
+                    n += 1;
+                    let d = ROAD + LIGHT_GAP;
+                    let at_corner =
+                        |v: f32, o: f32| (v - o - d).abs() < 1e-3 || (v - o - LOT + d).abs() < 1e-3;
+                    assert!(
+                        at_corner(p.pos.x, o.x) && at_corner(p.pos.z, o.z),
+                        "{}",
+                        p.pos
+                    );
+                }
+            }
+        }
+        // About one per crossing and floor with a deck there.
+        assert!(n > 49 * 2, "only {n} street lights on 49 lots");
     }
 
     #[test]

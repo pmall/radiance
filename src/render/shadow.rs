@@ -86,6 +86,7 @@ impl ShadowMap {
     pub fn render<'a>(
         &mut self,
         meshes: impl Iterator<Item = &'a ffi::Mesh>,
+        props: &[super::props::Batch],
         center: Vec3,
         light_dir: Vec3,
     ) -> Mat4 {
@@ -140,9 +141,13 @@ impl ShadowMap {
             ffi::BeginMode3D(camera);
             // Back faces only: closed boxes then never shadow their own lit faces.
             ffi::rlSetCullFace(ffi::rlCullMode::RL_CULL_FACE_FRONT as i32);
+            self.shader.set_i32("uInstanced", 0);
             for mesh in meshes {
                 ffi::DrawMesh(*mesh, self.material, IDENTITY);
             }
+            self.shader.set_i32("uInstanced", 1);
+            super::props::draw(props, self.material);
+            self.shader.set_i32("uInstanced", 0);
             ffi::rlSetCullFace(ffi::rlCullMode::RL_CULL_FACE_BACK as i32);
             ffi::EndMode3D();
             ffi::EndTextureMode();

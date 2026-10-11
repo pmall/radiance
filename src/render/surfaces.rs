@@ -38,17 +38,20 @@ fn load_png(png: &[u8]) -> ffi::Texture2D {
 /// Material slot (sampler `texture5`) of the cover map (`cover.rs`).
 pub const COVER_SLOT: usize = 5;
 
-/// Tells raylib where the scene shader's extra samplers are (detail textures, cover map), so
+/// Tells raylib where the scene shader's extra samplers are (detail textures, cover map, prop
+/// atlas), so
 /// DrawMesh binds the textures to them. Must be repeated whenever the scene shader is reloaded
 /// (the location table is rebuilt).
 pub fn bind_samplers(material: &mut ffi::Material) {
     use ffi::ShaderLocationIndex::{
-        SHADER_LOC_MAP_EMISSION, SHADER_LOC_MAP_OCCLUSION, SHADER_LOC_MAP_ROUGHNESS,
+        SHADER_LOC_MAP_EMISSION, SHADER_LOC_MAP_HEIGHT, SHADER_LOC_MAP_OCCLUSION,
+        SHADER_LOC_MAP_ROUGHNESS,
     };
     for (name, index) in [
         ("texture3", SHADER_LOC_MAP_ROUGHNESS),
         ("texture4", SHADER_LOC_MAP_OCCLUSION),
         ("texture5", SHADER_LOC_MAP_EMISSION),
+        ("texture6", SHADER_LOC_MAP_HEIGHT),
     ] {
         unsafe {
             let name = CString::new(name).unwrap();

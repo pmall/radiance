@@ -23,8 +23,6 @@ pub struct Flowers {
     pub vine: f32,
     /// Per branch of a wall climber.
     pub climber: f32,
-    /// Per stair landing.
-    pub landing: f32,
     /// Per lot: a point of interest with flowers (an armchair, a bench, a pot).
     pub poi: f32,
 }
@@ -32,7 +30,8 @@ pub struct Flowers {
 /// Everything generation needs to know about one floor.
 #[derive(Clone, Copy, Debug)]
 pub struct FloorProfile {
-    /// Chance that a lot has a deck on this floor. Gaps let light down.
+    /// Chance that a deck section is built up to this floor (`city::built`): the share of the floor
+    /// that has a deck. Never grows going up (a section with no deck on a floor has none above).
     pub deck_keep: f32,
     /// Multiplier on how many plants grow.
     pub plants: f32,
@@ -54,31 +53,33 @@ pub const MIN_FLOWER_GAP: f32 = 3.0;
 pub const CRATER_FLOWERS: f32 = 1.5;
 
 /// Profiles at the lowest and highest floor of each zone.
+///
+/// Plants and flowers rise with the light and culminate on the canopy's first floor, then thin
+/// out toward the construction front, too new for much to have grown yet. Stairs grow rarer
+/// smoothly all the way up.
 const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
     match zone {
         Zone::Depths => (
             FloorProfile {
-                deck_keep: 0.8,
+                deck_keep: 0.97,
                 plants: 0.45,
                 flowers: Flowers {
                     bush: 0.2,
                     vine: 0.2,
                     climber: 0.04,
-                    landing: 0.3,
                     poi: 0.03,
                 },
-                stair: 0.18,
+                stair: 0.16,
                 props: 1.0,
                 cars: 1.0,
             },
             FloorProfile {
-                deck_keep: 0.8,
-                plants: 0.45,
+                deck_keep: 0.95,
+                plants: 0.5,
                 flowers: Flowers {
                     bush: 0.22,
                     vine: 0.22,
                     climber: 0.045,
-                    landing: 0.3,
                     poi: 0.03,
                 },
                 stair: 0.12,
@@ -88,57 +89,53 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
         ),
         Zone::Middle => (
             FloorProfile {
-                deck_keep: 0.65,
-                plants: 1.0,
+                deck_keep: 0.92,
+                plants: 0.8,
                 flowers: Flowers {
-                    bush: 0.3,
-                    vine: 0.3,
-                    climber: 0.06,
-                    landing: 0.35,
+                    bush: 0.28,
+                    vine: 0.28,
+                    climber: 0.055,
                     poi: 0.02,
                 },
-                stair: 0.09,
+                stair: 0.1,
                 props: 0.7,
                 cars: 0.6,
             },
             FloorProfile {
-                deck_keep: 0.65,
-                plants: 1.0,
+                deck_keep: 0.8,
+                plants: 1.2,
                 flowers: Flowers {
-                    bush: 0.3,
-                    vine: 0.3,
-                    climber: 0.06,
-                    landing: 0.35,
+                    bush: 0.4,
+                    vine: 0.4,
+                    climber: 0.08,
                     poi: 0.01,
                 },
-                stair: 0.05,
+                stair: 0.065,
                 props: 0.4,
                 cars: 0.2,
             },
         ),
         Zone::Canopy => (
             FloorProfile {
-                deck_keep: 0.55,
-                plants: 1.5,
+                deck_keep: 0.65,
+                plants: 1.6,
                 flowers: Flowers {
-                    bush: 0.6,
-                    vine: 0.6,
-                    climber: 0.12,
-                    landing: 0.4,
+                    bush: 0.65,
+                    vine: 0.65,
+                    climber: 0.13,
                     poi: 0.0,
                 },
-                stair: 0.03,
+                stair: 0.05,
                 props: 0.12,
                 cars: 0.0,
             },
             FloorProfile {
-                deck_keep: 0.55,
-                plants: 1.5,
+                deck_keep: 0.45,
+                plants: 0.8,
                 flowers: Flowers {
-                    bush: 0.6,
-                    vine: 0.6,
-                    climber: 0.12,
-                    landing: 0.4,
+                    bush: 0.3,
+                    vine: 0.3,
+                    climber: 0.06,
                     poi: 0.0,
                 },
                 stair: 0.03,
@@ -162,7 +159,6 @@ fn blend(a: &FloorProfile, b: &FloorProfile, t: f32) -> FloorProfile {
             bush: f(a.flowers.bush, b.flowers.bush),
             vine: f(a.flowers.vine, b.flowers.vine),
             climber: f(a.flowers.climber, b.flowers.climber),
-            landing: f(a.flowers.landing, b.flowers.landing),
             poi: f(a.flowers.poi, b.flowers.poi),
         },
         stair: f(a.stair, b.stair),
@@ -181,6 +177,10 @@ pub fn profile(floor: usize) -> &'static FloorProfile {
                 blend(&lo, &hi, floors::zone_t(f))
             })
             .collect();
+        // The share of the floor with a deck only shrinks going up.
+        for f in 1..v.len() {
+            v[f].deck_keep = v[f].deck_keep.min(v[f - 1].deck_keep);
+        }
         // A lot holds one stair at most: keep the chances summing to at most 1.
         let total: f32 = v.iter().take(floors::count() - 1).map(|p| p.stair).sum();
         if total > 1.0 {
@@ -193,6 +193,27 @@ pub fn profile(floor: usize) -> &'static FloorProfile {
         v
     });
     &all[floor.min(all.len() - 1)]
+}
+
+/// The roll that picks a lot's stair (`city::stair`): the profile's chance, made up for the lots
+/// whose section is not built up to the stair's top (where the stair is dropped).
+pub fn stair_roll(floor: usize) -> f32 {
+    static ALL: OnceLock<Vec<f32>> = OnceLock::new();
+    let all = ALL.get_or_init(|| {
+        let n = floors::count();
+        let mut v: Vec<f32> = (0..n)
+            .map(|f| match f + 1 < n {
+                true => profile(f).stair / profile(f + 1).deck_keep.max(0.05),
+                false => 0.0,
+            })
+            .collect();
+        let total: f32 = v.iter().sum();
+        if total > 1.0 {
+            v.iter_mut().for_each(|w| *w /= total);
+        }
+        v
+    });
+    all.get(floor).copied().unwrap_or(0.0)
 }
 
 /// The profile used for growth under a crater, where the sun gets in.
@@ -256,5 +277,18 @@ mod tests {
         assert_eq!(top.stair, 0.0, "no stair above the top");
         let stairs: f32 = (0..n).map(|f| profile(f).stair).sum();
         assert!(stairs <= 1.0 + 1e-4);
+        let peak = (0..n).find(|&f| floors::zone(f) == Zone::Canopy).unwrap();
+        assert!(
+            (0..n).all(|f| profile(f).flowers.bush <= profile(peak).flowers.bush),
+            "flowers culminate on the canopy's first floor"
+        );
+        assert!(
+            (1..n - 1).all(|f| profile(f).stair <= profile(f - 1).stair),
+            "stairs grow rarer going up"
+        );
+        assert!(
+            (1..n).all(|f| profile(f).deck_keep <= profile(f - 1).deck_keep),
+            "decks thin out going up"
+        );
     }
 }

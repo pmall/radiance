@@ -26,6 +26,7 @@ uniform vec3 uGridOrigin;
 uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 signs, 1 tint
 uniform float uGlow;         // plant emission and light strength for the time of day
 uniform sampler2D texture5;  // cover map
+uniform sampler2D texture6;  // prop atlas: the photoscanned props' color textures (src/world/props.rs)
 #define COVER_TEX texture5
 
 // Cover map: which decks stand over each lot around the camera (src/render/cover.rs).
@@ -327,15 +328,30 @@ vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
     return col;
 }
 
+// Whether the lot holding xz has a deck on the floor whose walking surface is at height y.
+float deckAt(vec2 xz, float y)
+{
+    int f = 0;
+    for (int k = 1; k < FLOORS; k++) if (k < uFloorCount && uFloorY[k] <= y + 0.5) f = k;
+    if (f == 0) return 1.0;
+    return float((coverBits(xz) >> (f - 1)) & 1);
+}
+
 // Paved street or deck. Streets run along the lot borders (towers keep 3 m from them): asphalt
 // with lane markings between curbs, concrete slabs with joints on the sides. Cracks, dust and
-// oil stains over both; the photo detail gives the grain.
+// oil stains over both; the photo detail gives the grain. A border with no deck across it (the
+// edge of a section, `city::built`) is no street: the sidewalk runs to the edge, so a road is
+// never cut in half along its length.
 vec3 pavement(vec3 base, vec3 p, float px)
 {
     vec2 uv = p.xz;
-    vec2 off = uv - round(uv / 24.0) * 24.0;  // from the nearest street axes
+    vec2 axis = round(uv / 24.0) * 24.0;
+    vec2 off = uv - axis;  // from the nearest street axes
     vec2 ad = abs(off);
-    float street = step(min(ad.x, ad.y), 3.0);
+    // Streets along z (at the x axis) and along x (at the z axis), if the deck goes on across.
+    float hasV = deckAt(vec2(2.0 * axis.x - uv.x, uv.y), p.y);
+    float hasH = deckAt(vec2(uv.x, 2.0 * axis.y - uv.y), p.y);
+    float street = max(step(ad.x, 3.0) * hasV, step(ad.y, 3.0) * hasH);
 
     // Sidewalk: 4 m slabs with joints and a tone per slab.
     vec2 g = uv / 4.0;
@@ -350,8 +366,8 @@ vec3 pavement(vec3 base, vec3 p, float px)
     vec3 col = mix(walk, road, street);
 
     // Curbs between road and sidewalk (not across intersections).
-    float curbZ = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.x - 3.0))) * step(3.0, ad.y);
-    float curbX = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.y - 3.0))) * step(3.0, ad.x);
+    float curbZ = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.x - 3.0))) * hasV * max(step(3.0, ad.y), 1.0 - hasH);
+    float curbX = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.y - 3.0))) * hasH * max(step(3.0, ad.x), 1.0 - hasV);
     col = mix(col, base * 1.15, max(curbX, curbZ) * 0.9);
 
     // Cracks: thin contour lines of a noise field, only in patches.
@@ -366,8 +382,8 @@ vec3 pavement(vec3 base, vec3 p, float px)
 
     // Lane markings: dashed yellow center lines, white edge lines, outside the intersections.
     float wear = (0.45 + 0.55 * vnoise(uv * 3.5)) * grit(uv / 0.9).g;
-    float ix = step(3.4, ad.y);
-    float iz = step(3.4, ad.x);
+    float ix = max(step(3.4, ad.y), 1.0 - hasH) * hasV;
+    float iz = max(step(3.4, ad.x), 1.0 - hasV) * hasH;
     float dashZ = step(0.5, fract(uv.y / 3.0)) * (1.0 - smoothstep(0.07, 0.07 + px, ad.x)) * ix;
     float dashX = step(0.5, fract(uv.x / 3.0)) * (1.0 - smoothstep(0.07, 0.07 + px, ad.y)) * iz;
     float edgeZ = (1.0 - smoothstep(0.06, 0.06 + px, abs(ad.x - 2.7))) * ix;
@@ -522,12 +538,6 @@ vec3 steel(vec3 base, vec3 p, vec3 n, float px)
     return col;
 }
 
-// Street lamp: dull painted metal.
-vec3 lamp(vec3 base, vec3 p)
-{
-    return base * (0.8 + 0.4 * fbm(vec2(p.x + p.z, p.y) * 1.3)) * grit(vec2(p.x + p.z, p.y)).a;
-}
-
 // Leaf and frond painting from leaf coordinates (across with the midrib at 0.5, along from the
 // root): lighter midrib, side veins slanting toward the tip, darker root, lighter edge and tip.
 vec3 leaf(vec3 base, vec2 lc)
@@ -562,6 +572,12 @@ void main()
     int kind = kindCode % 16;
     gVariant = kindCode / 16;
     vec3 emit = vec3(0.0);
+    // Photoscanned props: their own color texture, a little muted so they sit in the palette.
+    bool propTex = kind == 14 && fragLoc.x >= 0.0;
+    if (propTex) {
+        vec3 tex = pow(texture(texture6, fragLoc).rgb, vec3(2.2));
+        albedo *= mix(vec3(dot(tex, vec3(0.2126, 0.7152, 0.0722))), tex, 0.8);
+    }
     if (painted) {
         float px = max(length(fwidth(fragWorldPos)), 1e-4);
         float fid = fragId * 255.0;
@@ -599,14 +615,14 @@ void main()
             albedo = solar(albedo, fragWorldPos, n, px);
         } else if (kind == 11) {
             albedo = skylight(albedo, fragWorldPos, n, fragLoc, px);
-        } else if (kind == 12) {
-            albedo = lamp(albedo, fragWorldPos);
         } else if (kind == 14) {
-            // Props from model kits: their family color, worn by the same photo detail as the
-            // walls (same scale), darker at the foot.
-            vec3 an = abs(n);
-            vec2 puv = an.y > 0.6 ? fragWorldPos.xz : (an.x > an.z ? fragWorldPos.zy : fragWorldPos.xy);
-            albedo *= mix(1.0, grit(puv / 3.0).a, 0.45) * (0.85 + 0.3 * fbm(puv * 0.8));
+            // Props built in code (no texture): worn by the same photo detail as the walls (same
+            // scale). All props are darker at the foot.
+            if (!propTex) {
+                vec3 an = abs(n);
+                vec2 puv = an.y > 0.6 ? fragWorldPos.xz : (an.x > an.z ? fragWorldPos.zy : fragWorldPos.xy);
+                albedo *= mix(1.0, grit(puv / 3.0).a, 0.45) * (0.85 + 0.3 * fbm(puv * 0.8));
+            }
             albedo *= mix(0.7, 1.0, smoothstep(0.0, 0.8, aboveFloor(fragWorldPos.y)));
         } else if (kind == 13) {
             albedo = steel(albedo, fragWorldPos, n, px);

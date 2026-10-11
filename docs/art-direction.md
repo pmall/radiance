@@ -23,7 +23,7 @@ ribbons, slits, punched grid, glass curtain wall) with storefronts and neon at s
 accent panels and vertical neon signs; paved streets with joints, cracks, dust and lane markings;
 roofs with a parapet, machinery (air conditioners with fans, vents, solar arrays, skylights, pipes),
 antenna masts and backlit billboards, all real blocks (`src/world/roof.rs`) so rooftops can be run
-across; street lamp posts (dead, only flowers glow) along the sidewalks.
+across; modern street lights (dead, only flowers glow) at the crossroads.
 
 Working method: get the look as far as possible with code, then add a layer of real photo detail.
 The second layer is `assets/textures/detail.png` (CC0 concrete, asphalt, wall, metal), sampled in the
@@ -31,38 +31,35 @@ scene shader in world space and multiplied over the procedural colors.
 
 ### Props and external assets: consistency rules
 
-*(Implemented, first pass: `src/world/props.rs`. Material families with ramps, kit colors remapped
-by lightness, props baked into the lot meshes so they share all the shading, photo detail at the
-walls' scale with grime at the foot. Not yet: biome and depth tint of the ramps.)*
+*(Implemented: `src/world/props.rs`, `src/render/props.rs`, `tools/import_props.mjs`.)*
 
 Points of interest and set dressing (`docs/world.md`, `docs/poi-catalog.md`) need far more objects
-than code alone can model well, so props come from free external model kits. The owner leaves these
-rules to the project agent. Goal: a prop from a kit must look painted by the same hand as the
-procedural city. The pipeline, not the asset, guarantees that.
+than code alone can model well, so props come from free external models. The owner leaves these
+rules to the project agent. The first pass used stylized low-poly kits recolored to material
+families; the owner judged them toy-like ("too baby-like") and asked for realistic assets, so the
+rules are now:
 
-- **Sources.** CC0 first (e.g. Kenney, Quaternius, Poly Haven, ambientCG); anything else only with a
-  license that allows it and a credit in the asset folder's README. Prefer **low-poly, stylized
-  kits** with clear silhouettes over photo-scanned models: flat shapes read as illustration, dense
-  scans read as photos and clash.
-- **Geometry only.** A kit's own textures and colors are never shown. Each material slot of a model
-  is mapped, in a plain-text table, to a **material family** (metal, concrete, glass, plastic,
-  fabric, paper, wood, vegetation), with a light or dark shade.
-- **One palette.** Each family has a small color ramp; the existing procedural block colors move
-  onto the same ramps when the first props land, so city and props share one palette. The biome
-  `Palette` and the depth band shift the ramps slightly (cold and dim deep down, warmer near the
-  canopy).
-- **Detail.** Surface texture comes from the same grayscale photo-detail layer as the walls,
-  sampled in world space at the same scale, with capped contrast: a small prop is neither sharper
-  nor blurrier than the wall behind it. (If photo detail ever reads as "photo" on props, switch it
-  from a multiply to a gradient map onto the family ramp.)
+- **Sources.** CC0 first; anything else only with a license that allows it and a credit in the
+  asset folder's README. **Realistic, photoscanned models** (Poly Haven) over stylized kits: their
+  worn, true-to-life surfaces are what make the dead city believable. Where no free model fits
+  the setting (a modern street light), the prop is built in code, with real proportions.
+- **Own textures, kept.** A model keeps its color texture (packed into one atlas), muted a little
+  toward gray so it sits in the palette; normal and roughness maps are dropped (the city has its
+  own lighting). Props built in code use the walls' photo detail at the same scale.
+- **Budget.** Each model is decimated at import to 1 000 to 5 000 triangles with a 512 px texture,
+  and drawn instanced (one mesh per model, any number of copies), within about 110 m of the camera
+  (less across floors) and casting shadows within 45 m. Models whose fine lattices cannot be
+  decimated (plastic crates) are left out.
 - **Same rendering.** Props go through the scene shader like every block: same cel bands, outlines,
-  shadows, fog, grain and flower lights. No baked or unlit kit lighting.
-- **Human scale.** Props are scaled to real sizes (a door 2.1 m, a bench 0.45 m high); their size
-  is what makes the architecture feel immense.
+  shadows, fog, grain and flower lights. No baked or unlit lighting.
+- **Human scale.** Props keep their real sizes (Poly Haven models are in meters); their size is
+  what makes the architecture feel immense.
+- **Fitting the setting.** Only what a dead modern city would hold: street furniture, leftovers.
+  No covered cars (owner). No period pieces that break the era (Poly Haven's Victorian lanterns, for one).
 - **Seed places, asset dresses.** What appears where always comes from the seed; a prop gets a
-  simple box for collision; many copies are instanced.
-- **Review.** Every new prop or kit is checked with `--shot` renders, day and night, next to
-  existing architecture, before moving on.
+  simple box for collision (a pole only, for street lights).
+- **Review.** Every new prop is checked with `--shot` renders, day and night, next to existing
+  architecture, before moving on.
 
 ## Day/night cycle
 
