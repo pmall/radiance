@@ -525,6 +525,20 @@ pub fn build(chunk: &Chunk, catalog: &Catalog, origin: Vec3, turn: u8, seed: u64
     e.out
 }
 
+/// A module alone, at the origin, unturned (props are built this way, `props.rs`). `None` if the
+/// catalog has no such module.
+pub fn build_module(catalog: &Catalog, name: &str) -> Option<Built> {
+    catalog.modules.get(name)?;
+    let mut e = Expander {
+        catalog,
+        rng: Rng::new(0),
+        out: Built::default(),
+        accent: (150, 150, 150),
+    };
+    e.module(name, &Tf::ID, 0, None);
+    Some(e.out)
+}
+
 /// A chunk shown alone (`--chunk NAME`): the city around it is a bare deck.
 pub struct Preview {
     pub name: String,

@@ -55,15 +55,11 @@
       past the top deck. See "The floor stack" in `docs/world.md`. About 6 ms/frame and 3.7 M
       tris from the spawn on the 3060 (was 3 ms, 1.4 M tris).
       Known issues: small bright chips flicker in the far fog of the crater; the depths band is uniform (no older architecture yet).
-   2. Props *(third pass done, owner not satisfied, no direction yet)*: the Kenney kits (judged
-      toy-like) replaced by 34 photoscanned
-      Poly Haven models (CC0) with their own textures, decimated at import
-      (`tools/import_props.mjs`) and drawn instanced, plus a modern street light built in code,
-      laid out one per crossroads. Placed by the street layout (curb, corner, facade, parking,
-      vacant lot), 10 to 15 per lot and floor in the depths (`docs/world.md`, "Set dressing").
-      About 9 ms/frame from the spawn (8.5 before). Cars (covered) and hydrants removed on the
-      owner's feedback, density cut to a third. Missing models for: cars (uncovered), traffic
-      lights, street signs, dumpsters, shopping carts, bicycles, vending machines, a bus stop.
+   2. Props *(fourth pass done)*: Kenney kits (toy-like), then Poly Haven photoscans (removed),
+      replaced by box-built modules in the chunks' pixel-art materials
+      (`assets/modules/props.ron`), plus a street light built in code, one per crossroads.
+      Placed by the street layout (curb, corner, facade, parking, vacant lot), a third of the
+      first density. No cars yet.
    2c. Consistency pass *(done)*: decks laid by sections built up to a floor (holes line up as
       light wells, rare low down), street lights on a regular layout, stairs grow plants like any
       surface (no special landing flowers).

@@ -1,18 +1,20 @@
-//! Props: photoscanned models from Poly Haven (CC0, `assets/models/polyhaven/`, imported and
-//! decimated by `tools/import_props.mjs`), plus the few the city needs that no free model fits,
-//! built here (the street light).
+//! Props: what people left in the streets, placed whole by the street dressing (`dressing.rs`).
+//! Most are box-built modules from `assets/modules/props.ron` (and the street furniture of
+//! `street.ron`), drawn in the same pixel-art materials as the hand-written chunks; the street
+//! light is built here, as a smooth mesh, since a box pole and arm read poorly.
 //!
-//! The seed decides what goes where (`dressing.rs`); the models only give shapes and surfaces.
-//! Each model keeps its own color texture, packed with the others into one atlas (`atlas`), and
-//! the renderer draws every prop of a kind in one instanced call from a single mesh, so detailed
-//! props cost no memory per lot. They get the same shading, outlines, fog, shadows and flower
-//! light as everything else (rules in `docs/art-direction.md`).
+//! The seed decides what goes where; the renderer draws every prop of a kind in one instanced call
+//! from a single mesh (`src/render/props.rs`), and they get the same shading, outlines, fog,
+//! shadows and flower light as everything else. Props are built once, when first used: editing
+//! their modules takes a restart (chunks hot-reload, props do not).
 
 use std::collections::HashMap;
+use std::f32::consts::FRAC_PI_2;
 use std::sync::OnceLock;
 
 use glam::{Mat4, Quat, Vec3, vec3};
-use sola_raylib::ffi;
+
+use super::chunks;
 
 /// Every prop the city can place.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -20,46 +22,27 @@ pub enum Prop {
     // Street furniture.
     StreetLight,
     Bench,
-    TrashCan,
-    TrashCanRusty,
+    Bin,
+    Planter,
     UtilityBox,
-    UtilityBoxWide,
-    BarrierConcrete,
-    BarrierJersey,
     // What people left.
     TrashBag,
     CardboardBox,
     Crate,
-    CrateLong,
-    BarrelRed,
+    Barrel,
     BarrelBlue,
-    BarrelRusty,
-    Tyre,
-    Jerrycan,
-    PropaneTank,
-    Generator,
-    HandTruck,
-    Shelves,
-    Television,
-    Suitcase,
-    PlasticChair,
     TerraceTable,
     TerraceChair,
-    PicnicTable,
     Armchair,
-    ArmchairGreen,
-    LoungeChair,
     Sofa,
-    SofaLeather,
-    Wheelchair,
     BedFrame,
     ClayPot,
 }
 
 /// Where a prop's shape comes from.
 enum Source {
-    /// A model imported into `assets/models/polyhaven/`.
-    Model(&'static [u8]),
+    /// A module of the catalog (`assets/modules/`).
+    Module(&'static str),
     /// Built here.
     Built(fn() -> Vec<PropVert>),
 }
@@ -68,86 +51,39 @@ enum Source {
 struct Def {
     prop: Prop,
     source: Source,
-    /// Height once placed, in meters, for the rare model not at real scale (most are).
-    height: Option<f32>,
-    /// Turn about the vertical, applied at load so the prop faces +z (its front, the side people
-    /// use: a bench's seat, a car's nose).
-    turn: f32,
     /// Collision only around a pole of this half width (a street light's arm overhangs the road).
     pole: Option<f32>,
 }
 
-macro_rules! model {
-    ($file:literal) => {
-        Source::Model(include_bytes!(concat!(
-            "../../assets/models/polyhaven/",
-            $file,
-            ".glb"
-        )))
-    };
-}
-
-const fn def(prop: Prop, source: Source) -> Def {
+const fn module(prop: Prop, name: &'static str) -> Def {
     Def {
         prop,
-        source,
-        height: None,
-        turn: 0.0,
+        source: Source::Module(name),
         pole: None,
     }
 }
 
-const fn turned(prop: Prop, source: Source, turn: f32) -> Def {
-    Def {
-        turn,
-        ..def(prop, source)
-    }
-}
-
-use std::f32::consts::{FRAC_PI_2, PI};
-
 const DEFS: &[Def] = &[
     Def {
+        prop: Prop::StreetLight,
+        source: Source::Built(street_light),
         pole: Some(0.18),
-        ..def(Prop::StreetLight, Source::Built(street_light))
     },
-    def(Prop::Bench, model!("bench")),
-    def(Prop::TrashCan, model!("trash_can")),
-    def(Prop::TrashCanRusty, model!("trash_can_rusty")),
-    def(Prop::UtilityBox, model!("utility_box")),
-    def(Prop::UtilityBoxWide, model!("utility_box_wide")),
-    def(Prop::BarrierConcrete, model!("barrier_concrete")),
-    def(Prop::BarrierJersey, model!("barrier_jersey")),
-    def(Prop::TrashBag, model!("trash_bag")),
-    def(Prop::CardboardBox, model!("cardboard_box")),
-    def(Prop::Crate, model!("crate")),
-    def(Prop::CrateLong, model!("crate_long")),
-    def(Prop::BarrelRed, model!("barrel_red")),
-    def(Prop::BarrelBlue, model!("barrel_blue")),
-    def(Prop::BarrelRusty, model!("barrel_rusty")),
-    def(Prop::Tyre, model!("tyre")),
-    def(Prop::Jerrycan, model!("jerrycan")),
-    def(Prop::PropaneTank, model!("propane_tank")),
-    def(Prop::Generator, model!("generator")),
-    def(Prop::HandTruck, model!("hand_truck")),
-    Def {
-        height: Some(1.8),
-        ..def(Prop::Shelves, model!("shelves"))
-    },
-    def(Prop::Television, model!("television")),
-    def(Prop::Suitcase, model!("suitcase")),
-    def(Prop::PlasticChair, model!("plastic_chair")),
-    def(Prop::TerraceTable, model!("terrace_table")),
-    turned(Prop::TerraceChair, model!("terrace_chair"), PI),
-    turned(Prop::PicnicTable, model!("picnic_table"), FRAC_PI_2),
-    def(Prop::Armchair, model!("armchair")),
-    def(Prop::ArmchairGreen, model!("armchair_green")),
-    def(Prop::LoungeChair, model!("lounge_chair")),
-    def(Prop::Sofa, model!("sofa")),
-    def(Prop::SofaLeather, model!("sofa_leather")),
-    turned(Prop::Wheelchair, model!("wheelchair"), PI),
-    def(Prop::BedFrame, model!("bed_frame")),
-    def(Prop::ClayPot, model!("clay_pot")),
+    module(Prop::Bench, "bench"),
+    module(Prop::Bin, "bin"),
+    module(Prop::Planter, "planter"),
+    module(Prop::UtilityBox, "utility_box"),
+    module(Prop::TrashBag, "trash_bag"),
+    module(Prop::CardboardBox, "cardboard_box"),
+    module(Prop::Crate, "crate"),
+    module(Prop::Barrel, "barrel"),
+    module(Prop::BarrelBlue, "barrel_blue"),
+    module(Prop::TerraceTable, "terrace_table"),
+    module(Prop::TerraceChair, "terrace_chair"),
+    module(Prop::Armchair, "armchair"),
+    module(Prop::Sofa, "sofa"),
+    module(Prop::BedFrame, "bed_frame"),
+    module(Prop::ClayPot, "clay_pot"),
 ];
 
 /// Every prop, in a stable order (the renderer keeps one mesh per prop).
@@ -169,277 +105,71 @@ pub struct PropMesh {
 pub struct PropVert {
     pub pos: Vec3,
     pub normal: Vec3,
-    /// sRGB color, multiplied with the texture where there is one.
+    /// sRGB color.
     pub color: [u8; 3],
-    /// Coordinates in the prop atlas (`atlas`), or `NO_UV` for untextured surfaces.
-    pub uv: [f32; 2],
+    /// Chunk material (`chunks::Mat::index`) painted in pixel art, or `None` for a plain surface.
+    pub mat: Option<u8>,
 }
 
-/// The prop textures packed side by side, `TILE` pixels each, RGBA8, rows from the top.
-pub struct Atlas {
-    pub width: usize,
-    pub height: usize,
-    pub rgba: Vec<u8>,
-}
+/// Faces of a unit box: outward normal and four corners (0 = min, 1 = max per axis).
+const FACES: [(Vec3, [[f32; 3]; 4]); 6] = [
+    (Vec3::X, [[1., 0., 1.], [1., 0., 0.], [1., 1., 0.], [1., 1., 1.]]),
+    (Vec3::NEG_X, [[0., 0., 0.], [0., 0., 1.], [0., 1., 1.], [0., 1., 0.]]),
+    (Vec3::Y, [[0., 1., 1.], [1., 1., 1.], [1., 1., 0.], [0., 1., 0.]]),
+    (Vec3::NEG_Y, [[0., 0., 0.], [1., 0., 0.], [1., 0., 1.], [0., 0., 1.]]),
+    (Vec3::Z, [[0., 0., 1.], [1., 0., 1.], [1., 1., 1.], [0., 1., 1.]]),
+    (Vec3::NEG_Z, [[1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.]]),
+];
 
-/// Side of one texture in the atlas, in pixels.
-const TILE: usize = 512;
-/// Tiles per atlas row.
-const COLUMNS: usize = 8;
-
-struct Image {
-    w: usize,
-    h: usize,
-    rgba: Vec<u8>,
-}
-
-impl Image {
-    /// Decodes a JPEG (raylib is built without it) or a PNG and scales it to a tile.
-    fn decode_tile(bytes: &[u8], mime: &str) -> Option<Image> {
-        let img = if mime.contains("png") {
-            Self::decode_png(bytes)?
-        } else {
-            Self::decode_jpeg(bytes)?
-        };
-        Some(img.resized(TILE, TILE))
-    }
-
-    fn decode_jpeg(bytes: &[u8]) -> Option<Image> {
-        let mut decoder = jpeg_decoder::Decoder::new(bytes);
-        let pixels = decoder.decode().ok()?;
-        let info = decoder.info()?;
-        let (w, h) = (info.width as usize, info.height as usize);
-        let rgba = match info.pixel_format {
-            jpeg_decoder::PixelFormat::RGB24 => pixels
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .flat_map(|p| [p[0], p[1], p[2], 255])
-                .collect(),
-            jpeg_decoder::PixelFormat::L8 => pixels.iter().flat_map(|&l| [l, l, l, 255]).collect(),
-            _ => return None,
-        };
-        Some(Image { w, h, rgba })
-    }
-
-    fn decode_png(bytes: &[u8]) -> Option<Image> {
-        unsafe {
-            let mut img =
-                ffi::LoadImageFromMemory(c".png".as_ptr(), bytes.as_ptr(), bytes.len() as i32);
-            if img.data.is_null() {
-                return None;
-            }
-            ffi::ImageFormat(
-                &mut img,
-                ffi::PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32,
-            );
-            let (w, h) = (img.width as usize, img.height as usize);
-            let rgba = std::slice::from_raw_parts(img.data as *const u8, w * h * 4).to_vec();
-            ffi::UnloadImage(img);
-            Some(Image { w, h, rgba })
-        }
-    }
-
-    /// Box-filtered (when shrinking) or nearest (when growing) copy at another size.
-    fn resized(self, w: usize, h: usize) -> Image {
-        if (self.w, self.h) == (w, h) {
-            return self;
-        }
-        let (fx, fy) = ((self.w / w).max(1), (self.h / h).max(1));
-        let mut rgba = vec![0u8; w * h * 4];
-        for y in 0..h {
-            for x in 0..w {
-                let (sx, sy) = (x * self.w / w, y * self.h / h);
-                let mut sum = [0u32; 4];
-                for dy in 0..fy {
-                    for dx in 0..fx {
-                        let i =
-                            ((sy + dy).min(self.h - 1) * self.w + (sx + dx).min(self.w - 1)) * 4;
-                        for (acc, &v) in sum.iter_mut().zip(&self.rgba[i..i + 4]) {
-                            *acc += v as u32;
-                        }
-                    }
-                }
-                let at = (y * w + x) * 4;
-                for (out, acc) in rgba[at..at + 4].iter_mut().zip(sum) {
-                    *out = (acc / (fx * fy) as u32) as u8;
-                }
-            }
-        }
-        Image { w, h, rgba }
-    }
-}
-
-/// Everything props need, loaded once.
-struct Library {
-    meshes: HashMap<Prop, PropMesh>,
-    atlas: Atlas,
-}
-
-/// A vertex while loading: its texture as a tile index and the coordinates inside it.
-struct Raw {
-    pos: Vec3,
-    normal: Vec3,
-    color: [u8; 3],
-    tile: Option<(usize, [f32; 2])>,
-}
-
-fn to_srgb(linear: f32) -> u8 {
-    (linear.clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0).round() as u8
-}
-
-/// Reads a model's triangles, adding its textures to `tiles`.
-fn read_model(glb: &[u8], tiles: &mut Vec<Image>) -> Vec<Raw> {
-    let gltf = gltf::Gltf::from_slice(glb).expect("prop model");
-    let blob = gltf.blob.as_deref().unwrap_or(&[]);
-    // The model's images, as tile indices.
-    let image_tiles: Vec<Option<usize>> = gltf
-        .images()
-        .map(|img| match img.source() {
-            gltf::image::Source::View { view, mime_type } => {
-                let bytes = &blob[view.offset()..view.offset() + view.length()];
-                Image::decode_tile(bytes, mime_type).map(|i| {
-                    tiles.push(i);
-                    tiles.len() - 1
-                })
-            }
-            _ => None,
-        })
-        .collect();
-
-    let mut out = Vec::new();
-    let mut stack: Vec<(gltf::Node, Mat4)> = gltf
-        .default_scene()
-        .or_else(|| gltf.scenes().next())
-        .into_iter()
-        .flat_map(|s| s.nodes())
-        .map(|n| (n, Mat4::IDENTITY))
-        .collect();
-    while let Some((node, parent)) = stack.pop() {
-        let m = parent * Mat4::from_cols_array_2d(&node.transform().matrix());
-        stack.extend(node.children().map(|c| (c, m)));
-        let Some(mesh) = node.mesh() else { continue };
-        for prim in mesh.primitives() {
-            let reader = prim.reader(|_| Some(blob));
-            let Some(positions) = reader.read_positions() else {
-                continue;
-            };
-            let positions: Vec<Vec3> = positions
-                .map(|p| m.transform_point3(Vec3::from(p)))
-                .collect();
-            let normals: Vec<Vec3> = match reader.read_normals() {
-                Some(n) => n
-                    .map(|n| m.transform_vector3(Vec3::from(n)).normalize_or_zero())
-                    .collect(),
-                None => vec![Vec3::Y; positions.len()],
-            };
-            let uvs: Vec<[f32; 2]> = match reader.read_tex_coords(0) {
-                Some(t) => t.into_f32().collect(),
-                None => vec![[0.0, 0.0]; positions.len()],
-            };
-            let indices: Vec<usize> = match reader.read_indices() {
-                Some(i) => i.into_u32().map(|i| i as usize).collect(),
-                None => (0..positions.len()).collect(),
-            };
-            let pbr = prim.material().pbr_metallic_roughness();
-            let f = pbr.base_color_factor();
-            let color = [to_srgb(f[0]), to_srgb(f[1]), to_srgb(f[2])];
-            let tile = pbr.base_color_texture().and_then(|t| {
-                image_tiles
-                    .get(t.texture().source().index())
-                    .copied()
-                    .flatten()
-            });
-            for tri in indices.as_chunks::<3>().0 {
-                // Texture coordinates of a triangle wrapped into the tile together, so a triangle
-                // past the texture's edge (tiled UVs) still maps continuously.
-                let (u0, v0) = tri.iter().fold((f32::MAX, f32::MAX), |(u, v), &i| {
-                    (u.min(uvs[i][0]), v.min(uvs[i][1]))
-                });
-                let shift = [u0.floor(), v0.floor()];
-                for &i in tri {
-                    out.push(Raw {
-                        pos: positions[i],
-                        normal: normals[i],
-                        color,
-                        tile: tile.map(|t| {
-                            (
-                                t,
-                                [
-                                    (uvs[i][0] - shift[0]).clamp(0.0, 1.0),
-                                    (uvs[i][1] - shift[1]).clamp(0.0, 1.0),
-                                ],
-                            )
-                        }),
-                    });
-                }
-            }
-        }
-    }
-    out
-}
-
-fn load() -> Library {
-    let mut tiles = Vec::new();
-    let mut raws: Vec<(&Def, Vec<Raw>)> = Vec::new();
-    for d in DEFS {
-        let raw = match d.source {
-            Source::Model(glb) => read_model(glb, &mut tiles),
-            Source::Built(build) => build()
-                .into_iter()
-                .map(|v| Raw {
-                    pos: v.pos,
-                    normal: v.normal,
-                    color: v.color,
-                    tile: None,
-                })
-                .collect(),
-        };
-        raws.push((d, raw));
-    }
-
-    let rows = tiles.len().div_ceil(COLUMNS).max(1);
-    let (width, height) = (COLUMNS * TILE, rows * TILE);
-    let mut rgba = vec![0u8; width * height * 4];
-    for (i, img) in tiles.iter().enumerate() {
-        let (x0, y0) = ((i % COLUMNS) * TILE, (i / COLUMNS) * TILE);
-        for y in 0..img.h {
-            let dst = ((y0 + y) * width + x0) * 4;
-            rgba[dst..dst + img.w * 4]
-                .copy_from_slice(&img.rgba[y * img.w * 4..(y + 1) * img.w * 4]);
-        }
-    }
-    // Half a texel in from the tile's edges, so filtering never reaches the next tile.
-    let inset = 0.5 / TILE as f32;
-    let to_atlas = |t: usize, uv: [f32; 2]| {
-        let (col, row) = ((t % COLUMNS) as f32, (t / COLUMNS) as f32);
-        let u = uv[0].clamp(inset, 1.0 - inset);
-        let v = uv[1].clamp(inset, 1.0 - inset);
-        [(col + u) / COLUMNS as f32, (row + v) / rows as f32]
+/// A module's boxes as triangles.
+fn module_verts(name: &str) -> Vec<PropVert> {
+    let cat = chunks::catalog();
+    let Some(built) = chunks::build_module(&cat, name) else {
+        eprintln!("props: no module {name:?} in assets/modules/");
+        return Vec::new();
     };
+    let mut verts = Vec::new();
+    for (aabb, mat) in &built.boxes {
+        let size = aabb.max - aabb.min;
+        let c = mat.color();
+        for (n, corners) in FACES {
+            for k in [0, 1, 2, 0, 2, 3] {
+                verts.push(PropVert {
+                    pos: aabb.min + Vec3::from(corners[k]) * size,
+                    normal: n,
+                    color: [c.r, c.g, c.b],
+                    mat: Some(mat.index()),
+                });
+            }
+        }
+    }
+    verts
+}
 
-    let meshes = raws
-        .into_iter()
-        .map(|(d, raw)| {
-            let rot = Quat::from_rotation_y(d.turn);
+fn load() -> HashMap<Prop, PropMesh> {
+    DEFS.iter()
+        .map(|d| {
+            let raw = match d.source {
+                Source::Module(name) => module_verts(name),
+                Source::Built(build) => build(),
+            };
             let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
             for v in &raw {
-                let p = rot * v.pos;
-                lo = lo.min(p);
-                hi = hi.max(p);
+                lo = lo.min(v.pos);
+                hi = hi.max(v.pos);
             }
-            let scale = d.height.map_or(1.0, |h| h / (hi.y - lo.y).max(1e-4));
+            if raw.is_empty() {
+                (lo, hi) = (Vec3::ZERO, Vec3::splat(0.1));
+            }
             let base = vec3((lo.x + hi.x) * 0.5, lo.y, (lo.z + hi.z) * 0.5);
             let verts = raw
-                .iter()
+                .into_iter()
                 .map(|v| PropVert {
-                    pos: (rot * v.pos - base) * scale,
-                    normal: rot * v.normal,
-                    color: v.color,
-                    uv: v.tile.map_or(super::NO_UV, |(t, uv)| to_atlas(t, uv)),
+                    pos: v.pos - base,
+                    ..v
                 })
                 .collect();
-            let size = (hi - lo) * scale;
+            let size = hi - lo;
             let mesh = PropMesh {
                 verts,
                 half: vec3(size.x * 0.5, size.y, size.z * 0.5),
@@ -447,30 +177,13 @@ fn load() -> Library {
             };
             (d.prop, mesh)
         })
-        .collect();
-    Library {
-        meshes,
-        atlas: Atlas {
-            width,
-            height,
-            rgba,
-        },
-    }
-}
-
-fn library() -> &'static Library {
-    static LIBRARY: OnceLock<Library> = OnceLock::new();
-    LIBRARY.get_or_init(load)
+        .collect()
 }
 
 /// The loaded mesh of a prop (all props load on first use).
 pub fn mesh(prop: Prop) -> &'static PropMesh {
-    &library().meshes[&prop]
-}
-
-/// The texture atlas the props' `uv` point into.
-pub fn atlas() -> &'static Atlas {
-    &library().atlas
+    static MESHES: OnceLock<HashMap<Prop, PropMesh>> = OnceLock::new();
+    &MESHES.get_or_init(load)[&prop]
 }
 
 /// A prop placed in the world.
@@ -524,7 +237,7 @@ impl Builder {
                 pos,
                 normal,
                 color: self.color,
-                uv: super::NO_UV,
+                mat: None,
             });
         }
     }
@@ -643,30 +356,7 @@ mod tests {
             let m = mesh(d.prop);
             assert!(!m.verts.is_empty(), "{:?} has no triangles", d.prop);
             assert!(m.half.x > 0.05 && m.half.z > 0.05, "{:?} is flat", d.prop);
-            assert!(
-                (0.1..10.0).contains(&m.half.y),
-                "{:?} is {} m tall",
-                d.prop,
-                m.half.y
-            );
-            if let Some(h) = d.height {
-                assert!((m.half.y - h).abs() < 1e-3, "{:?}", d.prop);
-            }
-        }
-        let a = atlas();
-        assert_eq!(a.rgba.len(), a.width * a.height * 4);
-    }
-
-    #[test]
-    fn photoscanned_props_are_textured() {
-        for d in DEFS.iter().filter(|d| matches!(d.source, Source::Model(_))) {
-            let m = mesh(d.prop);
-            let textured = m.verts.iter().filter(|v| v.uv[0] >= 0.0).count();
-            assert!(
-                textured * 2 > m.verts.len(),
-                "{:?} is mostly untextured",
-                d.prop
-            );
+            assert!((0.1..10.0).contains(&m.half.y), "{:?} is {} m tall", d.prop, m.half.y);
         }
     }
 }

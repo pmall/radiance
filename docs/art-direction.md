@@ -37,35 +37,22 @@ scene shader in world space and multiplied over the procedural colors.
 
 ### Props and external assets: consistency rules
 
-*(Implemented: `src/world/props.rs`, `src/render/props.rs`, `tools/import_props.mjs`.)*
+*(Implemented: `src/world/props.rs`, `assets/modules/props.ron`, `src/render/props.rs`.)*
 
-Points of interest and set dressing (`docs/world.md`, `docs/poi-catalog.md`) need far more objects
-than code alone can model well, so props come from free external models. The owner leaves these
-rules to the project agent. The first pass used stylized low-poly kits recolored to material
-families; the owner judged them toy-like ("too baby-like") and asked for realistic assets, so the
-rules are now:
+Two passes with external models were rejected: stylized Kenney kits ("too baby-like"), then
+photoscanned Poly Haven models (realistic, but foreign to the city's look; removed). Props are now
+**box-built modules** written as text, like the chunks (`docs/chunks.md`), in the same pixel-art
+materials, so a bench and the square it stands in come from one hand. The street light alone is
+a smooth mesh built in code (a box pole and arm read poorly). Rules:
 
-- **Sources.** CC0 first; anything else only with a license that allows it and a credit in the
-  asset folder's README. **Realistic, photoscanned models** (Poly Haven) over stylized kits: their
-  worn, true-to-life surfaces are what make the dead city believable. Where no free model fits
-  the setting (a modern street light), the prop is built in code, with real proportions.
-- **Own textures, kept.** A model keeps its color texture (packed into one atlas), muted a little
-  toward gray so it sits in the palette; normal and roughness maps are dropped (the city has its
-  own lighting). Props built in code use the walls' photo detail at the same scale.
-- **Budget.** Each model is decimated at import to 1 000 to 5 000 triangles with a 512 px texture,
-  and drawn instanced (one mesh per model, any number of copies), within about 110 m of the camera
-  (less across floors) and casting shadows within 45 m. Models whose fine lattices cannot be
-  decimated (plastic crates) are left out.
-- **Same rendering.** Props go through the scene shader like every block: same cel bands, outlines,
-  shadows, fog, grain and flower lights. No baked or unlit lighting.
-- **Human scale.** Props keep their real sizes (Poly Haven models are in meters); their size is
-  what makes the architecture feel immense.
-- **Fitting the setting.** Only what a dead modern city would hold: street furniture, leftovers.
-  No covered cars (owner). No period pieces that break the era (Poly Haven's Victorian lanterns, for one).
-- **Seed places, asset dresses.** What appears where always comes from the seed; a prop gets a
-  simple box for collision (a pole only, for street lights).
-- **Review.** Every new prop is checked with `--shot` renders, day and night, next to existing
-  architecture, before moving on.
+- **One language:** props use the chunk vocabulary and materials; nothing imported.
+- **Same rendering:** props go through the scene shader like every block: same cel bands,
+  outlines, shadows, fog, grain and flower lights. Drawn instanced, one mesh per prop.
+- **Human scale:** real sizes (a bench seat at 0.45 m, an armchair 0.9 m); their size is what
+  makes the architecture feel immense.
+- **Seed places, module shapes:** what appears where comes from the seed (`dressing.rs`); a prop
+  gets a simple box for collision (a pole only, for street lights).
+- **Review:** every new prop is checked with `--shot` renders, day and night.
 
 ## Day/night cycle
 

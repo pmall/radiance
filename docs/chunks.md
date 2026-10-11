@@ -41,8 +41,7 @@ pixel art but unlit, and the glowing flowers are the only light. Concretely:
 - **To decide with a style test** (phase 3): whether the ink outlines, cel bands and grain of the
   current look stay. Nivalis uses neither outlines nor cel bands.
 
-`docs/art-direction.md` changes accordingly once the style test is done; the photoscanned props
-(`assets/models/polyhaven/`) are replaced by box-built ones (phase 7).
+Props are box-built modules too (phase 7, done).
 
 ## Words
 
@@ -245,7 +244,8 @@ Each phase ends with shots the owner can judge.
    construction. Still to do: fill out the great square (too empty at 240 m), a light well block,
    housing fillers (they need the planner's filler step).
 6. **Facade modules** for towers.
-7. **Props as modules;** the photoscans are removed.
+7. **Props as modules** *(done)*: props are modules of `assets/modules/props.ron` drawn
+   instanced in pixel-art materials; the photoscans, their import tool and dependencies are gone.
 8. **Grow the catalog.**
 
 ## Open questions
