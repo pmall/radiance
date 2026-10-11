@@ -79,6 +79,14 @@ What the project owner has said so far. Treat as requirements.
   props overall and has no direction yet. Done: no road where there is no deck across, cars and
   hydrants removed, props cut to a third, a smooth stair curve, growth peaking on D6.
 
+- Direction after that pass: fully random placement cannot make places look organized (a square
+  needs symmetry). Build the city from many large hand-written chunks (text), labeled and placed
+  by the seed with rules (squares far apart, one stair in the middle of a stair chunk), with
+  vegetation and flowers still random: the random light sources keep exploration unpredictable.
+  Style target: *Nivalis* (box/voxel geometry, pixel-art textures, dense modular facades),
+  abandoned, with flowers as the only light. Think the whole system ahead, test where it matters.
+  Reference screenshots stay out of git. Plan: `docs/chunks.md`.
+
 ## How to work on generation (owner's direction)
 
 - Think of the game as one consistent system, not fix after fix. The code must be as consistent
