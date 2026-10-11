@@ -283,7 +283,15 @@ pub fn poll() -> bool {
     }
     *last = now;
     *store().write().unwrap() = Arc::new(Catalog::load());
+    GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     true
+}
+
+static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Bumped on every reload, so caches built from the catalog know when to start over.
+pub fn generation() -> u64 {
+    GENERATION.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// A placement transform: quarter turns and mirrors in the horizontal plane, then a shift.

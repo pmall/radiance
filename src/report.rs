@@ -9,8 +9,8 @@ pub fn run(seed: u64, radius: i32) {
     let n = floors::count();
     let lots = ((2 * radius + 1) * (2 * radius + 1)) as f32;
     let (mut decks, mut stairs) = (vec![0usize; n], vec![0usize; n]);
-    // Lots that can hold a stair: no tower, no crater, not the plaza.
-    let mut stair_lots = 0usize;
+    // Lots covered by an area chunk, per floor.
+    let mut area_lots = vec![0usize; n];
     // Flowers: plants (stairs apart), plants on stairs, points of interest.
     let mut flowers = vec![[0usize; 3]; n];
     // Props by kind: street, leftovers, vehicles, points of interest.
@@ -20,11 +20,13 @@ pub fn run(seed: u64, radius: i32) {
             for (f, d) in decks.iter_mut().enumerate() {
                 *d += (city::deck(seed, lx, lz, f) != city::Deck::None) as usize;
             }
-            stair_lots += (city::tower(seed, lx, lz).is_none()
-                && city::crater_at(seed, lx, lz).is_none()
-                && !city::is_plaza(lx, lz)) as usize;
             if let Some((lo, _)) = city::stair(seed, lx, lz) {
                 stairs[lo] += 1;
+            }
+            for p in city::placements(seed, lx, lz) {
+                if p.role == crate::world::planner::Role::Area {
+                    area_lots[p.floor] += 1;
+                }
             }
             let mut blocks = Vec::new();
             city::generate_lot(seed, lx, lz, &mut blocks);
@@ -66,7 +68,7 @@ pub fn run(seed: u64, radius: i32) {
     );
     println!();
     println!(
-        "Profiles (world/design.rs): chances in %. Stairs: per lot without a tower. Flowers: per"
+        "Profiles (world/design.rs): chances in %. Stairs: per stair hub cell (6x6 lots). Flowers: per"
     );
     println!("plant, poi per lot. Props: multiplier of the tries per lot. Cars: tries per lot.");
     println!(
@@ -92,12 +94,13 @@ pub fn run(seed: u64, radius: i32) {
     }
     println!();
     println!(
-        "Measured: decks in % of lots, stairs in % of lots without a tower, then counts per lot"
+        "Measured: decks and areas in % of lots, stairs in % of hub cells, then counts per lot"
     );
     println!(
-        "{:<20} {:>6} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>6} {:>5}",
+        "{:<20} {:>6} {:>6} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>6} {:>5}",
         "floor",
         "decks",
+        "areas",
         "stairs",
         "flowers",
         "plants",
@@ -113,10 +116,11 @@ pub fn run(seed: u64, radius: i32) {
         let fl = flowers[f];
         let pr = props[f];
         println!(
-            "{:<20} {:>6} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>6} {:>5}",
+            "{:<20} {:>6} {:>6} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>6} {:>5}",
             floors::name(f),
             format!("{:.0}", decks[f] as f32 * 100.0 / lots),
-            format!("{:.0}", stairs[f] as f32 * 100.0 / stair_lots.max(1) as f32),
+            format!("{:.0}", area_lots[f] as f32 * 100.0 / lots),
+            format!("{:.0}", stairs[f] as f32 * 100.0 * 36.0 / lots),
             per(fl.iter().sum()),
             per(fl[0]),
             per(fl[1]),

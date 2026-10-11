@@ -937,8 +937,8 @@ mod stair_tests {
     #[test]
     fn stairs_grow_plants_like_the_rest() {
         let (mut stairs, mut grown) = (0, 0);
-        for lz in -12..=12 {
-            for lx in -12..=12 {
+        for lz in -24..=24 {
+            for lx in -24..=24 {
                 if city::stair(1, lx, lz).is_none() {
                     continue;
                 }

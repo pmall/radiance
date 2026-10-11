@@ -61,11 +61,11 @@ city. Values are tuned with the report, then checked in game.
   D2), one per 8x8 lots about half the time. Plants grow there as lushly as in the canopy;
   flowers 1.5x their floor's rate (`design::CRATER_FLOWERS`). A wide one always opens on D2 right
   in front of the spawn, which faces it.
-- **Stairs:** switchback stairwells in lots without a tower (straight flights going back and forth
-  around a central wall, landings at each turn, rails on the open sides), each linking one floor
-  to the next, at the profile's `stair` chance: common in the depths, rare in the canopy, so
-  climbing gets harder and harder. A stair only stands where its section is built up to its top
-  floor (the roll makes up for the others, `design::stair_roll`). Stairs are part of the city like
+- **Stairs:** switchback stairwells (straight flights going back and forth around a central wall,
+  landings at each turn, rails on the open sides), each linking one floor to the next, standing in
+  the middle of a hand-written stair hub chunk placed by the planner (`docs/chunks.md`): at most
+  one per 6x6-lot cell and floor, at the profile's `stair` chance per cell, common in the depths,
+  rare in the canopy, so climbing gets harder and harder. Stairs are part of the city like
   the rest: steps and landings grow bushes, and flowers on them, at the floor's rates, the bushes
   shrinking to fit between the rails and the next flight.
   How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).

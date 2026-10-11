@@ -1,7 +1,7 @@
 # City chunks: design
 
-Status: on the `chunks` branch. Phase 2 is done (format, catalog, preview, one test chunk:
-`assets/chunks/great_square.ron`); the planner is next. As phases land, this replaces the lot-by-lot
+Status: on the `chunks` branch. Phases 2 to 4 are done: format, catalog and preview; the pixel-art
+style; the planner placing areas and stair hubs in the city. Next: the first catalog. As phases land, this replaces the lot-by-lot
 generation described in `docs/world.md` (see "Phases").
 
 ## Why
@@ -211,15 +211,30 @@ Each phase ends with shots the owner can judge.
 2. **Format and preview** *(done)*: chunk and module loading, the vocabulary above, `--chunk`
    preview, hot reload, vegetation hints. Test chunk: the great square. Big chunk boxes belong to
    the lot holding their center and reach the neighbors as collision only.
-3. **Style test** *(built, waiting for the owner's call)*: every chunk material has a pixel-art
+3. **Style test** *(done; the owner approved going on with the recommendations: no ink outlines
+   and no flat light bands by default, `render::FX_DEFAULT`, F3/F5 bring them back; plants to
+   become pixel or voxel foliage, still to do)*: every chunk material has a pixel-art
    tile (4 m at 16 pixels per meter, limited palette, ordered dithering, chunky joints, cracks,
    rivets, stains), drawn by code in `src/render/pixels.rs` and sampled with crisp nearest
    filtering. To compare: `--chunk great_square` with F3 (outlines), F5 (flat light bands) and
    F8 (grain) in game, or `--fx 255` against `--fx 234` in shots. Seen so far: without outlines
    and bands the image is softer and closer to Nivalis; the plants (smooth folded leaves) do not
    match the pixel world yet, which calls for pixel or voxel foliage.
-4. **Planner:** rare chunks with spacing, stair hubs per island, holes as chunks, the current
-   generator as filler.
+4. **Planner** *(done, first pass: `src/world/planner.rs`)*:
+   - Areas: one cell of 32x32 lots holds at most one (60 %), on one floor of its zones, turned at
+     random, never near the start; same-label areas keep their spacing (the lower priority roll
+     gives way). Craters give way to areas; no tower stands in an area. The area's floor is a
+     full deck paved with its ground; the floors above stay as their sections are (a square in
+     the depths is a dark hall under the next deck).
+   - Stair hubs replace the random stairs: a cell of 6x6 lots holds at most one per floor, at the
+     floor's `stair` chance (now per cell: 90 % on D0 down to about 38 % on D7, measured equal),
+     its stair in a free lot of the cell (no tower rising through that floor, a deck above, not a
+     lot a lower floor's stair took), the hub chunk centered on it. One always stands beside the
+     start (`planner::START_HUB`). Hub boxes skip lots without a deck there or in an area, and
+     every chunk box gives way to towers and the lot's own architecture.
+   - Lots under a chunk get no random props on its floor (the chunk brings its own).
+   - Not yet: islands (every walkable island gets a stair up), holes as chunks, filling `Sub`
+     openings, blocks other than hubs, fillers. The planner answers are cached per cell.
 5. **First catalog:** a great square (10x10), a market district (8x6), two stair hub blocks, a
    light well block, a construction yard area, a few habitation fillers. Check that rules plus
    random flowers give the intended feel.
