@@ -148,17 +148,19 @@ const BAY: f32 = 4.0;
 /// Stories above a street level whose windows get real units (the shader paints them plain).
 const NEAR_STORIES: usize = 2;
 
-/// Adds the facade units of the stories next to each street level in `levels`: on the street
+/// Adds the facade units (from `biome`'s collection) of the stories next to each street level in
+/// `levels`: on the street
 /// story, shop awnings and sign boxes; on the `NEAR_STORIES` above, what each window has in front
 /// of it. Bays as the shader lays them out: `BAY` wide, centered on the face.
 pub fn push_facade_units(
     rng: &mut Rng,
+    biome: &str,
     tower: &Aabb,
     levels: &[f32],
     first: usize,
     out: &mut Vec<Block>,
 ) {
-    let cat = chunks::catalog();
+    let cat = chunks::catalog(biome);
     for face in faces(tower) {
         let width = if face.1 == Vec3::X {
             tower.max.x - tower.min.x

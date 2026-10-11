@@ -63,16 +63,19 @@ Props are box-built modules too (phase 7, done).
   an apartment facade unit. Written once, placed many times.
 - **Slot:** a spot in a chunk with a choice the seed makes: "bench, planter or nothing".
 - **Label:** what a chunk is (`plaza`, `stair_hub`, `market`, ...), used by the placement rules.
-- **Catalog:** all chunks and modules, in `assets/chunks/` and `assets/modules/`.
+- **Biome:** a collection of chunks and modules (see "Biomes"); the city's zones each draw from
+  their biome's collection. Today there is one, `default`.
+- **Catalog:** all chunks and modules: `assets/biomes/<biome>/chunks/` and `.../modules/`, and the
+  shared modules of `assets/modules/`.
 - **Planner:** the code that decides which chunk goes where, from the seed and the rules.
 
 ## Chunk files
 
-One text file per chunk in `assets/chunks/` (RON format: readable, with comments, loaded with the
+One text file per chunk in `assets/biomes/<biome>/chunks/` (RON format: readable, with comments, loaded with the
 `ron` crate); modules come as lists in `assets/modules/`. Coordinates are in meters, local to the
 chunk: origin at its corner, `y = 0` on the walking surface of its floor, `x` and `z` along the lot
 grid. The city is made of axis-aligned boxes, so every turn is a quarter turn. The real example is
-`assets/chunks/great_square.ron` (10x10 lots); its header:
+`assets/biomes/default/chunks/great_square.ron` (10x10 lots); its header:
 
 ```ron
 Chunk(
@@ -119,6 +122,29 @@ gives several looks.
 beds and benches: at this size, emptiness shows. Big chunks must be dense (terraces, stalls,
 canopies, level changes, sub-areas), which is what the sub-areas and a larger module library are
 for.
+
+## Biomes
+
+A biome is a meta collection of chunks: in the end every biome has its own set of chunks and props,
+and the default city is the `default` biome. On disk:
+
+```
+assets/modules/                 shared modules: props, street furniture, facade units (any biome)
+assets/biomes/default/chunks/   the default biome's chunks
+assets/biomes/default/modules/  modules only this biome uses (win over shared ones of that name)
+assets/biomes/<name>/biome.ron  optional: Biome(include: ["default"]) also draws from those
+```
+
+The map's zones come from `src/world/biome.rs` (where each biome's flowers, densities and palette
+live, under the same name as its folder). The planner makes every choice from the collection of the
+biome where it happens: an area or a block from the biome of its cell's middle lot, a filler from
+its lot's, a sub-area from its area's; facade units from the tower's lot. A biome without a folder
+draws from `default`, so a new biome can start with only its parameters, and `include` lets it
+reuse the default fillers while adding its own places. `--chunk BIOME/NAME` previews a biome's
+chunk; `--catalog` lists every biome's collection.
+
+Still to do when a second biome arrives: biome parameters as text next to the chunks (now Rust
+constants in `biome.rs`), and borders between biomes (today a chunk simply belongs to one side).
 
 ## Modules
 
@@ -203,7 +229,7 @@ Roofs and the construction front follow the same idea with their own modules.
 
 ## Tools
 
-- `--chunk NAME` (with `--view`, `--time`, `--shot` as usual): shows one chunk alone on a bare
+- `--chunk NAME` or `--chunk BIOME/NAME` (with `--view`, `--time`, `--shot` as usual): shows one chunk alone on a bare
   deck in front of the spawn, which stands at the middle of its near edge looking in. Plants and
   flowers grow on it at random as they will in the city. *(Built.)*
 - `--catalog`: lists chunks and modules with their labels, zones and weights, and the files that
@@ -324,8 +350,8 @@ compared with before):
    footbridges as part of hole chunks).
 5. **Delete** the retired code and the shader's random unit choice; `city.rs` keeps only what
    every lot needs (ground, decks as the planner says, stairs of hubs).
-6. **Grow the catalog** all along: many fillers per zone so repetition does not show, props as
-   modules (vending machines, bus stops, shop interiors seen through windows, scrap, rooftop
+6. **Grow the catalog** all along, in the `default` biome's folder (shared props in
+   `assets/modules/`): many fillers per zone so repetition does not show, props as modules (vending machines, bus stops, shop interiors seen through windows, scrap, rooftop
    gardens).
 
 **Rules to keep:** same seed, same city (all randomness through `src/rng.rs`); lots stream one by

@@ -141,7 +141,7 @@ const FACES: [(Vec3, [[f32; 3]; 4]); 6] = [
 
 /// A module's boxes as triangles.
 fn module_verts(name: &str) -> Vec<PropVert> {
-    let cat = chunks::catalog();
+    let cat = chunks::shared();
     let Some(built) = chunks::build_module(&cat, name) else {
         eprintln!("props: no module {name:?} in assets/modules/");
         return Vec::new();

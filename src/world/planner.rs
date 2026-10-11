@@ -23,6 +23,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
+use super::biome;
 pub use super::chunks::Role;
 use super::chunks::{self, Catalog, Chunk};
 use super::city;
@@ -51,6 +52,8 @@ const SALT_FILLER: i32 = 24;
 #[derive(Clone, Debug)]
 pub struct Placement {
     pub chunk: String,
+    /// The biome whose collection the chunk comes from (`chunks::catalog`).
+    pub biome: &'static str,
     pub role: Role,
     /// Corner lot of the footprint, and its size in lots (after the turn).
     pub origin: (i32, i32),
@@ -83,12 +86,15 @@ impl Placement {
     }
 
     /// Whether one of the chunk's holes opens this lot.
-    fn opens(&self, cat: &Catalog, lx: i32, lz: i32) -> bool {
-        cat.chunks.get(&self.chunk).is_some_and(|c| {
-            c.placed_holes(self.origin, self.turn)
-                .iter()
-                .any(|&((x0, z0), (x1, z1))| lx >= x0 && lx < x1 && lz >= z0 && lz < z1)
-        })
+    fn opens(&self, lx: i32, lz: i32) -> bool {
+        chunks::catalog(self.biome)
+            .chunks
+            .get(&self.chunk)
+            .is_some_and(|c| {
+                c.placed_holes(self.origin, self.turn)
+                    .iter()
+                    .any(|&((x0, z0), (x1, z1))| lx >= x0 && lx < x1 && lz >= z0 && lz < z1)
+            })
     }
 
     /// Whether this placement takes precedence over `other` where both cover a lot on one floor:
@@ -102,6 +108,11 @@ impl Placement {
         };
         rank(self.role) < rank(other.role)
     }
+}
+
+/// The biome a decision covering a cell is made in: the biome of the cell's middle lot.
+fn biome_of_cell(seed: u64, cx: i32, cz: i32, side: i32) -> &'static str {
+    biome::biome_at(seed, cx * side + side / 2, cz * side + side / 2).name
 }
 
 fn zone_fits(chunk: &Chunk, floor: usize) -> bool {
@@ -176,7 +187,10 @@ fn cached(
 // Areas.
 
 /// The area a cell proposes, before spacing between cells is settled.
-fn area_candidate(seed: u64, cat: &Catalog, cx: i32, cz: i32) -> Option<(Placement, f32)> {
+fn area_candidate(seed: u64, cx: i32, cz: i32) -> Option<(Placement, f32)> {
+    let biome = biome_of_cell(seed, cx, cz, AREA_CELL);
+    let cat = chunks::catalog(biome);
+    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_AREA, cz));
     if !rng.chance(AREA_CHANCE) {
         return None;
@@ -200,6 +214,7 @@ fn area_candidate(seed: u64, cat: &Catalog, cx: i32, cz: i32) -> Option<(Placeme
     );
     let p = Placement {
         chunk: chunk.name.clone(),
+        biome,
         role: Role::Area,
         origin,
         size,
@@ -214,17 +229,16 @@ fn area_candidate(seed: u64, cat: &Catalog, cx: i32, cz: i32) -> Option<(Placeme
 
 /// The area of a cell, spacing settled: of two areas sharing a label closer than their spacing,
 /// the one with the lower priority roll gives way.
-fn area_of_cell(seed: u64, cat: &Catalog, cx: i32, cz: i32) -> Option<Placement> {
+fn area_of_cell(seed: u64, cx: i32, cz: i32) -> Option<Placement> {
     cached((0, cx, cz, 0), seed, || {
-        area_of_cell_uncached(seed, cat, cx, cz)
-            .into_iter()
-            .collect()
+        area_of_cell_uncached(seed, cx, cz).into_iter().collect()
     })
     .pop()
 }
 
-fn area_of_cell_uncached(seed: u64, cat: &Catalog, cx: i32, cz: i32) -> Option<Placement> {
-    let (p, prio) = area_candidate(seed, cat, cx, cz)?;
+fn area_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Option<Placement> {
+    let (p, prio) = area_candidate(seed, cx, cz)?;
+    let cat = chunks::catalog(p.biome);
     let chunk = cat.chunks.get(&p.chunk)?;
     let reach = (chunk.spacing as i32 / AREA_CELL) + 1;
     for nz in cz - reach..=cz + reach {
@@ -232,10 +246,11 @@ fn area_of_cell_uncached(seed: u64, cat: &Catalog, cx: i32, cz: i32) -> Option<P
             if (nx, nz) == (cx, cz) {
                 continue;
             }
-            let Some((q, qprio)) = area_candidate(seed, cat, nx, nz) else {
+            let Some((q, qprio)) = area_candidate(seed, nx, nz) else {
                 continue;
             };
-            let Some(other) = cat.chunks.get(&q.chunk) else {
+            let qcat = chunks::catalog(q.biome);
+            let Some(other) = qcat.chunks.get(&q.chunk) else {
                 continue;
             };
             let shared = chunk.labels.iter().any(|l| other.labels.contains(l));
@@ -255,24 +270,26 @@ pub fn area_at(seed: u64, lx: i32, lz: i32) -> Option<Placement> {
     if chunks::preview().is_some() {
         return None;
     }
-    let cat = chunks::catalog();
     let (cx, cz) = (lx.div_euclid(AREA_CELL), lz.div_euclid(AREA_CELL));
-    area_of_cell(seed, &cat, cx, cz).filter(|p| p.covers(lx, lz))
+    area_of_cell(seed, cx, cz).filter(|p| p.covers(lx, lz))
 }
 
 /// The chunks filling an area's `Sub` openings: for each, a chunk carrying one of the labels it
 /// asks for that fits in it (turned if need be), centered in it on whole lots.
-fn subs_of_area(seed: u64, cat: &Catalog, area: &Placement) -> Vec<Placement> {
+fn subs_of_area(seed: u64, area: &Placement) -> Vec<Placement> {
     let (cx, cz) = (
         area.origin.0.div_euclid(AREA_CELL),
         area.origin.1.div_euclid(AREA_CELL),
     );
-    cached((2, cx, cz, 0), seed, || subs_of(cat, area))
+    cached((2, cx, cz, 0), seed, || subs_of(area))
 }
 
 /// `subs_of_area`, uncached: for any placement (the `--chunk` preview fills its openings too).
-pub fn subs_of(cat: &Catalog, area: &Placement) -> Vec<Placement> {
+/// Sub-areas come from the area's biome.
+pub fn subs_of(area: &Placement) -> Vec<Placement> {
     {
+        let cat = chunks::catalog(area.biome);
+        let cat = &*cat;
         let Some(chunk) = cat.chunks.get(&area.chunk) else {
             return Vec::new();
         };
@@ -307,6 +324,7 @@ pub fn subs_of(cat: &Catalog, area: &Placement) -> Vec<Placement> {
             let size = turned(sub.size, turn);
             out.push(Placement {
                 chunk: sub.name.clone(),
+                biome: area.biome,
                 role: Role::Sub,
                 origin: (x0 + (w - size.0) / 2, z0 + (d - size.1) / 2),
                 size,
@@ -322,25 +340,22 @@ pub fn subs_of(cat: &Catalog, area: &Placement) -> Vec<Placement> {
 // Blocks.
 
 /// The block a cell holds on a floor, if any.
-fn block_of_cell(seed: u64, cat: &Catalog, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
+fn block_of_cell(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
     cached((3, cx, cz, floor), seed, || {
-        block_of_cell_uncached(seed, cat, cx, cz, floor)
+        block_of_cell_uncached(seed, cx, cz, floor)
             .into_iter()
             .collect()
     })
     .pop()
 }
 
-fn block_of_cell_uncached(
-    seed: u64,
-    cat: &Catalog,
-    cx: i32,
-    cz: i32,
-    floor: usize,
-) -> Option<Placement> {
+fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
     if floor == 0 || floor + 1 >= floors::count() {
         return None;
     }
+    let biome = biome_of_cell(seed, cx, cz, BLOCK_CELL);
+    let cat = chunks::catalog(biome);
+    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_BLOCK + 64 * floor as i32, cz));
     if !rng.chance(design::profile(floor).blocks) {
         return None;
@@ -351,7 +366,7 @@ fn block_of_cell_uncached(
     let chunk = pick(&pool, &mut rng)?;
     // Holes of the blocks below in this cell: a block never stands over one.
     let below: Vec<Placement> = (1..floor)
-        .filter_map(|f| block_of_cell(seed, cat, cx, cz, f))
+        .filter_map(|f| block_of_cell(seed, cx, cz, f))
         .collect();
     let y = floors::y(floor);
     for _ in 0..BLOCK_TRIES {
@@ -359,6 +374,7 @@ fn block_of_cell_uncached(
         let size = turned(chunk.size, turn);
         let p = Placement {
             chunk: chunk.name.clone(),
+            biome,
             role: Role::Block,
             origin: (
                 cx * BLOCK_CELL + rng.range_i(0, BLOCK_CELL - size.0 + 1),
@@ -370,12 +386,12 @@ fn block_of_cell_uncached(
             seed: rng.next_u64(),
         };
         let fits = p.lots().all(|(x, z)| {
-            let open = p.opens(cat, x, z);
+            let open = p.opens(x, z);
             !near_start_or_hub(x, z)
                 && city::built(seed, x, z) >= floor
                 && city::crater_at(seed, x, z).is_none()
                 && area_at(seed, x, z).is_none()
-                && !below.iter().any(|b| b.covers(x, z) && b.opens(cat, x, z))
+                && !below.iter().any(|b| b.covers(x, z) && b.opens(x, z))
                 // Nothing rises through a hole.
                 && (!open || city::tower(seed, x, z).is_none_or(|t| t.top() < y - 1.0))
         });
@@ -391,20 +407,18 @@ pub fn blocks_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     if chunks::preview().is_some() {
         return Vec::new();
     }
-    let cat = chunks::catalog();
     let (cx, cz) = (lx.div_euclid(BLOCK_CELL), lz.div_euclid(BLOCK_CELL));
     (1..floors::count())
-        .filter_map(|f| block_of_cell(seed, &cat, cx, cz, f))
+        .filter_map(|f| block_of_cell(seed, cx, cz, f))
         .filter(|p| p.covers(lx, lz))
         .collect()
 }
 
 /// The lowest floor a block's hole opens at this lot (no deck there or above), if any.
 pub fn hole_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
-    let cat = chunks::catalog();
     blocks_at(seed, lx, lz)
         .iter()
-        .filter(|p| p.opens(&cat, lx, lz))
+        .filter(|p| p.opens(lx, lz))
         .map(|p| p.floor)
         .min()
 }
@@ -415,25 +429,22 @@ pub fn hole_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
 pub const START_HUB: (i32, i32) = (3, 2);
 
 /// The stair hub a cell holds on a floor (its stair going up to the next floor), if any.
-fn hub_of_cell(seed: u64, cat: &Catalog, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
+fn hub_of_cell(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
     cached((1, cx, cz, floor), seed, || {
-        hub_of_cell_uncached(seed, cat, cx, cz, floor)
+        hub_of_cell_uncached(seed, cx, cz, floor)
             .into_iter()
             .collect()
     })
     .pop()
 }
 
-fn hub_of_cell_uncached(
-    seed: u64,
-    cat: &Catalog,
-    cx: i32,
-    cz: i32,
-    floor: usize,
-) -> Option<Placement> {
+fn hub_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
     if floor + 1 >= floors::count() {
         return None;
     }
+    let biome = biome_of_cell(seed, cx, cz, HUB_CELL);
+    let cat = chunks::catalog(biome);
+    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_HUB + 64 * floor as i32, cz));
     // The start always has a way up close by: the cell just beside the spawn plaza.
     let forced = floor == START && (cx, cz) == (0, 0);
@@ -458,7 +469,7 @@ fn hub_of_cell_uncached(
     } else {
         // Lots already holding the stair of a lower floor's hub in this cell.
         let taken: Vec<(i32, i32)> = (0..floor)
-            .filter_map(|f| hub_of_cell(seed, cat, cx, cz, f))
+            .filter_map(|f| hub_of_cell(seed, cx, cz, f))
             .map(|p| (p.origin.0 + p.size.0 / 2, p.origin.1 + p.size.1 / 2))
             .collect();
         let free: Vec<(i32, i32)> = (0..HUB_CELL * HUB_CELL)
@@ -482,6 +493,7 @@ fn hub_of_cell_uncached(
     };
     Some(Placement {
         chunk: name,
+        biome,
         role: Role::Hub,
         origin: (stair.0 - mx, stair.1 - mz),
         size,
@@ -497,15 +509,14 @@ pub fn stair_hub(seed: u64, lx: i32, lz: i32) -> Option<Placement> {
     if chunks::preview().is_some() {
         return None;
     }
-    let cat = chunks::catalog();
     let (cx, cz) = (lx.div_euclid(HUB_CELL), lz.div_euclid(HUB_CELL));
     (0..floors::count() - 1)
-        .filter_map(|f| hub_of_cell(seed, &cat, cx, cz, f))
+        .filter_map(|f| hub_of_cell(seed, cx, cz, f))
         .find(|p| (p.origin.0 + p.size.0 / 2, p.origin.1 + p.size.1 / 2) == (lx, lz))
 }
 
 /// The stair hubs whose surroundings cover a lot, on every floor.
-fn hubs_at(seed: u64, cat: &Catalog, lx: i32, lz: i32) -> Vec<Placement> {
+fn hubs_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     let mut out = Vec::new();
     let (cx, cz) = (lx.div_euclid(HUB_CELL), lz.div_euclid(HUB_CELL));
     // Hubs reach a lot or two past their cell: look at the neighbor cells too.
@@ -513,7 +524,7 @@ fn hubs_at(seed: u64, cat: &Catalog, lx: i32, lz: i32) -> Vec<Placement> {
         for nx in cx - 1..=cx + 1 {
             let mut taken: Vec<(i32, i32)> = Vec::new();
             for f in 0..floors::count() - 1 {
-                if let Some(p) = hub_of_cell(seed, cat, nx, nz, f) {
+                if let Some(p) = hub_of_cell(seed, nx, nz, f) {
                     let stair = (p.origin.0 + p.size.0 / 2, p.origin.1 + p.size.1 / 2);
                     // Same rule as `stair_hub`: a lot's stair belongs to the lowest floor.
                     if taken.contains(&stair) {
@@ -533,14 +544,7 @@ fn hubs_at(seed: u64, cat: &Catalog, lx: i32, lz: i32) -> Vec<Placement> {
 // Fillers.
 
 /// The filler standing on a lot on a floor, given the other chunks covering the lot.
-fn filler_at(
-    seed: u64,
-    cat: &Catalog,
-    lx: i32,
-    lz: i32,
-    floor: usize,
-    others: &[Placement],
-) -> Option<Placement> {
+fn filler_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) -> Option<Placement> {
     if near_start_or_hub(lx, lz) || others.iter().any(|p| p.floor == floor) {
         return None;
     }
@@ -554,12 +558,15 @@ fn filler_at(
     if !free {
         return None;
     }
-    let pool = pool(cat, |c| {
+    let biome = biome::biome_at(seed, lx, lz).name;
+    let cat = chunks::catalog(biome);
+    let pool = pool(&cat, |c| {
         c.role() == Role::Filler && c.size == (1, 1) && zone_fits(c, floor)
     });
     let chunk = pick(&pool, &mut rng)?;
     Some(Placement {
         chunk: chunk.name.clone(),
+        biome,
         role: Role::Filler,
         origin: (lx, lz),
         size: (1, 1),
@@ -575,18 +582,17 @@ pub fn covering(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     if chunks::preview().is_some() {
         return Vec::new();
     }
-    let cat = chunks::catalog();
     let mut out: Vec<Placement> = Vec::new();
     if let Some(a) = area_at(seed, lx, lz) {
         out.extend(
-            subs_of_area(seed, &cat, &a)
+            subs_of_area(seed, &a)
                 .into_iter()
                 .filter(|s| s.covers(lx, lz)),
         );
         out.push(a);
     }
     out.extend(blocks_at(seed, lx, lz));
-    out.extend(hubs_at(seed, &cat, lx, lz));
+    out.extend(hubs_at(seed, lx, lz));
     // Fillers only where nothing else stands (a hub's surroundings without a deck do not count:
     // they build nothing there).
     let taken: Vec<Placement> = out
@@ -595,7 +601,7 @@ pub fn covering(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
         .cloned()
         .collect();
     for f in 0..floors::count() {
-        out.extend(filler_at(seed, &cat, lx, lz, f, &taken));
+        out.extend(filler_at(seed, lx, lz, f, &taken));
     }
     out
 }
@@ -606,11 +612,10 @@ mod tests {
 
     #[test]
     fn areas_keep_their_spacing_and_avoid_the_start() {
-        let cat = chunks::catalog();
         let mut areas = Vec::new();
         for cz in -4..4 {
             for cx in -4..4 {
-                if let Some(p) = area_of_cell(1, &cat, cx, cz) {
+                if let Some(p) = area_of_cell(1, cx, cz) {
                     areas.push(p);
                 }
             }
@@ -618,13 +623,12 @@ mod tests {
         assert!(!areas.is_empty(), "no area on 64 cells");
         for (i, a) in areas.iter().enumerate() {
             for b in &areas[..i] {
-                let (ca, cb) = (&cat.chunks[&a.chunk], &cat.chunks[&b.chunk]);
+                let (cata, catb) = (chunks::catalog(a.biome), chunks::catalog(b.biome));
+                let (ca, cb) = (&cata.chunks[&a.chunk], &catb.chunks[&b.chunk]);
                 if !ca.labels.iter().any(|l| cb.labels.contains(l)) {
                     continue;
                 }
-                let spacing = cat.chunks[&a.chunk]
-                    .spacing
-                    .max(cat.chunks[&b.chunk].spacing) as f32;
+                let spacing = ca.spacing.max(cb.spacing) as f32;
                 let (p, q) = (a.center(), b.center());
                 let d = ((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt();
                 assert!(
@@ -652,13 +656,12 @@ mod tests {
 
     #[test]
     fn sub_areas_fill_their_openings() {
-        let cat = chunks::catalog();
         let (mut areas, mut subs) = (0, 0);
         for cz in -3..3 {
             for cx in -3..3 {
-                if let Some(a) = area_of_cell(2, &cat, cx, cz) {
+                if let Some(a) = area_of_cell(2, cx, cz) {
                     areas += 1;
-                    for s in subs_of_area(2, &cat, &a) {
+                    for s in subs_of_area(2, &a) {
                         subs += 1;
                         assert!(s.lots().all(|(x, z)| a.covers(x, z)), "{} outside", s.chunk);
                     }
@@ -670,18 +673,17 @@ mod tests {
 
     #[test]
     fn blocks_and_holes() {
-        let cat = chunks::catalog();
         let (mut blocks, mut holes) = (0, 0);
         for cz in -4..4 {
             for cx in -4..4 {
                 for f in 1..floors::count() {
-                    let Some(b) = block_of_cell(3, &cat, cx, cz, f) else {
+                    let Some(b) = block_of_cell(3, cx, cz, f) else {
                         continue;
                     };
                     blocks += 1;
                     for (x, z) in b.lots() {
                         assert!(x.div_euclid(BLOCK_CELL) == cx && z.div_euclid(BLOCK_CELL) == cz);
-                        if b.opens(&cat, x, z) {
+                        if b.opens(x, z) {
                             holes += 1;
                             assert_eq!(city::deck(3, x, z, f), city::Deck::None);
                             assert!(city::stair(3, x, z).is_none());
@@ -712,7 +714,7 @@ mod tests {
 
     #[test]
     fn holes_turn_with_their_chunk() {
-        let cat = chunks::catalog();
+        let cat = chunks::catalog(chunks::DEFAULT_BIOME);
         let Some(c) = cat.chunks.values().find(|c| !c.holes.is_empty()) else {
             return;
         };
