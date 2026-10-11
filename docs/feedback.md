@@ -106,6 +106,8 @@ What the project owner has said so far. Treat as requirements.
 - Biomes: in the end, a set of chunks and props per biome; a biome is a meta collection of chunks,
   today's city the default one (done: `assets/biomes/<biome>/`). From now on no chunks or props
   are created on the side: when the owner wants more, they ask for a new biome.
+  Completing the default biome (the chunks that replace today's random code: towers, streets,
+  holes) is part of the plan and approved.
 
 ## How to work on generation (owner's direction)
 
