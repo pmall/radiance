@@ -43,6 +43,9 @@ pub enum Mat {
     Soil,
     /// Painted surface of the given sRGB color.
     Paint((u8, u8, u8)),
+    /// Paint in the accent color of the module or slot using it (`accent`, `accents`): one module,
+    /// many colors. Resolved to `Paint` when built.
+    Accent,
 }
 
 impl Mat {
@@ -59,7 +62,7 @@ impl Mat {
             Mat::Wood => 7,
             Mat::Glass => 8,
             Mat::Soil => 9,
-            Mat::Paint(_) => 10,
+            Mat::Paint(_) | Mat::Accent => 10,
         }
     }
 
@@ -78,6 +81,7 @@ impl Mat {
             Mat::Glass => c(40, 54, 64),
             Mat::Soil => c(62, 48, 36),
             Mat::Paint((r, g, b)) => c(r, g, b),
+            Mat::Accent => c(150, 150, 150),
         }
     }
 
@@ -109,20 +113,26 @@ pub enum GrowthKind {
 pub enum Part {
     /// A solid box: `at` its minimum corner, `size` its extent.
     Box { at: V3, size: V3, mat: Mat },
-    /// A module from the catalog, its origin at `at`, turned by `turn` quarter turns.
+    /// A module from the catalog, its origin at `at`, turned by `turn` quarter turns, its `Accent`
+    /// surfaces in `accent` (or the accent around it).
     Module {
         name: String,
         #[serde(default)]
         at: V3,
         #[serde(default)]
         turn: u8,
+        #[serde(default)]
+        accent: Option<(u8, u8, u8)>,
     },
-    /// One of several modules (or nothing, `None`), picked by the seed.
+    /// One of several modules (or nothing, `None`), picked by the seed, with an accent color
+    /// picked among `accents` (if any).
     Slot {
         at: V3,
         #[serde(default)]
         turn: u8,
         pick: Vec<Option<String>>,
+        #[serde(default)]
+        accents: Vec<(u8, u8, u8)>,
     },
     /// The parts, and their mirror image across the plane `axis = at`.
     Mirror2 {
@@ -203,6 +213,11 @@ pub struct Catalog {
     pub errors: Vec<String>,
 }
 
+/// RON as chunk files are written: optional values without `Some(...)` (`accent: (150, 52, 40)`).
+fn ron_options() -> ron::Options {
+    ron::Options::default().with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME)
+}
+
 fn ron_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
         .into_iter()
@@ -222,7 +237,7 @@ impl Catalog {
         for path in ron_files(&root.join("modules")) {
             match std::fs::read_to_string(&path)
                 .map_err(|e| e.to_string())
-                .and_then(|s| ron::from_str::<Vec<Module>>(&s).map_err(|e| e.to_string()))
+                .and_then(|s| ron_options().from_str::<Vec<Module>>(&s).map_err(|e| e.to_string()))
             {
                 Ok(list) => c
                     .modules
@@ -233,7 +248,7 @@ impl Catalog {
         for path in ron_files(&root.join("chunks")) {
             match std::fs::read_to_string(&path)
                 .map_err(|e| e.to_string())
-                .and_then(|s| ron::from_str::<Chunk>(&s).map_err(|e| e.to_string()))
+                .and_then(|s| ron_options().from_str::<Chunk>(&s).map_err(|e| e.to_string()))
             {
                 Ok(ch) => {
                     c.chunks.insert(ch.name.clone(), ch);
@@ -384,15 +399,20 @@ struct Expander<'a> {
     catalog: &'a Catalog,
     rng: Rng,
     out: Built,
+    /// The accent color in effect (`Mat::Accent`).
+    accent: (u8, u8, u8),
 }
 
 impl Expander<'_> {
-    fn module(&mut self, name: &str, tf: &Tf, depth: usize) {
+    fn module(&mut self, name: &str, tf: &Tf, depth: usize, accent: Option<(u8, u8, u8)>) {
+        let saved = self.accent;
+        self.accent = accent.unwrap_or(saved);
         match self.catalog.modules.get(name) {
             Some(m) if depth < MAX_DEPTH => self.parts(&m.parts, tf, depth + 1),
             Some(_) => self.out.missing.push(format!("{name} (too deep)")),
             None => self.out.missing.push(name.to_string()),
         }
+        self.accent = saved;
     }
 
     fn parts(&mut self, parts: &[Part], tf: &Tf, depth: usize) {
@@ -400,20 +420,37 @@ impl Expander<'_> {
             match p {
                 Part::Box { at, size, mat } => {
                     let a = v3(*at);
-                    self.out.boxes.push((tf.aabb(a, a + v3(*size)), *mat));
+                    let mat = if *mat == Mat::Accent {
+                        Mat::Paint(self.accent)
+                    } else {
+                        *mat
+                    };
+                    self.out.boxes.push((tf.aabb(a, a + v3(*size)), mat));
                 }
-                Part::Module { name, at, turn } => {
+                Part::Module {
+                    name,
+                    at,
+                    turn,
+                    accent,
+                } => {
                     let t = tf.then(&Tf::shift(v3(*at)).then(&Tf::turn(*turn)));
-                    self.module(name, &t, depth);
+                    self.module(name, &t, depth, *accent);
                 }
-                Part::Slot { at, turn, pick } => {
+                Part::Slot {
+                    at,
+                    turn,
+                    pick,
+                    accents,
+                } => {
                     if pick.is_empty() {
                         continue;
                     }
                     let i = self.rng.range_i(0, pick.len() as i32) as usize;
+                    let accent = (!accents.is_empty())
+                        .then(|| accents[self.rng.range_i(0, accents.len() as i32) as usize]);
                     if let Some(name) = &pick[i] {
                         let t = tf.then(&Tf::shift(v3(*at)).then(&Tf::turn(*turn)));
-                        self.module(name, &t, depth);
+                        self.module(name, &t, depth, accent);
                     }
                 }
                 Part::Mirror2 { axis, at, parts } => {
@@ -482,6 +519,7 @@ pub fn build(chunk: &Chunk, catalog: &Catalog, origin: Vec3, turn: u8, seed: u64
         catalog,
         rng: Rng::new(seed),
         out: Built::default(),
+        accent: (150, 150, 150),
     };
     e.parts(&chunk.parts, &tf, 0);
     e.out

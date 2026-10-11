@@ -1,0 +1,45 @@
+// A market district: two lanes of shophouses (each its own color), stalls down the middle of the
+// lanes under strings of flags, and a covered market hall at the heart, its stalls in rows.
+// Symmetric across its long axis; the seed varies every shop, color and stall.
+Chunk(
+    name: "market_district",
+    size: (8, 6),
+    zones: [Depths, Middle],
+    labels: ["market"],
+    weight: 2,
+    spacing: 24,
+    ground: Some(StoneDark),
+    parts: [
+        Module(name: "market_hall", at: (96.0, 0.0, 72.0), accent: (150, 52, 40)),
+        // Stalls under the hall, in rows with aisles between.
+        Repeat(from: (58.0, 0.0, 54.0), step: (10.0, 0.0, 0.0), count: 8, parts: [
+            Repeat(step: (0.0, 0.0, 12.0), count: 4, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("stall"), Some("stall"), Some("crate_stack"), None],
+                    accents: [(176, 52, 44), (44, 110, 120), (200, 150, 40), (90, 120, 60)]),
+            ]),
+        ]),
+        Growth(area: ((44.0, 40.0), (148.0, 104.0)), kind: Bare),
+        Mirror2(axis: Z, at: 72.0, parts: [
+            // The row of shophouses along the edge, facing the lane.
+            Repeat(from: (9.0, 0.0, 16.0), step: (6.0, 0.0, 0.0), count: 30, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("shophouse"), Some("shophouse"), Some("shophouse_tall")],
+                    accents: [(176, 72, 56), (60, 120, 112), (196, 150, 70), (110, 130, 70), (150, 90, 120),
+                              (70, 100, 150), (190, 120, 90), (120, 120, 116)]),
+            ]),
+            // Stalls down the middle of the lane, facing the shops.
+            Repeat(from: (12.0, 0.0, 24.0), step: (9.0, 0.0, 0.0), count: 19, parts: [
+                Slot(at: (0.0, 0.0, 0.0), turn: 2, pick: [Some("stall"), Some("stall"), Some("crate_stack"), None],
+                    accents: [(176, 52, 44), (44, 110, 120), (200, 150, 40)]),
+            ]),
+            // Strings of flags across the lane.
+            Repeat(from: (14.0, 7.5, 16.0), step: (12.0, 0.0, 0.0), count: 14, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("banner_string"), Some("banner_string"), None],
+                    accents: [(176, 52, 44), (220, 180, 60), (60, 140, 150)]),
+            ]),
+            // Lamps along the lane's edge by the hall.
+            Repeat(from: (20.0, 0.0, 34.0), step: (16.0, 0.0, 0.0), count: 10, parts: [
+                Module(name: "lamp", turn: 2),
+            ]),
+        ]),
+    ],
+)
