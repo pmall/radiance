@@ -102,50 +102,19 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 const SCENES: &[Scene] = &[
     // Along the curb, facing the road.
+    scene(Slot::Curb, Kind::Street, &[part(Bench, 0.0, 0.0, 0.0)], [5, 2, 0]),
     scene(
         Slot::Curb,
         Kind::Street,
-        &[part(Bench, 0.0, 0.0, 0.0)],
-        [5, 2, 0],
-    ),
-    scene(
-        Slot::Curb,
-        Kind::Street,
-        &[part(Bench, 0.0, 0.0, 0.0), part(TrashCan, 1.75, 0.0, 0.0)],
+        &[part(Bench, 0.0, 0.0, 0.0), part(Bin, 1.5, 0.0, 0.0)],
         [4, 1, 0],
     ),
-    scene(
-        Slot::Curb,
-        Kind::Street,
-        &[part(TrashCan, 0.0, 0.0, 0.0)],
-        [3, 2, 0],
-    ),
-    scene(
-        Slot::Curb,
-        Kind::Street,
-        &[part(TrashCanRusty, 0.0, 0.0, 0.0)],
-        [2, 1, 0],
-    ),
-    scene(
-        Slot::Curb,
-        Kind::Street,
-        &[part(UtilityBox, 0.0, 0.0, PI)],
-        [2, 1, 0],
-    ),
+    scene(Slot::Curb, Kind::Street, &[part(Bin, 0.0, 0.0, 0.0)], [3, 2, 0]),
+    scene(Slot::Curb, Kind::Street, &[part(UtilityBox, 0.0, 0.0, PI)], [2, 1, 0]),
+    scene(Slot::Curb, Kind::Street, &[part(Planter, 0.0, 0.0, 0.0)], [2, 1, 0]),
     // Street corners.
-    scene(
-        Slot::Corner,
-        Kind::Street,
-        &[part(UtilityBoxWide, 0.0, 0.0, PI)],
-        [2, 1, 0],
-    ),
-    // Barriers closing a corner: works up in the newer floors, never in the old depths.
-    scene(
-        Slot::Corner,
-        Kind::Street,
-        &[part(BarrierJersey, 0.0, 0.0, 0.0)],
-        [0, 1, 1],
-    ),
+    scene(Slot::Corner, Kind::Street, &[part(UtilityBox, 0.0, 0.0, PI)], [2, 1, 0]),
+    scene(Slot::Corner, Kind::Street, &[part(Planter, 0.0, 0.0, 0.0)], [2, 1, 0]),
     // Against the facades, facing out.
     scene(
         Slot::Facade,
@@ -153,7 +122,7 @@ const SCENES: &[Scene] = &[
         &[
             part(TrashBag, 0.0, 0.0, 0.0),
             part(TrashBag, 0.6, 0.15, 0.9),
-            part(TrashCanRusty, 1.4, 0.0, 0.0),
+            part(Bin, 1.3, 0.0, 0.0),
         ],
         [4, 2, 0],
     ),
@@ -161,18 +130,9 @@ const SCENES: &[Scene] = &[
         Slot::Facade,
         Kind::Leftovers,
         &[
-            part(TrashBag, 0.0, 0.0, 0.3),
-            part(TrashBag, 0.55, 0.1, -0.6),
-        ],
-        [3, 1, 0],
-    ),
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
-        &[
-            part(BarrelRusty, 0.0, 0.0, 0.0),
-            part(BarrelBlue, 0.75, 0.0, 1.0),
-            part(CrateLong, 1.8, 0.0, FRAC_PI_2),
+            part(Barrel, 0.0, 0.0, 0.0),
+            part(BarrelBlue, 0.7, 0.0, 0.3),
+            part(Crate, 1.6, 0.0, 0.05),
         ],
         [3, 2, 1],
     ),
@@ -182,118 +142,51 @@ const SCENES: &[Scene] = &[
         &[
             part(Crate, 0.0, 0.0, 0.0),
             part(CardboardBox, 0.75, 0.0, -0.1),
-            part(CardboardBox, 1.25, 0.05, 0.3),
+            part(CardboardBox, 1.3, 0.05, 0.3),
         ],
         [2, 2, 1],
     ),
+    // A café terrace in front of a shop: a table, a chair on each side, a quarter turn left (-)
+    // or right (+) of the frame's front so each faces the table.
     scene(
         Slot::Facade,
         Kind::Leftovers,
         &[
-            part(HandTruck, 0.0, 0.0, 0.3),
-            part(CardboardBox, 0.75, 0.0, 0.2),
-        ],
-        [2, 1, 0],
-    ),
-    // A café terrace in front of a shop: a table, a chair on each side, a quarter turn left (+)
-    // or right (-) of the frame's front so each faces the table.
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
-        &[
-            part(TerraceChair, -0.75, 0.35, -FRAC_PI_2),
+            part(TerraceChair, -0.6, 0.3, -FRAC_PI_2),
             part(TerraceTable, 0.0, 0.2, 0.0),
-            part(TerraceChair, 0.75, 0.35, FRAC_PI_2),
+            part(TerraceChair, 0.6, 0.3, FRAC_PI_2),
         ],
         [4, 1, 0],
     ),
-    // Someone sat by the door, a long time ago.
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
-        &[part(PlasticChair, 0.0, 0.0, 0.2)],
-        [2, 1, 0],
-    ),
-    // Someone moving out, never finished: a sofa, a suitcase, boxes and the television.
+    // Someone moving out, never finished: a sofa and boxes by the wall.
     scene(
         Slot::Facade,
         Kind::Leftovers,
         &[
             part(Sofa, 0.0, 0.0, 0.0),
-            part(Suitcase, 1.75, 0.2, 0.0),
-            part(CardboardBox, 1.8, 0.6, 0.3),
-            part(Television, -1.75, 0.1, 0.3),
+            part(CardboardBox, 1.4, 0.1, 0.0),
+            part(CardboardBox, 1.5, 0.6, 0.3),
         ],
         [2, 0, 0],
     ),
-    // A shop emptied onto the sidewalk.
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
-        &[
-            part(Shelves, 0.0, 0.0, 0.0),
-            part(CardboardBox, 0.9, 0.2, 0.4),
-        ],
-        [1, 0, 0],
-    ),
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
-        &[part(Tyre, 0.0, 0.0, 0.0), part(Tyre, 0.7, 0.0, 0.25)],
-        [2, 1, 0],
-    ),
-    // A generator and its fuel, from the last days of power.
-    scene(
-        Slot::Facade,
-        Kind::Leftovers,
-        &[
-            part(Generator, 0.0, 0.0, 0.0),
-            part(Jerrycan, 0.75, 0.0, 0.3),
-            part(PropaneTank, -0.75, 0.0, 0.0),
-        ],
-        [2, 1, 0],
-    ),
-    scene(
-        Slot::Facade,
-        Kind::Street,
-        &[part(UtilityBoxWide, 0.0, 0.0, 0.0)],
-        [2, 2, 1],
-    ),
-    // Parked cars: none until a realistic, uncovered car model is found (the `Parking` slot
-    // and the profile's `cars` are ready for it).
+    scene(Slot::Facade, Kind::Street, &[part(UtilityBox, 0.0, 0.0, 0.0)], [2, 2, 1]),
     // Lots with no tower.
     scene(
         Slot::Vacant,
         Kind::Leftovers,
         &[
-            part(BarrelRusty, 0.0, 0.0, 0.0),
+            part(Barrel, 0.0, 0.0, 0.0),
             part(TrashBag, 1.0, 0.3, 0.0),
-            part(Tyre, -1.0, 0.2, 0.6),
+            part(Crate, -1.0, 0.2, 0.3),
         ],
         [3, 1, 0],
     ),
-    // A small square: two benches facing each other, or a picnic table.
+    // A small square: two benches facing each other.
     scene(
         Slot::Vacant,
         Kind::Street,
         &[part(Bench, 0.0, -1.8, 0.0), part(Bench, 0.0, 1.8, PI)],
         [2, 1, 0],
-    ),
-    scene(
-        Slot::Vacant,
-        Kind::Leftovers,
-        &[part(PicnicTable, 0.0, 0.0, 0.0)],
-        [2, 1, 0],
-    ),
-    // Works in the newer floors.
-    scene(
-        Slot::Vacant,
-        Kind::Leftovers,
-        &[
-            part(BarrierConcrete, 0.0, 0.0, 0.0),
-            part(BarrierConcrete, 1.7, 0.0, 0.1),
-        ],
-        [0, 1, 1],
     ),
     // Points of interest with flowers (foreshadowing: flowers in human places), drawn apart at
     // each floor's `Flowers::poi` rate. Last in the table, the armchair first (`START_SCENES`).
@@ -305,19 +198,12 @@ const SCENES: &[Scene] = &[
         blooms: &[(0.0, 0.5, 0.05)],
         weight: [2, 1, 0],
     },
-    Scene {
-        slot: Slot::Facade,
-        kind: Kind::Poi,
-        parts: &[part(LoungeChair, 0.0, 0.0, 0.0)],
-        blooms: &[(0.0, 0.5, 0.1)],
-        weight: [1, 1, 0],
-    },
     // Two flowers side by side on a bench, about the distance two people sit (D1-09).
     Scene {
         slot: Slot::Curb,
         kind: Kind::Poi,
         parts: &[part(Bench, 0.0, 0.0, 0.0)],
-        blooms: &[(-0.32, 0.47, 0.05), (0.32, 0.47, 0.05)],
+        blooms: &[(-0.32, 0.58, 0.0), (0.32, 0.58, 0.0)],
         weight: [1, 1, 0],
     },
     // A dead garden by the wall, one flower alive in a pot (D1-13).
@@ -329,29 +215,21 @@ const SCENES: &[Scene] = &[
             part(ClayPot, 0.45, 0.15, 0.3),
             part(ClayPot, 0.9, 0.0, -0.1),
         ],
-        blooms: &[(0.9, 0.24, 0.0)],
+        blooms: &[(0.9, 0.3, 0.0)],
         weight: [2, 1, 0],
-    },
-    // An empty wheelchair by the curb, a flower in its seat.
-    Scene {
-        slot: Slot::Curb,
-        kind: Kind::Poi,
-        parts: &[part(Wheelchair, 0.0, 0.0, 0.0)],
-        blooms: &[(0.0, 0.55, 0.0)],
-        weight: [1, 1, 0],
     },
     // An old bed frame against a wall, a flower where someone slept.
     Scene {
         slot: Slot::Facade,
         kind: Kind::Poi,
         parts: &[part(BedFrame, 0.0, 0.0, 0.0)],
-        blooms: &[(0.0, 0.5, -0.5)],
+        blooms: &[(0.0, 0.55, -0.5)],
         weight: [1, 0, 0],
     },
 ];
 
 /// Points of interest at the end of `SCENES`.
-const POIS: usize = 6;
+const POIS: usize = 4;
 
 /// The street light, placed by its own rule (`street_lights`), never drawn at random.
 const LIGHT: Scene = scene(

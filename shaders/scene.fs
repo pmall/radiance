@@ -27,7 +27,6 @@ uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 s
 uniform float uGlow;         // plant emission and light strength for the time of day
 uniform sampler2D texture5;  // cover map
 uniform sampler2D texture10; // chunk materials in pixel art (src/render/pixels.rs)
-uniform sampler2D texture6;  // prop atlas: the photoscanned props' color textures (src/world/props.rs)
 #define COVER_TEX texture5
 
 // Cover map: which decks stand over each lot around the camera (src/render/cover.rs).
@@ -591,12 +590,6 @@ void main()
     int kind = kindCode % 16;
     gVariant = kindCode / 16;
     vec3 emit = vec3(0.0);
-    // Photoscanned props: their own color texture, a little muted so they sit in the palette.
-    bool propTex = kind == 14 && fragLoc.x >= 0.0;
-    if (propTex) {
-        vec3 tex = pow(texture(texture6, fragLoc).rgb, vec3(2.2));
-        albedo *= mix(vec3(dot(tex, vec3(0.2126, 0.7152, 0.0722))), tex, 0.8);
-    }
     if (painted) {
         float px = max(length(fwidth(fragWorldPos)), 1e-4);
         float fid = fragId * 255.0;
@@ -635,13 +628,11 @@ void main()
         } else if (kind == 11) {
             albedo = skylight(albedo, fragWorldPos, n, fragLoc, px);
         } else if (kind == 14) {
-            // Props built in code (no texture): worn by the same photo detail as the walls (same
-            // scale). All props are darker at the foot.
-            if (!propTex) {
-                vec3 an = abs(n);
-                vec2 puv = an.y > 0.6 ? fragWorldPos.xz : (an.x > an.z ? fragWorldPos.zy : fragWorldPos.xy);
-                albedo *= mix(1.0, grit(puv / 3.0).a, 0.45) * (0.85 + 0.3 * fbm(puv * 0.8));
-            }
+            // Props built in code (the street light): worn by the same photo detail as the walls
+            // (same scale), darker at the foot.
+            vec3 an = abs(n);
+            vec2 puv = an.y > 0.6 ? fragWorldPos.xz : (an.x > an.z ? fragWorldPos.zy : fragWorldPos.xy);
+            albedo *= mix(1.0, grit(puv / 3.0).a, 0.45) * (0.85 + 0.3 * fbm(puv * 0.8));
             albedo *= mix(0.7, 1.0, smoothstep(0.0, 0.8, aboveFloor(fragWorldPos.y)));
         } else if (kind == 13) {
             albedo = steel(albedo, fragWorldPos, n, px);

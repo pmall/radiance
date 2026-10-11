@@ -140,22 +140,17 @@ places each scene in the kind of place it belongs to, never at random:
   streets meeting), on a sidewalk corner, its arm reaching over the crossing; each street keeps its lights on the same
   side all along it, so they line up one per lot. Built in code (a modern pole and arm; no free
   model fits). They follow the props switch (O).
-- **Curb:** on the sidewalk just behind the curb, facing the road: benches, bench and bin, metal
-  bins (clean or rusted), utility boxes.
-- **Corner:** the sidewalk corner of two streets: utility cabinets; jersey barriers in
-  the middle floors and up (works), never in the depths.
-- **Facade:** against a tower wall, facing out: trash bags, barrels and crates, a hand truck with
-  boxes, café terraces (D1–D3), a plastic chair by a door, a sofa with a suitcase, boxes and the
-  television (someone moving out), shelves and boxes (a shop emptied), tyres, a generator with its
-  fuel, utility cabinets.
-- **Parking:** in the road along the curb, nose along the street, clear of crossings. Empty for
-  now: no realistic, uncovered car model found yet (the owner rejected covered cars). Nothing
+- **Curb:** on the sidewalk just behind the curb, facing the road: benches, bench and bin, bins,
+  utility cabinets, planters.
+- **Corner:** the sidewalk corner of two streets: utility cabinets, planters.
+- **Facade:** against a tower wall, facing out: trash bags, barrels and crates, boxes, café
+  terraces (D1–D3), a sofa with boxes (someone moving out), utility cabinets.
+- **Parking:** in the road along the curb, clear of crossings. Empty for now: no car yet. Nothing
   else ever stands in the road (tested).
-- **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other
-  or a picnic table, concrete barriers (middle floors and up).
+- **Vacant lot:** lots without a tower: debris, a small square with two benches facing each other.
 
-Props are photoscanned models from Poly Haven (CC0) or built in code (`docs/art-direction.md`,
-"Props and external assets").
+Props are box-built modules in the chunks' pixel-art materials (`assets/modules/props.ron`), the
+street light a mesh built in code (`docs/art-direction.md`, "Props and external assets").
 
 Every scene declares its slot, its kind (street furniture, leftovers, vehicles, points of
 interest) and a weight per zone; how many are tried per lot follows the floor's profile (about 4
@@ -167,10 +162,9 @@ Every prop stands fully on a deck, clear of everything else, with a collision bo
 around them.
 
 Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): a flower
-growing out of an armchair (or a leather lounge chair) left by a wall, two flowers side by side on
-a bench (allowed closer than the usual 3 m), a dead garden of clay pots with one living flower, an
-empty wheelchair by the curb with a flower in its seat, an old bed frame against a wall with a
-flower where someone slept. They are rare on purpose (a few % of
+growing out of an armchair left by a wall, two flowers side by side on a bench (allowed closer than
+the usual 3 m), a dead garden of clay pots with one living flower, an old bed frame against a wall
+with a flower where someone slept. They are rare on purpose (a few % of
 lots, the profile's `poi`): too many would spell out that flowers are souls. Only the armchair
 always stands on the start plaza, facing the crater.
 

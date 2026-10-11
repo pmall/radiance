@@ -3,6 +3,3 @@
 /recordings
 /screenshots
 
-/tools/node_modules
-/tools/.cache
-/tools/package-lock.json

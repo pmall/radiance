@@ -1,6 +1,5 @@
 //! Props drawn instanced: one GPU mesh per prop (`world::props`), and each frame every placement
-//! near the camera in a single call per prop, so detailed photoscanned models cost no memory per
-//! lot. Their color textures come from one atlas, bound to the scene shader's `texture6`.
+//! near the camera in a single call per prop, so props cost no memory per lot.
 
 use std::collections::HashMap;
 
@@ -21,12 +20,8 @@ pub struct Reach {
 /// How much a height difference counts toward a prop's distance.
 const VERTICAL: f32 = 1.6;
 
-/// Material slot (sampler `texture6`) of the prop atlas.
-pub const ATLAS_SLOT: usize = 6;
-
 pub struct PropMeshes {
     meshes: Vec<(Prop, ffi::Mesh)>,
-    pub atlas: ffi::Texture2D,
 }
 
 /// The placements of one prop to draw this frame.
@@ -39,24 +34,7 @@ impl PropMeshes {
     /// Requires an open window (GL context).
     pub fn new() -> Self {
         let meshes = props::all().map(|p| (p, upload(p))).collect();
-        let a = props::atlas();
-        let atlas = unsafe {
-            let image = ffi::Image {
-                data: a.rgba.as_ptr() as *mut _,
-                width: a.width as i32,
-                height: a.height as i32,
-                mipmaps: 1,
-                format: ffi::PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32,
-            };
-            // Copied to the GPU; the image memory stays ours.
-            let mut t = ffi::LoadTextureFromImage(image);
-            ffi::GenTextureMipmaps(&mut t);
-            ffi::SetTextureWrap(t, ffi::TextureWrap::TEXTURE_WRAP_CLAMP as i32);
-            ffi::SetTextureFilter(t, ffi::TextureFilter::TEXTURE_FILTER_TRILINEAR as i32);
-            ffi::SetTextureFilter(t, ffi::TextureFilter::TEXTURE_FILTER_ANISOTROPIC_8X as i32);
-            t
-        };
-        Self { meshes, atlas }
+        Self { meshes }
     }
 
     /// The props of `lots` within reach, grouped by prop.
@@ -95,7 +73,6 @@ impl Drop for PropMeshes {
             for (_, m) in &self.meshes {
                 ffi::UnloadMesh(*m);
             }
-            ffi::UnloadTexture(self.atlas);
         }
     }
 }
@@ -143,8 +120,9 @@ fn matrix(m: Mat4) -> ffi::Matrix {
     }
 }
 
-/// One prop's mesh, in the scene shader's vertex layout: uv.y is the material code (14, props;
-/// the outline id comes from the instance), uv2 the atlas coordinates.
+/// One prop's mesh, in the scene shader's vertex layout: uv.y is the material code (15 for chunk
+/// materials in pixel art, with the material in uv2.x; 14 for plain props; the outline id comes
+/// from the instance).
 fn upload(prop: Prop) -> ffi::Mesh {
     let verts = &props::mesh(prop).verts;
     let mut pos = Vec::with_capacity(verts.len() * 3);
@@ -155,8 +133,16 @@ fn upload(prop: Prop) -> ffi::Mesh {
     for v in verts {
         pos.extend_from_slice(&v.pos.to_array());
         nrm.extend_from_slice(&v.normal.to_array());
-        uv.extend_from_slice(&[0.0, 14.0]);
-        uv2.extend_from_slice(&v.uv);
+        match v.mat {
+            Some(m) => {
+                uv.extend_from_slice(&[0.0, 15.0]);
+                uv2.extend_from_slice(&[m as f32, 0.0]);
+            }
+            None => {
+                uv.extend_from_slice(&[0.0, 14.0]);
+                uv2.extend_from_slice(&[-1.0, -1.0]);
+            }
+        }
         col.extend_from_slice(&[v.color[0], v.color[1], v.color[2], 0]);
     }
     let mut raw: ffi::Mesh = unsafe { std::mem::zeroed() };

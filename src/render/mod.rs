@@ -158,7 +158,6 @@ impl Renderer {
         let cover = CoverMap::new();
         unsafe { (*material.maps.add(surfaces::COVER_SLOT)).texture = cover.texture };
         let prop_meshes = props::PropMeshes::new();
-        unsafe { (*material.maps.add(props::ATLAS_SLOT)).texture = prop_meshes.atlas };
         unsafe { (*material.maps.add(pixels::SLOT)).texture = pixels::load() };
         surfaces::bind_samplers(&mut material);
         let halos = Halos::new(light_grid.texture);

@@ -58,8 +58,9 @@ What the project owner has said so far. Treat as requirements.
   helps find things instead: the overlay gives the distance and clock direction of the nearest
   stair up, stair down and crater, and the right mouse button makes Wick 4 times faster.
 
-- Props: the Kenney kits looked like a cheap mobile game ("too baby-like"); replaced by realistic,
-  photoscanned models. What matters most is smart placement: every prop where it belongs in a
+- Props: the Kenney kits looked like a cheap mobile game ("too baby-like"); the photoscanned Poly
+  Haven models that followed were removed at the owner's wish; props are now box-built modules in
+  the chunks' style. What matters most is smart placement: every prop where it belongs in a
   street (no bench in the road), no construction props in the depths, no indoor furniture out in
   the street without a story. Darkness of the depths: keep it, the owner loves it.
 

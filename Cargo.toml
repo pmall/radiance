@@ -5,8 +5,6 @@ edition = "2024"
 
 [dependencies]
 glam = "0.33"
-gltf = { version = "1.4.1", default-features = false, features = ["utils", "names", "KHR_materials_unlit"] }
-jpeg-decoder = { version = "0.3.1", default-features = false }
 ron = "0.10.1"
 serde = { version = "1.0.219", features = ["derive"] }
 sola-raylib = "6"
