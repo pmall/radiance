@@ -3,7 +3,7 @@
 Status: on the `chunks` branch. Phases 2 to 7 are done in a first pass: format, catalog and
 preview; the pixel-art style; the planner (areas and their sub-areas, blocks with designed holes,
 stair hubs, fillers); a first catalog; pixel-art tower facades with real units near the decks;
-props as modules. Next: grow the catalog (phase 8). As phases land, this replaces the lot-by-lot
+props as modules. Next: "everything is a chunk" (section below), growing the catalog along the way. As phases land, this replaces the lot-by-lot
 generation described in `docs/world.md` (see "Phases").
 
 ## Why
@@ -277,6 +277,63 @@ Each phase ends with shots the owner can judge.
 7. **Props as modules** *(done)*: props are modules of `assets/modules/props.ron` drawn
    instanced in pixel-art materials; the photoscans, their import tool and dependencies are gone.
 8. **Grow the catalog.**
+
+## Next: everything is a chunk
+
+The owner's goal, in their words: a system where many chunks are defined by text, each structured
+by hand and not randomly, then assembled randomly. Today chunks are laid *on top of* the old random
+city and cover a minority of it; this pass makes them the whole city. Writing chunks and props is
+cheap (plain text, box-built, `assets/modules/props.ron` and friends), so the catalog can grow as
+large as needed. Plants and flowers stay fully random (`growth.rs`, unchanged).
+
+**What is still random code today** (to retire, in this order):
+
+1. **Towers** (`city::tower`, `push_tower`, `roof.rs`, `construction.rs`, `facade.rs`'s fire
+   escapes and signs, and the random unit choice of `facade` in `shaders/scene.fs`): size, place,
+   setbacks, roofs and every window are picked at random. Most of what the player sees.
+2. **Plain street lots** and their furniture (`dressing.rs`): street lights, benches, bins,
+   leftovers, points of interest, placed by code rules.
+3. **Deck sections and their holes** (`city::section`, `city::built`, the profiles' `deck_keep`).
+4. **Craters and bridges** (`city::crater_at`, `push_bridges`, `bridges_through`).
+
+**Steps** (each ends with `--chunk` shots and city shots for the owner, `--report` and `--bench`
+compared with before):
+
+1. **Tower chunks.** A new role `Tower`: a footprint (1x1 to 2x2 lots) and a height in floors
+   within a range, picked by the planner from the floor profiles (as `city::tower` does now: old
+   buildings of the depths, most ending in the stack, a few past the top at the construction
+   front). The chunk is written by hand as stacked parts: a street story (shops), story types
+   (apartment rows, offices, a balcony stack), setbacks, a roof (water tanks, antennas,
+   billboards), each a module made of facade unit modules (`assets/modules/facade.ron`), so the
+   wall of apartments is designed, not rolled. New vocabulary to add to `chunks.rs` for it, for
+   example `Stack { from, story, count, parts }` (repeat parts every story) and per-floor parts.
+   Performance is the hard part: towers are 200 m of wall, too many boxes if every unit is 3D.
+   Keep real boxes on the stories near the decks (as now) and draw the far stories from the
+   chunk's own unit layout: either instanced unit meshes (as `render/props.rs` draws props) or a
+   per-tower unit index the shader reads instead of rolling its own (a small texture of unit
+   indices per tower face). Decide by measuring with `--bench`.
+2. **Every lot is a chunk.** The planner covers every lot of every floor: what no area, block,
+   hub or tower takes gets a filler, including the plain street lot (`street_plain`: its lamps at
+   the crossroads, curb furniture in slots). The rules of `docs/feedback.md` become how those
+   chunks are written: lamps evenly spaced at the crossroads facing the road, no bench in the
+   road, no construction props in the depths, flowered points of interest rare (the profiles'
+   `poi` rate becomes a slot chance). Then `dressing.rs` retires.
+3. **Holes are chunks** (the planner's step 4 above): `deck_keep` becomes the share of hole chunks
+   per floor (rare low down, many at the construction front); deck sections retire.
+4. **Craters and bridges** become chunks or planner rules (a crater as an area with a big hole;
+   footbridges as part of hole chunks).
+5. **Delete** the retired code and the shader's random unit choice; `city.rs` keeps only what
+   every lot needs (ground, decks as the planner says, stairs of hubs).
+6. **Grow the catalog** all along: many fillers per zone so repetition does not show, props as
+   modules (vending machines, bus stops, shop interiors seen through windows, scrap, rooftop
+   gardens).
+
+**Rules to keep:** same seed, same city (all randomness through `src/rng.rs`); lots stream one by
+one and every planner answer stays a pure function of the seed and the lot; big chunks' boxes
+belong to the lot holding their center; tests stay fast (`AGENTS.md`); frame time checked with
+`--bench` (about 7.4 ms on the dev machine's usual benchmark view at the end of phase 6); owner
+decisions in `docs/feedback.md` (outlines and light bands on, stairs rare, darkness of the depths
+kept).
 
 ## Open questions
 
