@@ -63,7 +63,7 @@ impl WorldMesh {
         let variant = lot.variant as f32 * 16.0;
         for (i, b) in lot.blocks.iter().enumerate() {
             // Prop boxes are only collision; the props draw their own mesh below.
-            if b.kind == BlockKind::Prop {
+            if matches!(b.kind, BlockKind::Prop | BlockKind::Collider) {
                 continue;
             }
             // Object id for outline detection between touching blocks; 0 is reserved for sky.
@@ -84,7 +84,8 @@ impl WorldMesh {
                     BlockKind::Solar => 10.0,
                     BlockKind::Skylight => 11.0,
                     BlockKind::Steel => 13.0,
-                    BlockKind::Prop => unreachable!(),
+                    BlockKind::Built(_) => 15.0,
+                    BlockKind::Prop | BlockKind::Collider => unreachable!(),
                 };
             for (n, corners) in FACES {
                 // Faces resting on the ground can never be seen.
@@ -100,7 +101,10 @@ impl WorldMesh {
                     // meters (billboards: both axes normalized). Horizontal faces: normalized.
                     let along = if n.x != 0.0 { 2 } else { 0 };
                     let c = corners[k];
-                    let loc = if n.y != 0.0 {
+                    let loc = if let BlockKind::Built(m) = b.kind {
+                        // Built boxes: their material, painted in world space.
+                        [m.index() as f32, 0.0]
+                    } else if n.y != 0.0 {
                         [c[0], c[2]]
                     } else if b.kind == BlockKind::Sign {
                         // The thin edges of a panel are marked with -1: no art there.

@@ -19,6 +19,7 @@ use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::biome_at;
+use super::chunks;
 use super::design;
 use super::floors::{self, START};
 use super::{Aabb, Block, BlockKind};
@@ -38,6 +39,7 @@ const SALT_CRATER: i32 = 6;
 const SALT_STAIR: i32 = 7;
 const SALT_SECTION: i32 = 10;
 const SALT_SECTION_TINT: i32 = 11;
+const SALT_CHUNK: i32 = 13;
 
 /// Side, in lots, of a district: the square that is split into deck sections.
 const DISTRICT: i32 = 6;
@@ -137,7 +139,7 @@ fn crater_in_cell(seed: u64, cx: i32, cz: i32) -> Option<Crater> {
 
 /// The floor above which nothing is built on this lot, if it lies in a crater.
 pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
-    if is_plaza(lx, lz) {
+    if is_plaza(lx, lz) || chunks::preview().is_some() {
         return None;
     }
     let (cx, cz) = (lx.div_euclid(CRATER_CELL), lz.div_euclid(CRATER_CELL));
@@ -156,6 +158,9 @@ pub fn crater_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
 /// A stair needs its section built up to its top floor; the roll makes up for the sections that
 /// are not (`design::stair_roll`), so the profile's chances hold.
 pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
+    if chunks::preview().is_some() {
+        return None;
+    }
     if is_plaza(lx, lz) || tower(seed, lx, lz).is_some() || crater_at(seed, lx, lz).is_some() {
         return None;
     }
@@ -224,6 +229,14 @@ pub fn built(seed: u64, lx: i32, lz: i32) -> usize {
 
 /// What covers a lot on a floor. Pure, so the renderer can map the decks around the camera.
 pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
+    // A previewed chunk stands on a bare deck at the start floor.
+    if chunks::preview().is_some() {
+        return if floor == 0 || floor == START {
+            Deck::Full
+        } else {
+            Deck::None
+        };
+    }
     if floor == 0 || (floor == START && is_plaza(lx, lz)) {
         return Deck::Full;
     }
@@ -259,6 +272,9 @@ pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u16 {
 
 /// The tower standing on a lot, if any. Pure, so neighbors can query it for bridges.
 pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
+    if chunks::preview().is_some() {
+        return None;
+    }
     if is_plaza(lx, lz) || crater_at(seed, lx, lz).is_some() {
         return None;
     }
@@ -304,6 +320,9 @@ pub fn generate_lot_dressed(
 ) -> super::dressing::Dressing {
     let first = out.len();
     generate_structure(seed, lx, lz, out);
+    if chunks::preview().is_some() {
+        return super::dressing::Dressing::default();
+    }
     let dressing = super::dressing::dress_lot(seed, lx, lz, &out[first..]);
     out.extend(dressing.props.iter().map(|p| Block {
         kind: BlockKind::Prop,
@@ -372,7 +391,9 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         }
     }
 
-    push_movement_course(lx, lz, out);
+    if chunks::preview().is_none() {
+        push_movement_course(lx, lz, out);
+    }
 
     if let Some((lo, hi)) = stair(seed, lx, lz) {
         push_switchback_stair(
@@ -411,6 +432,95 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         );
         !ours || !prop || !decks.iter().any(|d| d.overlaps(&b.aabb))
     });
+
+    push_preview_chunk(seed, lx, lz, out);
+}
+
+/// The previewed chunk's vegetation hints (`chunks::GrowthKind`) reaching into this lot.
+pub fn growth_hints(seed: u64, lx: i32, lz: i32) -> Vec<(Aabb, chunks::GrowthKind)> {
+    let Some(((ox, oz), (w, d))) = chunks::preview_footprint() else {
+        return Vec::new();
+    };
+    if lx < ox || lz < oz || lx >= ox + w || lz >= oz + d {
+        return Vec::new();
+    }
+    let cat = chunks::catalog();
+    let Some(chunk) = chunks::preview().and_then(|p| cat.chunks.get(&p.name)) else {
+        return Vec::new();
+    };
+    let origin = lot_origin(ox, oz) + Vec3::Y * floors::y(START);
+    chunks::build(
+        chunk,
+        &cat,
+        origin,
+        0,
+        hash_coords(seed, ox, SALT_CHUNK, oz),
+    )
+    .growth
+}
+
+/// This lot's part of the previewed chunk (`chunks::preview`): the boxes whose center falls in the
+/// lot, and collision for those reaching in from the lots that own them.
+fn push_preview_chunk(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
+    let Some(((ox, oz), (w, d))) = chunks::preview_footprint() else {
+        return;
+    };
+    if lx < ox || lz < oz || lx >= ox + w || lz >= oz + d {
+        return;
+    }
+    let cat = chunks::catalog();
+    let Some(chunk) = chunks::preview().and_then(|p| cat.chunks.get(&p.name)) else {
+        return;
+    };
+    let y = floors::y(START);
+    // Paved over: the lot's deck takes the chunk's ground material.
+    if let Some(mat) = chunk.ground {
+        for b in out.iter_mut() {
+            if b.kind == BlockKind::Deck && (b.aabb.max.y - y).abs() < 0.01 {
+                b.kind = BlockKind::Built(mat);
+                b.color = mat.color();
+            }
+        }
+    }
+    let built = chunks::build(
+        chunk,
+        &cat,
+        lot_origin(ox, oz) + Vec3::Y * y,
+        0,
+        hash_coords(seed, ox, SALT_CHUNK, oz),
+    );
+    let mut blocks: Vec<Block> = built
+        .boxes
+        .iter()
+        .map(|&(aabb, mat)| Block {
+            kind: BlockKind::Built(mat),
+            aabb,
+            color: mat.color(),
+        })
+        .collect();
+    for &(at, along_x) in &built.stairs {
+        push_switchback_stair(at, along_x, at.y, at.y + floors::SPACING, &mut blocks);
+    }
+    let o = lot_origin(lx, lz);
+    let lot = Aabb {
+        min: vec3(o.x, f32::MIN, o.z),
+        max: vec3(o.x + LOT, f32::MAX, o.z + LOT),
+    };
+    for b in blocks {
+        if !b.aabb.overlaps(&lot) {
+            continue;
+        }
+        let c = (b.aabb.min + b.aabb.max) * 0.5;
+        let owned = (c.x / LOT).floor() as i32 == lx && (c.z / LOT).floor() as i32 == lz;
+        out.push(if owned {
+            b
+        } else {
+            Block {
+                kind: BlockKind::Collider,
+                ..b
+            }
+        });
+    }
 }
 
 /// Bridges from this lot's tower toward its +x and +z neighbors (each pair is handled once, by the

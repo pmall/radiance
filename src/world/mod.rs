@@ -1,6 +1,7 @@
 //! World geometry and generation: the city skeleton plus a spatial index for collision.
 
 pub mod biome;
+pub mod chunks;
 pub mod city;
 pub mod construction;
 pub mod design;
@@ -78,6 +79,11 @@ pub enum BlockKind {
     Steel,
     /// The collision box of a prop (`props.rs`); not drawn, the prop's own mesh is.
     Prop,
+    /// A box of a hand-written chunk (`chunks.rs`), in its material.
+    Built(chunks::Mat),
+    /// Collision only: the part of a big chunk box that reaches into this lot from the lot that
+    /// owns and draws it.
+    Collider,
 }
 
 /// A solid, drawable box.

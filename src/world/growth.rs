@@ -606,6 +606,24 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
     // Under a crater the sun gets in: plants grow as lushly as in the canopy, and flowers, which
     // follow the sun like real ones, a little more than on their floor.
     let crater = super::city::crater_at(seed, lx, lz);
+    // Hints of a hand-written chunk: denser on soil, nothing on the paths kept clear (a path wins
+    // over soil where both apply).
+    use super::chunks::GrowthKind;
+    let hints = super::city::growth_hints(seed, lx, lz);
+    let hint_at = |p: Vec3| -> Option<GrowthKind> {
+        let mut found = hints
+            .iter()
+            .filter(|(a, _)| a.contains_xz(p) && p.y >= a.min.y - 1.0 && p.y <= a.min.y + 6.0)
+            .map(|(_, k)| *k);
+        let first = found.next()?;
+        Some(
+            if first == GrowthKind::Bare || found.any(|k| k == GrowthKind::Bare) {
+                GrowthKind::Bare
+            } else {
+                first
+            },
+        )
+    };
     let mut b = Builder {
         rng: &mut rng,
         out: Vec::new(),
@@ -640,6 +658,10 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         let size = a.size();
         // Stairs are part of the city like the rest: their steps and landings grow plants too,
         // squeezed between the rails and the flights.
+        // A big chunk box reaching in from a neighbor is grown by the lot that owns it.
+        if blk.kind == BlockKind::Collider {
+            continue;
+        }
         let stair = blk.kind == BlockKind::Stair;
         if !stair && size.x.max(size.z) < MIN_HOST {
             continue;
@@ -662,10 +684,17 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
                 | BlockKind::Tower
                 | BlockKind::Bridge
                 | BlockKind::Stair
-        );
+        ) || matches!(blk.kind, BlockKind::Built(m) if m.plantable());
         let area = size.x * size.z;
+        let top = vec3(
+            (a.min.x + a.max.x) * 0.5,
+            a.max.y,
+            (a.min.z + a.max.z) * 0.5,
+        );
+        let soil = hint_at(top) == Some(GrowthKind::Soil)
+            || blk.kind == BlockKind::Built(super::chunks::Mat::Soil);
         let mut n = if plantable {
-            area * 0.04 * dens * b.biome.bush_rate
+            area * 0.04 * dens * b.biome.bush_rate * if soil { 6.0 } else { 1.0 }
         } else {
             0.0
         };
@@ -684,7 +713,9 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
                         (a.max.z - inset).max(a.min.z + inset + 0.01),
                     ),
                 );
-                b.bush(p);
+                if hint_at(p) != Some(GrowthKind::Bare) {
+                    b.bush(p);
+                }
             }
             n -= 1.0;
         }

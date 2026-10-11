@@ -1,7 +1,8 @@
 # City chunks: design
 
-Status: **proposal**, on the `chunks` branch. Nothing here is built yet. Once agreed, it replaces
-the lot-by-lot generation described in `docs/world.md` step by step (see "Phases").
+Status: on the `chunks` branch. Phase 2 is done (format, catalog, preview, one test chunk:
+`assets/chunks/great_square.ron`); the planner is next. As phases land, this replaces the lot-by-lot
+generation described in `docs/world.md` (see "Phases").
 
 ## Why
 
@@ -66,56 +67,49 @@ pixel art but unlit, and the glowing flowers are the only light. Concretely:
 
 ## Chunk files
 
-One text file per chunk (RON format: readable, with comments, loaded with the `ron` crate).
-Coordinates are in meters, local to the chunk: origin at its corner, `y = 0` on the walking
-surface of its floor, `x` and `z` along the lot grid. A sketch:
+One text file per chunk in `assets/chunks/` (RON format: readable, with comments, loaded with the
+`ron` crate); modules come as lists in `assets/modules/`. Coordinates are in meters, local to the
+chunk: origin at its corner, `y = 0` on the walking surface of its floor, `x` and `z` along the lot
+grid. The city is made of axis-aligned boxes, so every turn is a quarter turn. The real example is
+`assets/chunks/great_square.ron` (10x10 lots); its header:
 
 ```ron
-// The great square: a dry fountain in the middle, tree beds and benches in rings around it,
-// colonnaded towers on its four sides, avenues entering at the middle of each side.
 Chunk(
     name: "great_square",
     size: (10, 10),                  // lots: 240 m across
     zones: [Depths, Middle],         // where in the stack it may appear
-    labels: [Plaza],
+    labels: ["plaza"],
     weight: 2,                       // how often, among chunks that fit
-    spacing: 30,                     // lots to the nearest other Plaza, at least
-    edges: Street,                   // its outer border is the standard street
-    inner_roads: false,              // the roads between its lots are paved over
-    parts: [
-        Box(at: (110, 0, 110), size: (20, 0.6, 20), mat: Stone),        // the basin
-        Ring(center: (120, 120), radius: 30, count: 12, parts: [      // benches facing the fountain
-            Module("bench_long", at: (0, 0, 0), turn: 0),
-            Slot(at: (3, 0, 0), pick: ["planter", "bin", None]),
-        ]),
-        Mirror4(center: (120, 120), parts: [                         // same on the 4 sides
-            Module("tree_bed", at: (120, 0, 70)),
-            Repeat(from: (60, 0, 28), step: (8, 0, 0), count: 16, parts: [
-                Module("column", at: (0, 0, 0), params: (height: 9)), // the colonnade
-            ]),
-            Module("tower_colonnade", at: (48, 0, 0), params: (width: 144, depth: 22)),
-            Sub(area: ((0, 0), (48, 48)), labels: [Habitation]),     // corner blocks, filled by the planner
-        ]),
-        Growth(area: ((112, 112), (128, 128)), kind: Soil),           // dense plants in the basin
-        Growth(area: ((116, 0), (124, 240)), kind: Bare),             // keep the avenues clear
-    ],
+    spacing: 30,                     // lots to the nearest other plaza, at least
+    ground: Some(Stone),             // paved over, inner roads included (None keeps the streets)
+    parts: [ ... ],
 )
 ```
 
-The vocabulary, kept small and grown only when a chunk needs it:
+The vocabulary (`src/world/chunks.rs`), grown only when a chunk needs it:
 
-- `Box(at, size, mat)`: a solid box (collides, carries plants).
-- `Module(name, at, turn, params)`: a module from the catalog.
-- `Slot(at, pick)`: one of several modules, or nothing, picked by the seed.
-- `Mirror2` / `Mirror4` / `Repeat` / `Ring`: symmetry and rhythm, the tools that make a place look
-  organized.
-- `Stair(at, to_floor)`: the stairwell (switchback flights and landings, as today) at that spot.
-- `Growth(area, kind)`: hints for the random vegetation: `Soil` (denser), `Bare` (none), `Wall`
-  (climbers welcome). Flowers keep their own rules (below).
-- `Variant(...)`: alternatives the seed chooses between (a damaged version, a collapsed corner).
+- `Box(at, size, mat)`: a solid box, `at` its lowest corner (collides, carries plants). Materials:
+  `Stone`, `StoneDark`, `Concrete`, `Brick`, `Tile`, `Metal`, `Rust`, `Wood`, `Glass`, `Soil`,
+  `Paint((r, g, b))`.
+- `Module(name, at, turn)`: a module from the catalog, turned by `turn` quarter turns.
+- `Slot(at, turn, pick)`: one of several modules, or nothing (`None`), picked by the seed.
+- `Mirror2(axis, at, parts)`: the parts and their mirror image; two of them nested give the four-way
+  symmetry of a square. `Mirror4(center, parts)`: the parts turned four times around a center (a
+  pinwheel). `Repeat(from, step, count, parts)`: rhythm (columns, windows, rows of beds).
+- `Stair(at, along_x)`: a switchback stairwell (as today) up to the next floor.
+- `Growth(area, kind)`: hints for the random vegetation: `Soil` (six times denser; soil boxes too),
+  `Bare` (nothing grows: paths, avenues), `Wall` (climbers welcome, not used yet). Flowers keep their
+  own rules (below).
+- Not built yet: `Sub(area, labels)` (openings for the planner), `Variant(...)` (alternatives the
+  seed chooses between), module parameters (a 2 m or 4 m bench from one module).
 
-The engine mirrors and rotates chunks by quarter turns when placing them, so each file gives up to
-eight looks.
+The engine turns chunks by quarter turns when placing them (and later mirrors them), so each file
+gives several looks.
+
+**Lesson from the first chunk:** a 240 m square needs far more content than one written corner of
+beds and benches: at this size, emptiness shows. Big chunks must be dense (terraces, stalls,
+canopies, level changes, sub-areas), which is what the sub-areas and a larger module library are
+for.
 
 ## Modules
 
@@ -193,11 +187,13 @@ Roofs and the construction front follow the same idea with their own modules.
 
 ## Tools
 
-- `--chunk NAME [--variant N] --shot out.png`: renders one chunk alone on a neutral stage, day
-  or night, to review it before it enters the catalog.
-- `--catalog`: lists chunks and modules with their labels, zones and weights.
+- `--chunk NAME` (with `--view`, `--time`, `--shot` as usual): shows one chunk alone on a bare
+  deck in front of the spawn, which stands at the middle of its near edge looking in. Plants and
+  flowers grow on it at random as they will in the city. *(Built.)*
+- `--catalog`: lists chunks and modules with their labels, zones and weights, and the files that
+  failed to load. *(Built.)*
 - `--report` gains chunks per label and floor, stair hubs per island, the share of holes.
-- Chunk and module files hot-reload like the shaders: edit, see the city regenerate.
+- Chunk and module files hot-reload like the shaders: edit, see the city regenerate. *(Built.)*
 
 ## What changes, what stays
 
@@ -212,8 +208,9 @@ Roofs and the construction front follow the same idea with their own modules.
 Each phase ends with shots the owner can judge.
 
 1. **Design** (this document).
-2. **Format and preview:** chunk and module loading, the vocabulary above, `--chunk` preview,
-   hot reload. One test chunk.
+2. **Format and preview** *(done)*: chunk and module loading, the vocabulary above, `--chunk`
+   preview, hot reload, vegetation hints. Test chunk: the great square. Big chunk boxes belong to
+   the lot holding their center and reach the neighbors as collision only.
 3. **Style test:** pixel textures and the 0.25 m grain on that chunk, next to the current look.
    The owner picks; outlines and cel bands are decided here.
 4. **Planner:** rare chunks with spacing, stair hubs per island, holes as chunks, the current
