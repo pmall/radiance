@@ -41,7 +41,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - `src/main.rs`: window, main loop, fixed 120 Hz simulation step, input routing.
 - `src/player.rs`: first-person controller (walk/run/jump, step-up, ledge grab, free-fly).
-- `src/world/`: world data, collision index and generation (`floors.rs`: the stack of floors, fixed per run but variable (`--floors N`) and its zones; `design.rs`: the floor profiles, every generation number that depends on the floor (decks, plants, flower chances, stairs, props, cars) and the props/POI switches; `biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton (decks laid by sections, craters, stairs, towers), each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks; `props.rs`: the props, box-built modules plus the street light built in code; `dressing.rs`: street lights, props and points of interest placed by the street layout and the seed; `chunks.rs`: hand-written map chunks and modules from `assets/chunks/` and `assets/modules/` (`docs/chunks.md`); `planner.rs`: which chunk stands where (areas, stair hubs)).
+- `src/world/`: world data, collision index and generation (`floors.rs`: the stack of floors, fixed per run but variable (`--floors N`) and its zones; `design.rs`: the floor profiles, every generation number that depends on the floor (decks, plants, flower chances, stairs, props, cars) and the props/POI switches; `biome.rs`: map zones and per-biome generation parameters; `city.rs`: lot-based city skeleton (decks laid by sections, craters, stairs, towers), each lot a pure function of seed + lot coords; `growth.rs`: plants grown over a lot's blocks; `props.rs`: the props, box-built modules plus the street light built in code; `dressing.rs`: street lights, props and points of interest placed by the street layout and the seed; `chunks.rs`: hand-written map chunks and modules from `assets/chunks/` and `assets/modules/` (`docs/chunks.md`); `planner.rs`: which chunk stands where (areas and their sub-areas, blocks with holes, stair hubs, fillers); `facade.rs`: what hangs on tower walls (fire escapes, signs, the facade units near the decks)).
 - `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
   post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `particles.rs` drifting motes and spores; `props.rs` draws the props instanced; `pixels.rs` draws the chunk materials' pixel-art tiles; `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors). `look.rs` holds the per-time-of-day palettes.
 - `assets/textures/`: CC0 photo textures and the packed `detail.png` (see its README); `tools/pack_textures.py` rebuilds it.
@@ -67,6 +67,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   flowers by source, props by kind), then exit. Use it to tune generation. `--floors N` sets the
   number of floors; `--no-props` / `--no-pois` (O / I in game) switch props and points of interest.
 - `cargo check` / `cargo clippy`: verify.
+- **At the end of every coding session, format the code and the markdown** (owner's rule):
+  `cargo fmt`, then `dprint fmt` (markdown, configured in `dprint.json`; install once with
+  `cargo install --locked dprint`).
 - Rust lives in `~/.cargo/bin`; it may need adding to `PATH` in non-login shells.
 - If bindgen fails with `'stdarg.h' file not found`, the clang builtin headers are missing
   (`libclang-common-<ver>-dev`); workaround: `BINDGEN_EXTRA_CLANG_ARGS="-I/usr/lib/gcc/x86_64-linux-gnu/<ver>/include"`.

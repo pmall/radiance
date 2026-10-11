@@ -40,11 +40,11 @@ gradient", chosen by the owner; see `docs/guidance-ideas.md` and `docs/audio.md`
 
 ## References
 
-| Work | What to take from it |
-| --- | --- |
-| *Firewatch* | Colored fog, painted depth layers, limited palettes |
-| *Sable* | Flat, illustrative shading of 3D scenes |
-| *Gris* | Softness, melancholy, color as emotion |
-| *Stray* | Dense, abandoned cyberpunk urban atmosphere |
-| *No Man's Sky* | Procedural scale, sense of being small |
-| *Mirror's Edge* | Clean first-person movement through architecture |
+| Work            | What to take from it                                |
+| --------------- | --------------------------------------------------- |
+| *Firewatch*     | Colored fog, painted depth layers, limited palettes |
+| *Sable*         | Flat, illustrative shading of 3D scenes             |
+| *Gris*          | Softness, melancholy, color as emotion              |
+| *Stray*         | Dense, abandoned cyberpunk urban atmosphere         |
+| *No Man's Sky*  | Procedural scale, sense of being small              |
+| *Mirror's Edge* | Clean first-person movement through architecture    |

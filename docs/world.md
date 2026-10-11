@@ -27,18 +27,20 @@ and lot coordinates):
    machines after the humans).
 2. **The floor profiles** (`src/world/design.rs`): for each floor, the chance of a deck per lot,
    the plant density, the flower chances per source (bush, vine, climber branch, point of interest
-   per lot), the chance of a stair up, and the prop and car densities. Written
+   per lot), the chance of a stair up, the prop and car densities, and the chances of a block
+   chunk per block cell and of a filler per free lot (`docs/chunks.md`). Written
    per zone as values at its lowest and highest floor, interpolated in between, so they hold for
    any number of floors. **Every generation number that depends on the floor lives there.**
 3. **Structure** (`city.rs`): ground, decks (`deck_keep`), craters, stairs (`stair`), towers,
-   bridges.
+   bridges, then the hand-written chunks the planner places (`planner.rs`: areas and their
+   sub-areas, blocks with their holes, stair hubs, fillers; see `docs/chunks.md`).
 4. **Dressing** (`dressing.rs`): street lights at the crossroads, then props placed by the street
    layout (below), at the floor's `props` and `cars` densities; points of interest drawn apart at the floor's `poi` rate.
 5. **Growth** (`growth.rs`): plants at the floor's density, flowers at the floor's chances; plants
    grow around the props.
 
 `--report [radius]` prints the profiles next to what a seed actually produced on each floor
-(decks, stairs, flowers by source, props by kind): tuning is measured, not guessed. **O** and **I**
+(decks, chunks and holes, stairs, flowers by source, props by kind, chunks placed by name): tuning is measured, not guessed. **O** and **I**
 in game (or `--no-props`, `--no-pois`) switch props and points of interest off and regenerate the
 city. Values are tuned with the report, then checked in game.
 

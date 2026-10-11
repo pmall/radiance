@@ -1,6 +1,6 @@
 // The great square: 240 m of paving around a dry fountain, four avenues entering at the middle of
-// its sides, an L-shaped arcaded building closing each corner, tree beds with benches, lamps along
-// the avenues. Written as one corner, mirrored across both axes of the square (Mirror2 twice), so
+// its sides, an L-shaped arcaded building closing each corner, rows of tree beds with benches,
+// lamps along the avenues, and in each quarter a place the planner picks (`plaza_quarter`). Written as one corner, mirrored across both axes of the square (Mirror2 twice), so
 // it is symmetric by construction.
 Chunk(
     name: "great_square",
@@ -25,14 +25,20 @@ Chunk(
                 Repeat(from: (0.0, 0.0, 32.0), step: (0.0, 0.0, 12.0), count: 6, parts: [
                     Module(name: "arcade_bay", turn: 1),
                 ]),
-                // Tree beds in a grid, a bench facing each, sometimes a planter or a bin beside it.
-                Repeat(from: (40.0, 0.0, 40.0), step: (20.0, 0.0, 0.0), count: 3, parts: [
-                    Repeat(step: (0.0, 0.0, 20.0), count: 3, parts: [
-                        Module(name: "tree_bed"),
-                        Module(name: "bench", at: (0.0, 0.0, 3.6), turn: 2),
-                        Slot(at: (2.0, 0.0, 3.6), pick: [Some("bin"), Some("planter"), None, None]),
-                    ]),
+                // A row of tree beds along each wing, a bench facing each, sometimes a planter
+                // or a bin beside it.
+                Repeat(from: (40.0, 0.0, 32.0), step: (16.0, 0.0, 0.0), count: 4, parts: [
+                    Module(name: "tree_bed"),
+                    Module(name: "bench", at: (0.0, 0.0, 3.6), turn: 2),
+                    Slot(at: (2.0, 0.0, 3.6), pick: [Some("bin"), Some("planter"), None, None]),
                 ]),
+                Repeat(from: (32.0, 0.0, 48.0), step: (0.0, 0.0, 16.0), count: 3, parts: [
+                    Module(name: "tree_bed"),
+                    Module(name: "bench", at: (3.6, 0.0, 0.0), turn: 3),
+                ]),
+                // The quarter between the wings and the avenues, left to the planner: a garden, a
+                // café terrace, a bandstand or market stalls, each quarter its own.
+                Sub(area: ((48.0, 48.0), (96.0, 96.0)), labels: ["plaza_quarter"]),
                 // Lamps along both avenues, arms over them, and a kiosk at each avenue's mouth.
                 Repeat(from: (97.0, 0.0, 26.0), step: (0.0, 0.0, 12.0), count: 6, parts: [
                     Module(name: "lamp", turn: 1),

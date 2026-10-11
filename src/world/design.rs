@@ -43,6 +43,12 @@ pub struct FloorProfile {
     pub props: f32,
     /// Cars tried per lot (parked along the curbs).
     pub cars: f32,
+    /// Chance that a block cell (`planner::BLOCK_CELL` lots a side) holds a block chunk on this
+    /// floor (a light well, a pocket park).
+    pub blocks: f32,
+    /// Chance that a free lot (no tower through the floor, no other chunk) holds a filler chunk:
+    /// low housing, a yard, a depot. The city's density.
+    pub fillers: f32,
 }
 
 /// Most flowers per lot and floor (their lights are what the renderer can afford).
@@ -74,6 +80,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.35,
                 props: 1.0,
                 cars: 1.0,
+                blocks: 0.35,
+                fillers: 0.5,
             },
             FloorProfile {
                 deck_keep: 0.95,
@@ -87,6 +95,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.3,
                 props: 0.9,
                 cars: 0.9,
+                blocks: 0.35,
+                fillers: 0.5,
             },
         ),
         Zone::Middle => (
@@ -102,6 +112,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.25,
                 props: 0.7,
                 cars: 0.6,
+                blocks: 0.35,
+                fillers: 0.4,
             },
             FloorProfile {
                 deck_keep: 0.8,
@@ -115,6 +127,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.18,
                 props: 0.4,
                 cars: 0.2,
+                blocks: 0.3,
+                fillers: 0.3,
             },
         ),
         Zone::Canopy => (
@@ -130,6 +144,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.12,
                 props: 0.12,
                 cars: 0.0,
+                blocks: 0.25,
+                fillers: 0.15,
             },
             FloorProfile {
                 deck_keep: 0.45,
@@ -143,6 +159,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.08,
                 props: 0.05,
                 cars: 0.0,
+                blocks: 0.2,
+                fillers: 0.08,
             },
         ),
     }
@@ -166,6 +184,8 @@ fn blend(a: &FloorProfile, b: &FloorProfile, t: f32) -> FloorProfile {
         stair: f(a.stair, b.stair),
         props: f(a.props, b.props),
         cars: f(a.cars, b.cars),
+        blocks: f(a.blocks, b.blocks),
+        fillers: f(a.fillers, b.fillers),
     }
 }
 

@@ -60,10 +60,10 @@
       (`assets/modules/props.ron`), plus a street light built in code, one per crossroads.
       Placed by the street layout (curb, corner, facade, parking, vacant lot), a third of the
       first density. No cars yet.
-   2c. Consistency pass *(done)*: decks laid by sections built up to a floor (holes line up as
+      2c. Consistency pass *(done)*: decks laid by sections built up to a floor (holes line up as
       light wells, rare low down), street lights on a regular layout, stairs grow plants like any
       surface (no special landing flowers).
-   2b. Organizational pass *(done)*: one design module with floor profiles (`world/design.rs`),
+      2b. Organizational pass *(done)*: one design module with floor profiles (`world/design.rs`),
       variable floor count, scenes declared by slot, kind and zone weights, points of interest
       drawn apart at a controlled rate, O/I switches, `--report` to measure each floor.
       8.3 ms/frame at 9 floors, 11.5 ms at 14.

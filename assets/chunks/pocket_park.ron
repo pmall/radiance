@@ -1,0 +1,22 @@
+// Block: a pocket park on two lots, paved in tile over the inner road: a pergola at the heart,
+// tree beds at the corners, benches along the paths, a lamp at each entrance.
+Chunk(
+    name: "pocket_park",
+    size: (2, 2),
+    zones: [Depths, Middle],
+    labels: ["park"],
+    weight: 3,
+    ground: Some(Tile),
+    parts: [
+        Module(name: "pergola", at: (24.0, 0.0, 24.0)),
+        Growth(area: ((18.0, 18.0), (30.0, 30.0)), kind: Soil),
+        Mirror4(center: (24.0, 24.0), parts: [
+            Module(name: "tree_bed", at: (12.0, 0.0, 12.0)),
+            Module(name: "tree_bed", at: (18.0, 0.0, 9.0)),
+            Module(name: "bench", at: (12.0, 0.0, 16.5), turn: 2),
+            Slot(at: (14.5, 0.0, 16.5), pick: [Some("bin"), Some("planter"), None]),
+            Module(name: "lamp", at: (24.0, 0.0, 5.0), turn: 2),
+            Slot(at: (30.0, 0.0, 12.0), turn: 3, pick: [Some("bench"), None]),
+        ]),
+    ],
+)

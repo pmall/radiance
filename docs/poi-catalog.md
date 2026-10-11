@@ -10,11 +10,11 @@ decoration lists) are the useful part: they are props the seed could place, with
 
 ## Floor conventions
 
-| Floor | Name | Character |
-| --- | --- | --- |
-| D0 | The Foundations | The very bottom: the original ground and the oldest city. Darkest floor, almost no flowers. Streets, metro, the first foundations. |
-| D1 | The Lower Streets | Old residential and commercial streets. Very few flowers, long stretches of darkness. |
-| D2 | The Service Level | Starting floor. Lobbies, offices, shops, service corridors. Sparse flowers. Wick wakes up here. |
+| Floor | Name              | Character                                                                                                                          |
+| ----- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| D0    | The Foundations   | The very bottom: the original ground and the oldest city. Darkest floor, almost no flowers. Streets, metro, the first foundations. |
+| D1    | The Lower Streets | Old residential and commercial streets. Very few flowers, long stretches of darkness.                                              |
+| D2    | The Service Level | Starting floor. Lobbies, offices, shops, service corridors. Sparse flowers. Wick wakes up here.                                    |
 
 Floors above D2 come later in the catalog. Wick's wake-up spot is not a point of interest: Wick simply comes online somewhere quiet on D2, within reach of the first anchors.
 
@@ -711,5 +711,3 @@ Points of interest are sparse by design. Between them, the city must still feel 
 - Upper floors (D3 and above): POIs supporting the climb, credentials for locked passages (badges, access chips, ID cards), and broken sections of the light network.
 - Flower melody targets: flag which anchors and POIs the flowers' melodic guidance leads to.
 - Decoration for upper floors: props for the middle floors and the canopy, increasingly machine-built.
-
-

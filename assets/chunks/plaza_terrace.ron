@@ -1,0 +1,33 @@
+// Plaza quarter: café terraces around a pavilion, tables and chairs in rows under parasols of
+// faded colors, a counter, planters at the edges. Left as they were the last evening.
+Chunk(
+    name: "plaza_terrace",
+    size: (2, 2),
+    role: Sub,
+    labels: ["plaza_quarter"],
+    weight: 3,
+    parts: [
+        // The pavilion: a glazed box with a deep roof and a counter.
+        Box(at: (18.0, 0.0, 18.0), size: (12.0, 0.3, 12.0), mat: StoneDark),
+        Box(at: (19.0, 0.3, 19.0), size: (10.0, 3.2, 10.0), mat: Glass),
+        Mirror4(center: (24.0, 24.0), parts: [
+            Box(at: (19.0, 0.3, 19.0), size: (0.4, 3.2, 0.4), mat: Paint((60, 66, 62))),
+        ]),
+        Box(at: (16.5, 3.5, 16.5), size: (15.0, 0.5, 15.0), mat: Paint((60, 66, 62))),
+        Box(at: (16.4, 3.4, 16.4), size: (15.2, 0.3, 0.3), mat: Accent),
+        Box(at: (21.0, 0.3, 29.0), size: (6.0, 1.1, 0.8), mat: Wood),
+        Mirror2(axis: X, at: 24.0, parts: [
+            Mirror2(axis: Z, at: 24.0, parts: [
+                Repeat(from: (6.0, 0.0, 6.0), step: (4.5, 0.0, 0.0), count: 3, parts: [
+                    Repeat(step: (0.0, 0.0, 4.5), count: 2, parts: [
+                        Slot(at: (0.0, 0.0, 0.0), pick: [Some("cafe_set"), Some("cafe_set"), Some("terrace_table"), None]),
+                        Slot(at: (0.0, 0.0, 0.0), pick: [Some("parasol"), None],
+                            accents: [(176, 72, 56), (60, 120, 112), (196, 150, 70), (200, 196, 180)]),
+                    ]),
+                ]),
+                Module(name: "planter", at: (3.0, 0.0, 16.0)),
+                Module(name: "planter", at: (16.0, 0.0, 3.0)),
+            ]),
+        ]),
+    ],
+)

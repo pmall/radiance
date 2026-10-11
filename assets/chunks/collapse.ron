@@ -1,0 +1,23 @@
+// Block: a collapse, where a slab gave way and nobody rebuilt: the hole's rim is broken, the
+// railings bent or gone, rubble along the edge, fence panels and warning signs put up in a hurry.
+Chunk(
+    name: "collapse",
+    size: (3, 3),
+    zones: [Middle, Canopy],
+    labels: ["collapse"],
+    weight: 2,
+    holes: [((1, 1), (2, 2))],
+    parts: [
+        Mirror4(center: (36.0, 36.0), parts: [
+            Slot(at: (24.0, 0.0, 24.0), pick: [Some("railing"), Some("railing_broken"), None]),
+            Slot(at: (28.0, 0.0, 24.0), pick: [Some("railing_broken"), None]),
+            Slot(at: (32.0, 0.0, 24.0), pick: [Some("railing"), Some("railing_broken"), None]),
+            Repeat(from: (36.5, 0.0, 23.8), step: (3.0, 0.0, 0.0), count: 3, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("fence_panel"), Some("fence_panel"), None]),
+            ]),
+            Slot(at: (29.0, 0.0, 22.0), pick: [Some("rubble"), Some("rubble"), None]),
+            Slot(at: (41.0, 0.0, 21.5), turn: 1, pick: [Some("rubble"), None]),
+            Slot(at: (34.0, 0.0, 21.0), pick: [Some("sign_danger"), None, None]),
+        ]),
+    ],
+)

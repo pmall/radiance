@@ -10,8 +10,12 @@ use crate::rng::{Rng, hash_coords};
 
 /// Side of a material tile in pixels (4 m).
 pub const TILE: usize = 64;
-/// Materials, in `Mat::index` order.
-pub const COUNT: usize = 11;
+/// Chunk materials, in `Mat::index` order.
+pub const MATERIALS: usize = 11;
+/// Tower facade units (`facade_tiles`), after the materials: 4 m bays one story (4 m) high.
+pub const FACADES: usize = 10;
+/// Tiles in the atlas.
+pub const COUNT: usize = MATERIALS + FACADES;
 /// Material slot (sampler `texture10`) of the atlas.
 pub const SLOT: usize = 10;
 
@@ -51,12 +55,31 @@ fn ramp(pal: &[Rgb], t: f32, x: usize, y: usize) -> Rgb {
 
 struct Tile {
     px: Vec<Rgb>,
+    /// Wall pixels, which the shader tints in the building's colors (alpha 255; others 0).
+    wall: Vec<bool>,
 }
 
 impl Tile {
     fn new() -> Tile {
         Tile {
             px: vec![[0, 0, 0]; TILE * TILE],
+            wall: vec![false; TILE * TILE],
+        }
+    }
+
+    /// Paints the rectangle `x0..x1` x `y0..y1` (not wall).
+    fn rect(
+        &mut self,
+        (x0, y0): (i32, i32),
+        (x1, y1): (i32, i32),
+        f: impl Fn(usize, usize) -> Rgb,
+    ) {
+        for y in y0.max(0)..y1.min(TILE as i32) {
+            for x in x0.max(0)..x1.min(TILE as i32) {
+                let i = y as usize * TILE + x as usize;
+                self.px[i] = f(x as usize, y as usize);
+                self.wall[i] = false;
+            }
         }
     }
 
@@ -69,12 +92,18 @@ impl Tile {
     }
 
     fn set(&mut self, x: i32, y: i32, c: Rgb) {
-        let (x, y) = (x.rem_euclid(TILE as i32) as usize, y.rem_euclid(TILE as i32) as usize);
+        let (x, y) = (
+            x.rem_euclid(TILE as i32) as usize,
+            y.rem_euclid(TILE as i32) as usize,
+        );
         self.px[y * TILE + x] = c;
     }
 
     fn get(&self, x: i32, y: i32) -> Rgb {
-        let (x, y) = (x.rem_euclid(TILE as i32) as usize, y.rem_euclid(TILE as i32) as usize);
+        let (x, y) = (
+            x.rem_euclid(TILE as i32) as usize,
+            y.rem_euclid(TILE as i32) as usize,
+        );
         self.px[y * TILE + x]
     }
 
@@ -205,7 +234,8 @@ fn slabs(pal: &[Rgb], slab: usize, salt: i32) -> Tile {
 fn concrete() -> Tile {
     let mut t = Tile::new();
     t.fill(|x, y| {
-        let mut v = 0.5 + 0.35 * (noise(x, y, 16, 16, 20) - 0.5) + 0.25 * (noise(x, y, 4, 4, 21) - 0.5);
+        let mut v =
+            0.5 + 0.35 * (noise(x, y, 16, 16, 20) - 0.5) + 0.25 * (noise(x, y, 4, 4, 21) - 0.5);
         // Rain streaks running down from some columns.
         let streak = hash(x as i32, 0, 22);
         if streak > 0.8 {
@@ -275,7 +305,8 @@ fn tiles() -> Tile {
 fn metal(rust: f32) -> Tile {
     let mut t = Tile::new();
     t.fill(|x, y| {
-        let mut v = 0.5 + 0.3 * (noise(x, y, 16, 1, 50) - 0.5) + 0.15 * (noise(x, y, 2, 2, 51) - 0.5);
+        let mut v =
+            0.5 + 0.3 * (noise(x, y, 16, 1, 50) - 0.5) + 0.15 * (noise(x, y, 2, 2, 51) - 0.5);
         // Panels with seams, lit under each seam, rivets along them.
         if y % 16 == 0 || x % 32 == 0 {
             v = 0.05;
@@ -286,7 +317,9 @@ fn metal(rust: f32) -> Tile {
             v = 1.0;
         }
         let m = ramp(&METAL, v, x, y);
-        let r = noise(x, y, 8, 8, 52) * 0.6 + noise(x, y, 2, 2, 53) * 0.4 + (y as f32 / TILE as f32) * 0.2;
+        let r = noise(x, y, 8, 8, 52) * 0.6
+            + noise(x, y, 2, 2, 53) * 0.4
+            + (y as f32 / TILE as f32) * 0.2;
         if r + rust - 0.5 > 0.62 - BAYER[y % 4][x % 4] / 40.0 {
             ramp(&RUST, 0.3 + 0.6 * noise(x, y, 4, 4, 54), x, y)
         } else {
@@ -357,7 +390,8 @@ fn soil() -> Tile {
 fn paint() -> Tile {
     let mut t = Tile::new();
     t.fill(|x, y| {
-        let mut v = 0.75 + 0.2 * (noise(x, y, 16, 16, 90) - 0.5) + 0.1 * (noise(x, y, 2, 2, 91) - 0.5);
+        let mut v =
+            0.75 + 0.2 * (noise(x, y, 16, 16, 90) - 0.5) + 0.1 * (noise(x, y, 2, 2, 91) - 0.5);
         // Chipped paint showing the primer.
         if noise(x, y, 4, 4, 92) * 0.7 + noise(x, y, 2, 2, 93) * 0.3 > 0.72 {
             v = 0.15;
@@ -381,7 +415,262 @@ fn paint() -> Tile {
     t
 }
 
-/// All tiles side by side, RGBA, in `Mat::index` order.
+// Tower facades (`facade` in shaders/scene.fs): one tile is a bay 4 m wide and a story 4 m high,
+// row 0 at the top of the story. Wall pixels are a pale gray the shader tints per building and
+// color block; everything else (frames, glass, cages, shutters) keeps its own colors. Abandoned:
+// the windows are dark, the signs unlit.
+
+const WALL: [Rgb; 5] = [
+    [120, 120, 120],
+    [150, 150, 150],
+    [176, 176, 176],
+    [200, 200, 200],
+    [222, 222, 222],
+];
+const FRAME: [Rgb; 3] = [[92, 92, 88], [168, 166, 158], [206, 204, 196]];
+const DARK: [Rgb; 4] = [[8, 10, 14], [14, 18, 24], [22, 28, 36], [34, 42, 52]];
+
+/// A wall tile: stained, dithered pale gray (tinted by the shader), a slab ledge at the foot of
+/// the story with a drip line under it.
+fn facade_wall(salt: i32) -> Tile {
+    let mut t = Tile::new();
+    t.fill(|x, y| {
+        let mut v = 0.55
+            + 0.3 * (noise(x, y, 16, 16, salt) - 0.5)
+            + 0.2 * (noise(x, y, 4, 4, salt + 1) - 0.5);
+        // Grime gathering under the ledge above, rain streaks down some columns.
+        v -= 0.25 * (1.0 - y as f32 / 10.0).max(0.0);
+        if hash(x as i32, 0, salt + 2) > 0.82 {
+            v -= 0.22 * noise(x, y, 1, 16, salt + 3);
+        }
+        ramp(&WALL, v, x, y)
+    });
+    t.wall.iter_mut().for_each(|w| *w = true);
+    // The slab ledge: concrete, lit on top, dark under.
+    t.rect((0, 59), (64, 64), |x, y| {
+        let v = if y == 59 {
+            0.95
+        } else if y == 63 {
+            0.1
+        } else {
+            0.55 + 0.25 * (noise(x, y, 4, 1, salt + 4) - 0.5)
+        };
+        ramp(&CONCRETE, v, x, y)
+    });
+    t.cracks(2, 8, WALL[0], salt as u64);
+    t
+}
+
+/// Dark window glass with a faint diagonal sheen; `broken` knocks most panes out.
+fn glass_px(x: usize, y: usize, broken: bool, salt: i32) -> Rgb {
+    let d = (x + 64 - y % 64) % 24;
+    let mut v = 0.35 + 0.25 * (noise(x, y, 8, 8, salt) - 0.5) + if d < 2 { 0.4 } else { 0.0 };
+    if broken && noise(x, y, 4, 4, salt + 1) > 0.42 {
+        v = 0.0;
+    }
+    ramp(&DARK, v, x, y)
+}
+
+/// A window of glass in a frame, `x0..x1` x `y0..y1`, a mullion and a transom, a sill under it.
+fn window(t: &mut Tile, (x0, y0): (i32, i32), (x1, y1): (i32, i32), broken: bool, salt: i32) {
+    t.rect((x0 - 2, y0 - 2), (x1 + 2, y1 + 2), |x, y| {
+        ramp(&FRAME, 0.5 + 0.3 * (noise(x, y, 2, 2, salt) - 0.5), x, y)
+    });
+    t.rect((x0, y0), (x1, y1), |x, y| glass_px(x, y, broken, salt + 1));
+    let mid = (x0 + x1) / 2;
+    t.rect((mid - 1, y0), (mid + 1, y1), |_, _| FRAME[0]);
+    let tr = y0 + (y1 - y0) / 3;
+    t.rect((x0, tr), (x1, tr + 1), |_, _| FRAME[0]);
+    // The sill, lit on top.
+    t.rect((x0 - 3, y1 + 2), (x1 + 3, y1 + 4), |x, y| {
+        if y as i32 == y1 + 2 {
+            FRAME[2]
+        } else {
+            ramp(&CONCRETE, 0.3, x, y)
+        }
+    });
+    if broken {
+        // Shards left in the corners of the frame.
+        for i in 0..4 {
+            t.set(x0 + i, y0 + 3 - i, DARK[3]);
+            t.set(x1 - 1 - i, y1 - 4 + i, DARK[3]);
+        }
+    }
+}
+
+/// Vertical bars every `step` pixels over `x0..x1` x `y0..y1`, rails top and bottom.
+fn bars(t: &mut Tile, (x0, y0): (i32, i32), (x1, y1): (i32, i32), step: i32, salt: i32) {
+    let bar = |x: usize, y: usize| ramp(&RUST, 0.3 + 0.5 * noise(x, y, 2, 8, salt), x, y);
+    for x in (x0..x1).step_by(step as usize) {
+        t.rect((x, y0), (x + 1, y1), bar);
+    }
+    t.rect((x0, y0), (x1, y0 + 2), bar);
+    t.rect((x0, y1 - 2), (x1, y1), bar);
+}
+
+/// The facade units, in shader order: window, two narrow windows, caged window, enclosed balcony,
+/// window with an air conditioner, boarded window, broken window, blank wall with a vent and a
+/// pipe, shop shutter, shop window.
+fn facade_tiles() -> Vec<Tile> {
+    let mut out = Vec::new();
+    // 0: a window.
+    let mut t = facade_wall(100);
+    window(&mut t, (18, 12), (46, 46), false, 101);
+    out.push(t);
+    // 1: two narrow windows.
+    let mut t = facade_wall(110);
+    window(&mut t, (9, 14), (25, 46), false, 111);
+    window(&mut t, (39, 14), (55, 46), false, 112);
+    out.push(t);
+    // 2: a window behind a burglar cage, a pot on its ledge.
+    let mut t = facade_wall(120);
+    window(&mut t, (18, 12), (46, 46), false, 121);
+    bars(&mut t, (13, 8), (52, 52), 4, 122);
+    t.rect((40, 46), (45, 51), |x, y| ramp(&BRICK, 0.6, x, y));
+    t.rect((41, 43), (44, 46), |x, y| {
+        ramp(&SOIL, 0.8 + 0.2 * hash(x as i32, y as i32, 123), x, y)
+    });
+    out.push(t);
+    // 3: an enclosed balcony across the bay: a solid parapet below, a grille above, the dark room
+    // behind with laundry hanging in it.
+    let mut t = facade_wall(130);
+    t.rect((2, 6), (62, 59), |x, y| {
+        ramp(&DARK, 0.25 + 0.3 * noise(x, y, 8, 8, 131), x, y)
+    });
+    for (cx, w, c) in [
+        (12, 6, [168, 60, 48]),
+        (22, 5, [210, 204, 188]),
+        (44, 7, [70, 110, 150]),
+    ] {
+        t.rect((cx, 14), (cx + w, 26), move |_, _| c);
+    }
+    t.rect((2, 13), (62, 14), |_, _| FRAME[0]);
+    bars(&mut t, (2, 6), (62, 40), 3, 132);
+    // The parapet stays wall (tinted), with a lit coping.
+    for y in 40..59 {
+        for x in 2..62 {
+            let i = y * TILE + x;
+            t.px[i] = ramp(&WALL, 0.45 + 0.25 * (noise(x, y, 8, 4, 133) - 0.5), x, y);
+            t.wall[i] = true;
+        }
+    }
+    t.rect((1, 39), (63, 41), |_, _| FRAME[2]);
+    out.push(t);
+    // 4: a window with an air conditioner under it, a rust drip below.
+    let mut t = facade_wall(140);
+    window(&mut t, (18, 10), (46, 40), false, 141);
+    t.rect((22, 46), (42, 57), |x, y| {
+        let v = if y % 2 == 0 && x > 24 && x < 36 {
+            0.15
+        } else {
+            0.6 + 0.2 * (noise(x, y, 4, 4, 142) - 0.5)
+        };
+        ramp(&METAL, v, x, y)
+    });
+    t.rect((22, 46), (42, 47), |_, _| METAL[4]);
+    t.rect((38, 57), (39, 64), |x, y| ramp(&RUST, 0.4, x, y));
+    out.push(t);
+    // 5: a window boarded up with planks.
+    let mut t = facade_wall(150);
+    window(&mut t, (18, 12), (46, 46), false, 151);
+    t.rect((16, 12), (48, 46), |x, y| {
+        let plank = y / 5;
+        let v = if y % 5 == 0 {
+            0.05
+        } else {
+            0.35 + 0.35 * hash(plank as i32, 0, 152) + 0.2 * (noise(x, y, 8, 1, 153) - 0.5)
+        };
+        ramp(&WOOD, v, x, y)
+    });
+    for y in [16, 41] {
+        t.rect((14, y), (50, y + 3), |x, y| {
+            ramp(&WOOD, 0.6 + 0.2 * (noise(x, y, 4, 1, 154) - 0.5), x, y)
+        });
+    }
+    out.push(t);
+    // 6: a broken window, soot above it.
+    let mut t = facade_wall(160);
+    for y in 0..12 {
+        for x in 16..48 {
+            if noise(x, y, 4, 4, 161) + y as f32 / 24.0 > 0.6 {
+                t.px[y * TILE + x] = ramp(&WALL, 0.1, x, y);
+            }
+        }
+    }
+    window(&mut t, (18, 12), (46, 46), true, 162);
+    out.push(t);
+    // 7: blank wall, a vent grille and a pipe running down.
+    let mut t = facade_wall(170);
+    t.rect((26, 18), (38, 28), |x, y| {
+        if y % 2 == 0 {
+            DARK[1]
+        } else {
+            ramp(&METAL, 0.5, x, y)
+        }
+    });
+    t.rect((54, 0), (57, 64), |x, y| {
+        ramp(
+            &METAL,
+            if x == 54 {
+                0.8
+            } else {
+                0.35 + 0.2 * noise(x, y, 1, 8, 171)
+            },
+            x,
+            y,
+        )
+    });
+    t.rect((53, 30), (58, 32), |_, _| METAL[0]);
+    out.push(t);
+    // 8: a shop, its shutter down: the sign band above stays wall (tinted), with unlit lettering.
+    let mut t = facade_wall(180);
+    t.rect((2, 20), (62, 64), |x, y| {
+        let v = if y % 3 == 0 {
+            0.15
+        } else {
+            0.55 + 0.25 * (noise(x, y, 16, 2, 181) - 0.5)
+        };
+        if noise(x, y, 4, 4, 182) * 0.6 + noise(x, y, 2, 2, 185) * 0.3 + (y as f32 / 64.0) * 0.3
+            > 0.78
+        {
+            ramp(&RUST, 0.3 + 0.5 * noise(x, y, 2, 2, 183), x, y)
+        } else {
+            ramp(&METAL, v, x, y)
+        }
+    });
+    t.rect((2, 18), (62, 20), |_, _| METAL[0]);
+    letters(&mut t, 6, 184);
+    out.push(t);
+    // 9: a shop window, dark, its sign band above.
+    let mut t = facade_wall(190);
+    t.rect((2, 18), (62, 64), |x, y| ramp(&FRAME, 0.3, x, y));
+    t.rect((5, 21), (59, 61), |x, y| glass_px(x, y, false, 191));
+    t.rect((31, 21), (33, 61), |_, _| FRAME[0]);
+    t.rect((5, 50), (31, 51), |_, _| FRAME[0]);
+    letters(&mut t, 6, 192);
+    out.push(t);
+    out
+}
+
+/// Unlit sign lettering in the sign band (rows `y0..y0 + 8`): blocky glyphs of dark paint.
+fn letters(t: &mut Tile, y0: i32, salt: i32) {
+    let n = 4 + (hash(0, 0, salt) * 3.0) as i32;
+    let w = 5;
+    let x0 = (64 - n * (w + 2)) / 2;
+    for i in 0..n {
+        for gy in 0..4 {
+            for gx in 0..3 {
+                if hash(i * 8 + gx, gy, salt + 1) > 0.45 {
+                    let (x, y) = (x0 + i * (w + 2) + gx * 2 - 1, y0 + gy * 2);
+                    t.rect((x, y), (x + 2, y + 2), |_, _| [40, 34, 32]);
+                }
+            }
+        }
+    }
+}
+
+/// All tiles side by side, RGBA, in `Mat::index` order, then the facade units. Alpha marks the
+/// facade's wall pixels.
 pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
     let tiles = [
         slabs(&STONE, 16, 1),
@@ -395,7 +684,10 @@ pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
         glass(),
         soil(),
         paint(),
-    ];
+    ]
+    .into_iter()
+    .chain(facade_tiles())
+    .collect::<Vec<_>>();
     let w = TILE * COUNT;
     let mut rgba = vec![255u8; w * TILE * 4];
     for (i, t) in tiles.iter().enumerate() {
@@ -404,6 +696,7 @@ pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
                 let c = t.px[y * TILE + x];
                 let o = (y * w + i * TILE + x) * 4;
                 rgba[o..o + 3].copy_from_slice(&c);
+                rgba[o + 3] = if t.wall[y * TILE + x] { 255 } else { 0 };
             }
         }
     }

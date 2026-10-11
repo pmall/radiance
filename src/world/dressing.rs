@@ -102,19 +102,49 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 const SCENES: &[Scene] = &[
     // Along the curb, facing the road.
-    scene(Slot::Curb, Kind::Street, &[part(Bench, 0.0, 0.0, 0.0)], [5, 2, 0]),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(Bench, 0.0, 0.0, 0.0)],
+        [5, 2, 0],
+    ),
     scene(
         Slot::Curb,
         Kind::Street,
         &[part(Bench, 0.0, 0.0, 0.0), part(Bin, 1.5, 0.0, 0.0)],
         [4, 1, 0],
     ),
-    scene(Slot::Curb, Kind::Street, &[part(Bin, 0.0, 0.0, 0.0)], [3, 2, 0]),
-    scene(Slot::Curb, Kind::Street, &[part(UtilityBox, 0.0, 0.0, PI)], [2, 1, 0]),
-    scene(Slot::Curb, Kind::Street, &[part(Planter, 0.0, 0.0, 0.0)], [2, 1, 0]),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(Bin, 0.0, 0.0, 0.0)],
+        [3, 2, 0],
+    ),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(UtilityBox, 0.0, 0.0, PI)],
+        [2, 1, 0],
+    ),
+    scene(
+        Slot::Curb,
+        Kind::Street,
+        &[part(Planter, 0.0, 0.0, 0.0)],
+        [2, 1, 0],
+    ),
     // Street corners.
-    scene(Slot::Corner, Kind::Street, &[part(UtilityBox, 0.0, 0.0, PI)], [2, 1, 0]),
-    scene(Slot::Corner, Kind::Street, &[part(Planter, 0.0, 0.0, 0.0)], [2, 1, 0]),
+    scene(
+        Slot::Corner,
+        Kind::Street,
+        &[part(UtilityBox, 0.0, 0.0, PI)],
+        [2, 1, 0],
+    ),
+    scene(
+        Slot::Corner,
+        Kind::Street,
+        &[part(Planter, 0.0, 0.0, 0.0)],
+        [2, 1, 0],
+    ),
     // Against the facades, facing out.
     scene(
         Slot::Facade,
@@ -169,7 +199,12 @@ const SCENES: &[Scene] = &[
         ],
         [2, 0, 0],
     ),
-    scene(Slot::Facade, Kind::Street, &[part(UtilityBox, 0.0, 0.0, 0.0)], [2, 2, 1]),
+    scene(
+        Slot::Facade,
+        Kind::Street,
+        &[part(UtilityBox, 0.0, 0.0, 0.0)],
+        [2, 2, 1],
+    ),
     // Lots with no tower.
     scene(
         Slot::Vacant,
@@ -574,16 +609,20 @@ pub fn dress_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Dressing {
         vacant,
         streets: [true; 4],
     };
-    // Floors where a hand-written chunk covers the lot: it brings its own furniture.
-    let chunked: Vec<usize> = super::city::placements(seed, lx, lz)
-        .iter()
-        .map(|p| p.floor)
-        .collect();
+    // Floors where a hand-written chunk covers the lot: it brings its own furniture. A filler
+    // only takes the inside of the lot: the street around it keeps its props.
+    let placed = super::city::placements(seed, lx, lz);
+    let on = |floor: usize, filler: bool| {
+        placed
+            .iter()
+            .any(|p| p.floor == floor && (p.role == super::planner::Role::Filler) == filler)
+    };
     for y in levels {
         let floor = floors::floor_at(y);
-        if chunked.contains(&floor) {
+        if on(floor, false) {
             continue;
         }
+        ctx.vacant = vacant && !on(floor, true);
         ctx.streets = [(lx - 1, lz), (lx + 1, lz), (lx, lz - 1), (lx, lz + 1)]
             .map(|(x, z)| super::city::deck(seed, x, z, floor) != super::city::Deck::None);
         let zone = floors::zone(floor) as usize;
