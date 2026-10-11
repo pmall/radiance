@@ -28,7 +28,7 @@ const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay] [--floors N] [--no-props] [--no-pois] [--report [radius]]`.
+/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay] [--floors N] [--no-props] [--no-pois] [--report [radius]] [--chunk NAME] [--catalog]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
 struct Args {
     seed: u64,
@@ -52,6 +52,10 @@ struct Args {
     no_pois: bool,
     /// Print the design report over the lots within this radius of the spawn, and exit.
     report: Option<i32>,
+    /// Show only this chunk (`assets/chunks/`), in front of the spawn on a bare deck.
+    chunk: Option<String>,
+    /// List the chunk catalog and exit.
+    catalog: bool,
 }
 
 fn parse_args() -> Args {
@@ -69,6 +73,8 @@ fn parse_args() -> Args {
         no_props: false,
         no_pois: false,
         report: None,
+        chunk: None,
+        catalog: false,
     };
     let mut it = std::env::args().skip(1).peekable();
     while let Some(a) = it.next() {
@@ -80,6 +86,8 @@ fn parse_args() -> Args {
             "--floors" => args.floors = it.next().and_then(|s| s.parse().ok()),
             "--no-props" => args.no_props = true,
             "--no-pois" => args.no_pois = true,
+            "--chunk" => args.chunk = it.next(),
+            "--catalog" => args.catalog = true,
             "--report" => {
                 args.report = Some(5);
                 if let Some(r) = it.peek().and_then(|s| s.parse().ok()) {
@@ -150,11 +158,49 @@ fn spawn_player(view: Option<[f32; 5]>) -> Player {
     }
 }
 
+/// `--catalog`: every chunk and module, and the files that failed to load.
+fn print_catalog() {
+    let c = world::chunks::catalog();
+    let mut chunks: Vec<_> = c.chunks.values().collect();
+    chunks.sort_by(|a, b| a.name.cmp(&b.name));
+    println!("Chunks (assets/chunks/):");
+    for ch in chunks {
+        println!(
+            "  {:<24} {:>2}x{:<2} lots  labels {:?}  zones {:?}  weight {}  spacing {}",
+            ch.name, ch.size.0, ch.size.1, ch.labels, ch.zones, ch.weight, ch.spacing
+        );
+    }
+    let mut modules: Vec<_> = c.modules.keys().collect();
+    modules.sort();
+    println!(
+        "Modules (assets/modules/): {}",
+        modules
+            .iter()
+            .map(|m| m.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    for e in &c.errors {
+        println!("ERROR {e}");
+    }
+}
+
 fn main() {
     let args = parse_args();
     world::floors::init(args.floors.unwrap_or(world::floors::DEFAULT_COUNT));
     world::design::set_props(!args.no_props);
     world::design::set_pois(!args.no_pois);
+    if args.catalog {
+        print_catalog();
+        return;
+    }
+    if let Some(name) = args.chunk.clone() {
+        if !world::chunks::catalog().chunks.contains_key(&name) {
+            eprintln!("no chunk named {name:?}; see --catalog");
+            return;
+        }
+        world::chunks::set_preview(name);
+    }
     if let Some(radius) = args.report {
         report::run(args.seed, radius);
         return;
@@ -271,7 +317,8 @@ fn main() {
             renderer.reload_shaders();
         }
         // O / I: props / points of interest on or off; the city is generated again.
-        let mut regenerate = false;
+        // Chunk files edited on disk: the city is generated again.
+        let mut regenerate = world::chunks::poll();
         if rl.is_key_pressed(KEY_O) {
             world::design::set_props(!world::design::props_on());
             regenerate = true;

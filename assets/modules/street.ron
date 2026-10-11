@@ -1,0 +1,62 @@
+// Street furniture. Each module stands on its origin (y = 0 on the ground), its front toward +z.
+[
+    // A park bench: wooden seat and backrest on two concrete legs, 2 m long.
+    Module(
+        name: "bench",
+        parts: [
+            Box(at: (-0.9, 0.0, -0.2), size: (0.25, 0.45, 0.5), mat: Concrete),
+            Box(at: (0.65, 0.0, -0.2), size: (0.25, 0.45, 0.5), mat: Concrete),
+            Box(at: (-1.0, 0.45, -0.25), size: (2.0, 0.1, 0.55), mat: Wood),
+            Box(at: (-1.0, 0.55, -0.3), size: (2.0, 0.45, 0.1), mat: Wood),
+        ],
+    ),
+    // A litter bin on a short post.
+    Module(
+        name: "bin",
+        parts: [
+            Box(at: (-0.06, 0.0, -0.06), size: (0.12, 0.3, 0.12), mat: Metal),
+            Box(at: (-0.25, 0.3, -0.25), size: (0.5, 0.6, 0.5), mat: Paint((60, 74, 64))),
+        ],
+    ),
+    // A square planter of dark stone, soil on top for plants to take.
+    Module(
+        name: "planter",
+        parts: [
+            Box(at: (-0.6, 0.0, -0.6), size: (1.2, 0.6, 1.2), mat: StoneDark),
+            Box(at: (-0.5, 0.6, -0.5), size: (1.0, 0.05, 1.0), mat: Soil),
+        ],
+    ),
+    // A tree bed: 4 m of soil within a low curb (the trees are long gone; plants took over).
+    Module(
+        name: "tree_bed",
+        parts: [
+            Box(at: (-2.0, 0.0, -2.0), size: (4.0, 0.5, 0.25), mat: StoneDark),
+            Box(at: (-2.0, 0.0, 1.75), size: (4.0, 0.5, 0.25), mat: StoneDark),
+            Box(at: (-2.0, 0.0, -1.75), size: (0.25, 0.5, 3.5), mat: StoneDark),
+            Box(at: (1.75, 0.0, -1.75), size: (0.25, 0.5, 3.5), mat: StoneDark),
+            Box(at: (-1.75, 0.0, -1.75), size: (3.5, 0.35, 3.5), mat: Soil),
+        ],
+    ),
+    // A square-park lamp: a post, an arm reaching forward and a flat head (dead, like all lamps).
+    Module(
+        name: "lamp",
+        parts: [
+            Box(at: (-0.2, 0.0, -0.2), size: (0.4, 0.5, 0.4), mat: Metal),
+            Box(at: (-0.1, 0.5, -0.1), size: (0.2, 5.0, 0.2), mat: Metal),
+            Box(at: (-0.075, 5.25, 0.1), size: (0.15, 0.15, 1.0), mat: Metal),
+            Box(at: (-0.25, 5.1, 0.9), size: (0.5, 0.25, 0.75), mat: Metal),
+            Box(at: (-0.2, 5.05, 0.95), size: (0.4, 0.05, 0.65), mat: Glass),
+        ],
+    ),
+    // A news and snack kiosk, shutters down: a painted box, a counter, an awning.
+    Module(
+        name: "kiosk",
+        parts: [
+            Box(at: (-2.0, 0.0, -1.5), size: (4.0, 2.75, 3.0), mat: Paint((52, 92, 86))),
+            Box(at: (-1.75, 0.9, 1.5), size: (3.5, 1.5, 0.05), mat: Metal),
+            Box(at: (-2.0, 0.85, 1.5), size: (4.0, 0.1, 0.4), mat: Wood),
+            Box(at: (-2.25, 2.75, -1.75), size: (4.5, 0.25, 4.25), mat: Paint((150, 60, 44))),
+            Box(at: (-1.5, 3.0, 1.25), size: (3.0, 0.75, 0.15), mat: Paint((210, 180, 120))),
+        ],
+    ),
+]

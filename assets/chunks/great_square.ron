@@ -1,0 +1,48 @@
+// The great square: 240 m of paving around a dry fountain, four avenues entering at the middle of
+// its sides, an L-shaped arcaded building closing each corner, tree beds with benches, lamps along
+// the avenues. Written as one corner, mirrored across both axes of the square (Mirror2 twice), so
+// it is symmetric by construction.
+Chunk(
+    name: "great_square",
+    size: (10, 10),
+    zones: [Depths, Middle],
+    labels: ["plaza"],
+    weight: 2,
+    spacing: 30,
+    ground: Some(Stone),
+    parts: [
+        Module(name: "fountain", at: (120.0, 0.0, 120.0)),
+        Growth(area: ((108.0, 108.0), (132.0, 132.0)), kind: Soil),
+        // Keep the avenues clear.
+        Growth(area: ((100.0, 0.0), (140.0, 240.0)), kind: Bare),
+        Growth(area: ((0.0, 100.0), (240.0, 140.0)), kind: Bare),
+        Mirror2(axis: X, at: 120.0, parts: [
+            Mirror2(axis: Z, at: 120.0, parts: [
+                // The corner building: a wing along each side, from the corner to the avenue.
+                Repeat(step: (12.0, 0.0, 0.0), count: 8, parts: [
+                    Module(name: "arcade_bay"),
+                ]),
+                Repeat(from: (0.0, 0.0, 32.0), step: (0.0, 0.0, 12.0), count: 6, parts: [
+                    Module(name: "arcade_bay", turn: 1),
+                ]),
+                // Tree beds in a grid, a bench facing each, sometimes a planter or a bin beside it.
+                Repeat(from: (40.0, 0.0, 40.0), step: (20.0, 0.0, 0.0), count: 3, parts: [
+                    Repeat(step: (0.0, 0.0, 20.0), count: 3, parts: [
+                        Module(name: "tree_bed"),
+                        Module(name: "bench", at: (0.0, 0.0, 3.6), turn: 2),
+                        Slot(at: (2.0, 0.0, 3.6), pick: [Some("bin"), Some("planter"), None, None]),
+                    ]),
+                ]),
+                // Lamps along both avenues, arms over them, and a kiosk at each avenue's mouth.
+                Repeat(from: (97.0, 0.0, 26.0), step: (0.0, 0.0, 12.0), count: 6, parts: [
+                    Module(name: "lamp", turn: 1),
+                ]),
+                Repeat(from: (26.0, 0.0, 97.0), step: (12.0, 0.0, 0.0), count: 6, parts: [
+                    Module(name: "lamp"),
+                ]),
+                Slot(at: (90.0, 0.0, 28.0), turn: 1, pick: [Some("kiosk"), None]),
+                Slot(at: (28.0, 0.0, 90.0), pick: [Some("kiosk"), None]),
+            ]),
+        ]),
+    ],
+)
