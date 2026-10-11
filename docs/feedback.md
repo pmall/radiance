@@ -88,8 +88,12 @@ What the project owner has said so far. Treat as requirements.
   Reference screenshots stay out of git. Plan: `docs/chunks.md`.
 
 - Style test on the great square (pixel-art materials): "this is all really good, keep going".
-  Taken as approval of the recommendations: no outlines or flat light bands by default, plants to
-  become pixel or voxel foliage. Chunks should be big ("don't be cheap on chunk size": a big
+  Keep the outlines and flat light bands on (the agent had wrongly read "keep going" as approval
+  of its suggestion to turn them off: only the owner decides). Pixel or voxel foliage: suggested,
+  not decided.
+- Stairs should be rare. Not every walkable island needs a stair: going down and up another one
+  is fine. Bridges over gaps of a bridge's size (not so short it makes no sense, not so long it is
+  physically unlikely) would add to the ambiance. Chunks should be big ("don't be cheap on chunk size": a big
   square might be 10x10 lots; 1x1 only for repetitive housing).
 
 ## How to work on generation (owner's direction)

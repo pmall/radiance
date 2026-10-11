@@ -57,7 +57,8 @@ pub const CRATER_FLOWERS: f32 = 1.5;
 ///
 /// Plants and flowers rise with the light and culminate on the canopy's first floor, then thin
 /// out toward the construction front, too new for much to have grown yet. Stairs grow rarer
-/// smoothly all the way up (per 6x6-lot cell: 90 % on D0 down to about 35 % below the top).
+/// smoothly all the way up (per 6x6-lot cell: 35 % on D0 down to about 10 % below the top; the owner wants
+/// stairs rare, and a floor need not be reachable from every part of the one below).
 const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
     match zone {
         Zone::Depths => (
@@ -70,7 +71,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                     climber: 0.04,
                     poi: 0.03,
                 },
-                stair: 0.9,
+                stair: 0.35,
                 props: 1.0,
                 cars: 1.0,
             },
@@ -83,7 +84,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                     climber: 0.045,
                     poi: 0.03,
                 },
-                stair: 0.8,
+                stair: 0.3,
                 props: 0.9,
                 cars: 0.9,
             },
@@ -98,7 +99,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                     climber: 0.055,
                     poi: 0.02,
                 },
-                stair: 0.75,
+                stair: 0.25,
                 props: 0.7,
                 cars: 0.6,
             },
@@ -111,7 +112,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                     climber: 0.08,
                     poi: 0.01,
                 },
-                stair: 0.6,
+                stair: 0.18,
                 props: 0.4,
                 cars: 0.2,
             },
@@ -126,7 +127,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                     climber: 0.13,
                     poi: 0.0,
                 },
-                stair: 0.45,
+                stair: 0.12,
                 props: 0.12,
                 cars: 0.0,
             },
@@ -139,7 +140,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                     climber: 0.06,
                     poi: 0.0,
                 },
-                stair: 0.3,
+                stair: 0.08,
                 props: 0.05,
                 cars: 0.0,
             },

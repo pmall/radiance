@@ -133,9 +133,8 @@ deterministic:
 2. **Blocks**, the same way with smaller cells (about 8x8 lots), on the lots no area took, then
    in the areas' `Sub` openings that ask for them.
 3. **Stairs.** Stairs only stand in `stair_hub` chunks (blocks, or built into areas), one per
-   hub, in the middle. The planner finds the walkable islands of each floor (deck lots joined by
-   streets or bridges) and gives every island at least one hub up, so no part of a floor is a
-   dead end by accident. Hubs grow rarer going up (the floor profiles' `stair`,
+   hub, in the middle. They are rare, and not every walkable island of a floor has one: going
+   down to reach another stair is part of the climb (owner). Hubs grow rarer going up (the floor profiles' `stair`,
    `src/world/design.rs`), and the planned difficulty of the story (D4 to D5 locked) becomes a
    rule here when its time comes.
 3. **Stairs.** Stairs only stand in `stair_hub` chunks, one per hub, in the middle. The planner
@@ -211,9 +210,8 @@ Each phase ends with shots the owner can judge.
 2. **Format and preview** *(done)*: chunk and module loading, the vocabulary above, `--chunk`
    preview, hot reload, vegetation hints. Test chunk: the great square. Big chunk boxes belong to
    the lot holding their center and reach the neighbors as collision only.
-3. **Style test** *(done; the owner approved going on with the recommendations: no ink outlines
-   and no flat light bands by default, `render::FX_DEFAULT`, F3/F5 bring them back; plants to
-   become pixel or voxel foliage, still to do)*: every chunk material has a pixel-art
+3. **Style test** *(done; the owner keeps the ink outlines and flat light bands on, and the
+   pixel-art materials; plants as pixel or voxel foliage is a suggestion still open)*: every chunk material has a pixel-art
    tile (4 m at 16 pixels per meter, limited palette, ordered dithering, chunky joints, cracks,
    rivets, stains), drawn by code in `src/render/pixels.rs` and sampled with crisp nearest
    filtering. To compare: `--chunk great_square` with F3 (outlines), F5 (flat light bands) and
@@ -227,14 +225,15 @@ Each phase ends with shots the owner can judge.
      full deck paved with its ground; the floors above stay as their sections are (a square in
      the depths is a dark hall under the next deck).
    - Stair hubs replace the random stairs: a cell of 6x6 lots holds at most one per floor, at the
-     floor's `stair` chance (now per cell: 90 % on D0 down to about 38 % on D7, measured equal),
+     floor's `stair` chance (now per cell: 35 % on D0 down to about 10 % on D7: rare, owner),
      its stair in a free lot of the cell (no tower rising through that floor, a deck above, not a
      lot a lower floor's stair took), the hub chunk centered on it. One always stands beside the
      start (`planner::START_HUB`). Hub boxes skip lots without a deck there or in an area, and
      every chunk box gives way to towers and the lot's own architecture.
    - Lots under a chunk get no random props on its floor (the chunk brings its own).
-   - Not yet: islands (every walkable island gets a stair up), holes as chunks, filling `Sub`
-     openings, blocks other than hubs, fillers. The planner answers are cached per cell.
+   - No stair is guaranteed on every walkable island (owner: going down to reach another stair is
+     fine). Bridges cross the gaps of a bridge's size instead (`city::bridges_through`).
+   - Not yet: holes as chunks, filling `Sub` openings, blocks other than hubs, fillers. The planner answers are cached per cell.
 5. **First catalog:** a great square (10x10), a market district (8x6), two stair hub blocks, a
    light well block, a construction yard area, a few habitation fillers. Check that rules plus
    random flowers give the intended feel.
