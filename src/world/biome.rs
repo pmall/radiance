@@ -9,8 +9,11 @@
 //! diagram: a biome with a bigger `size` claims larger zones on average, so biome types can have
 //! different typical zone sizes.
 //!
+//! A biome is also a collection of chunks: its `name` is its folder, `assets/biomes/<name>/`
+//! (`chunks.rs`, `docs/chunks.md`), and the planner places chunks from it in its zones.
+//!
 //! To add a biome: define a `Biome` const (start from `DEFAULT` with `..DEFAULT`), add it to
-//! `BIOMES`. Everything that varies per biome lives in `Biome`, so generation code never matches
+//! `BIOMES`, and give it a folder of chunks (or none: it then draws from `default`). Everything that varies per biome lives in `Biome`, so generation code never matches
 //! on a biome's name.
 //!
 //! Not done yet: blending across zone borders (palette and density fade, discrete choices flip),

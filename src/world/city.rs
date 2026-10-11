@@ -274,9 +274,12 @@ fn preview_opens(lx: i32, lz: i32) -> bool {
     let Some((origin, _)) = chunks::preview_footprint() else {
         return false;
     };
-    let cat = chunks::catalog();
-    chunks::preview()
-        .and_then(|p| cat.chunks.get(&p.name))
+    let Some(p) = chunks::preview() else {
+        return false;
+    };
+    chunks::catalog(p.biome)
+        .chunks
+        .get(&p.name)
         .is_some_and(|c| {
             c.placed_holes(origin, 0)
                 .iter()
@@ -436,7 +439,8 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         // Wall props go on the body (the first tower block).
         if let Some(body) = out[before..].first().map(|b| b.aabb) {
             super::facade::push_facade_props(&mut decor, &body, &levels, first, out);
-            super::facade::push_facade_units(&mut decor, &body, &levels, first, out);
+            let biome = biome_at(seed, lx, lz).name;
+            super::facade::push_facade_units(&mut decor, biome, &body, &levels, first, out);
         }
     }
 
@@ -563,6 +567,7 @@ pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
             chunk: chunks::preview()
                 .map(|p| p.name.clone())
                 .unwrap_or_default(),
+            biome: chunks::preview().map_or(chunks::DEFAULT_BIOME, |p| p.biome),
             role: Role::Area,
             origin: (ox, oz),
             size,
@@ -570,7 +575,7 @@ pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
             turn: 0,
             seed: hash_coords(seed, ox, SALT_CHUNK, oz),
         };
-        let mut all = planner::subs_of(&chunks::catalog(), &p);
+        let mut all = planner::subs_of(&p);
         all.push(p);
         all.retain(|p| p.covers(lx, lz));
         return all;
@@ -578,9 +583,9 @@ pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     planner::covering(seed, lx, lz)
 }
 
-/// A placed chunk, built in world coordinates.
+/// A placed chunk, built in world coordinates from its biome's collection.
 fn build_placement(p: &Placement) -> Option<(chunks::Chunk, chunks::Built)> {
-    let cat = chunks::catalog();
+    let cat = chunks::catalog(p.biome);
     let chunk = cat.chunks.get(&p.chunk)?.clone();
     let origin = lot_origin(p.origin.0, p.origin.1) + Vec3::Y * floors::y(p.floor);
     let built = chunks::build(&chunk, &cat, origin, p.turn, p.seed);

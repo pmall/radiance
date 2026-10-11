@@ -52,7 +52,7 @@ struct Args {
     no_pois: bool,
     /// Print the design report over the lots within this radius of the spawn, and exit.
     report: Option<i32>,
-    /// Show only this chunk (`assets/chunks/`), in front of the spawn on a bare deck.
+    /// Show only this chunk (`NAME` or `BIOME/NAME`), in front of the spawn on a bare deck.
     chunk: Option<String>,
     /// List the chunk catalog and exit.
     catalog: bool,
@@ -158,29 +158,40 @@ fn spawn_player(view: Option<[f32; 5]>) -> Player {
     }
 }
 
-/// `--catalog`: every chunk and module, and the files that failed to load.
+/// `--catalog`: every biome's chunks and modules, and the files that failed to load.
 fn print_catalog() {
-    let c = world::chunks::catalog();
-    let mut chunks: Vec<_> = c.chunks.values().collect();
-    chunks.sort_by(|a, b| a.name.cmp(&b.name));
-    println!("Chunks (assets/chunks/):");
-    for ch in chunks {
+    let all = world::chunks::catalogs();
+    let mut biomes: Vec<_> = all.biomes.values().collect();
+    biomes.sort_by(|a, b| a.biome.cmp(&b.biome));
+    for c in biomes {
+        let mut chunks: Vec<_> = c.chunks.values().collect();
+        chunks.sort_by(|a, b| a.name.cmp(&b.name));
+        println!("Biome {} (assets/biomes/{}/), chunks:", c.biome, c.biome);
+        for ch in chunks {
+            println!(
+                "  {:<24} {:>2}x{:<2} lots  {:?}  labels {:?}  zones {:?}  weight {}  spacing {}",
+                ch.name,
+                ch.size.0,
+                ch.size.1,
+                ch.role(),
+                ch.labels,
+                ch.zones,
+                ch.weight,
+                ch.spacing
+            );
+        }
+        let mut modules: Vec<_> = c.modules.keys().collect();
+        modules.sort();
         println!(
-            "  {:<24} {:>2}x{:<2} lots  labels {:?}  zones {:?}  weight {}  spacing {}",
-            ch.name, ch.size.0, ch.size.1, ch.labels, ch.zones, ch.weight, ch.spacing
+            "  modules: {}",
+            modules
+                .iter()
+                .map(|m| m.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     }
-    let mut modules: Vec<_> = c.modules.keys().collect();
-    modules.sort();
-    println!(
-        "Modules (assets/modules/): {}",
-        modules
-            .iter()
-            .map(|m| m.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    for e in &c.errors {
+    for e in &all.errors {
         println!("ERROR {e}");
     }
 }
@@ -195,11 +206,11 @@ fn main() {
         return;
     }
     if let Some(name) = args.chunk.clone() {
-        if !world::chunks::catalog().chunks.contains_key(&name) {
+        let Some((biome, name)) = world::chunks::find(&name) else {
             eprintln!("no chunk named {name:?}; see --catalog");
             return;
-        }
-        world::chunks::set_preview(name);
+        };
+        world::chunks::set_preview(biome, name);
     }
     if let Some(radius) = args.report {
         report::run(args.seed, radius);
