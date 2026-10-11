@@ -1,0 +1,17 @@
+// Crater: five lots across, round (its corners stay built), where the floors above gave way:
+// nothing built over it, the sun pours down onto a garden of rubble and fallen slabs.
+Chunk(
+    name: "crater",
+    size: (5, 5),
+    labels: ["crater"],
+    weight: 2,
+    holes: [((1, 0), (4, 5)), ((0, 1), (1, 4)), ((4, 1), (5, 4))],
+    parts: [
+        Growth(area: ((10.0, 10.0), (110.0, 110.0)), kind: Soil),
+        Module(name: "fallen_slab", at: (60.0, 0.0, 56.0)),
+        Mirror4(center: (60.0, 60.0), parts: [
+            Slot(at: (40.0, 0.0, 30.0), pick: [Some("rubble"), Some("fallen_slab"), None]),
+            Slot(at: (78.0, 0.0, 40.0), turn: 1, pick: [Some("rubble"), None]),
+        ]),
+    ],
+)

@@ -1,9 +1,9 @@
 //! `--report`: the city's design next to what a seed actually produced, floor by floor, so tuning
 //! is measured instead of guessed. Prints the floor profiles (`world::design`) and, over the lots
-//! around the spawn, the decks, stairs, flowers by source and props by kind.
+//! around the spawn, the decks, stairs, chunks placed, flowers by source and props by kind.
 
-use crate::world::dressing::{self, Kind};
 use crate::world::planner::{self, Role};
+use crate::world::props::Prop;
 use crate::world::{BlockKind, city, design, floors, growth};
 
 pub fn run(seed: u64, radius: i32) {
@@ -19,8 +19,8 @@ pub fn run(seed: u64, radius: i32) {
     let mut by_name: std::collections::BTreeMap<String, usize> = Default::default();
     // Flowers: plants (stairs apart), plants on stairs, points of interest.
     let mut flowers = vec![[0usize; 3]; n];
-    // Props by kind: street, leftovers, vehicles, points of interest.
-    let mut props = vec![[0usize; 4]; n];
+    // Props: street furniture, what people left; points of interest.
+    let mut props = vec![[0usize; 3]; n];
     for lz in -radius..=radius {
         for lx in -radius..=radius {
             for (f, d) in decks.iter_mut().enumerate() {
@@ -34,35 +34,45 @@ pub fn run(seed: u64, radius: i32) {
                     Role::Area => area_lots[p.floor] += 1,
                     Role::Block => block_lots[p.floor] += 1,
                     Role::Filler => filler_lots[p.floor] += 1,
-                    Role::Sub | Role::Hub => {}
+                    Role::Sub
+                    | Role::Hub
+                    | Role::Tower
+                    | Role::Street
+                    | Role::Hole
+                    | Role::Crater => {}
                 }
                 // Counted once, at the corner lot.
                 if p.origin == (lx, lz) {
                     *by_name.entry(p.chunk.clone()).or_default() += 1;
                 }
             }
+            if let Some(p) = planner::tower_at(seed, lx, lz)
+                && p.origin == (lx, lz)
+            {
+                *by_name.entry(p.chunk.clone()).or_default() += 1;
+            }
             if let Some(f) = planner::hole_at(seed, lx, lz) {
                 hole_lots[f] += 1;
             }
             let mut blocks = Vec::new();
-            city::generate_lot(seed, lx, lz, &mut blocks);
-            let dressing = dressing::dress_lot(seed, lx, lz, &blocks);
-            for (p, k) in dressing.props.iter().zip(&dressing.kinds) {
-                let i = match k {
-                    Kind::Street => 0,
-                    Kind::Leftovers => 1,
-                    Kind::Vehicle => 2,
-                    Kind::Poi => 3,
-                };
-                props[floors::floor_at(p.pos.y)][i] += 1;
+            let dressed = city::generate_lot_dressed(seed, lx, lz, &mut blocks);
+            for p in &dressed.props {
+                let street = matches!(
+                    p.prop,
+                    Prop::StreetLight | Prop::Bench | Prop::Bin | Prop::Planter | Prop::UtilityBox
+                );
+                props[floors::floor_at(p.pos.y)][if street { 0 } else { 1 }] += 1;
+            }
+            for b in &dressed.blooms {
+                props[floors::floor_at(b.y)][2] += 1;
             }
             let stair_blocks: Vec<_> = blocks
                 .iter()
                 .filter(|b| b.kind == BlockKind::Stair)
                 .map(|b| b.aabb)
                 .collect();
-            for l in growth::grow_lot(seed, lx, lz, &blocks).lights {
-                let source = if dressing.blooms.iter().any(|b| b.distance(l.pos) < 1.0) {
+            for l in growth::grow_lot(seed, lx, lz, &blocks, &dressed.blooms).lights {
+                let source = if dressed.blooms.iter().any(|b| b.distance(l.pos) < 1.0) {
                     2
                 } else if stair_blocks
                     .iter()
@@ -84,14 +94,16 @@ pub fn run(seed: u64, radius: i32) {
     );
     println!();
     println!(
-        "Profiles (world/design.rs): chances in %. Stairs: per stair hub cell (6x6 lots). Flowers: per"
+        "Profiles (world/design.rs): chances in %. Holes: per hole cell (6x6 lots). Stairs: per stair hub cell (6x6 lots). Flowers: per"
     );
-    println!("plant, poi per lot. Props: multiplier of the tries per lot. Cars: tries per lot.");
+    println!(
+        "plant, poi per point of interest slot. Props: chance of a furniture or leftovers slot."
+    );
     println!("Blocks: per block cell (8x8 lots). Fillers: per free lot.");
     println!(
-        "{:<20} {:>6} {:>6} {:>6} | {:>6} {:>6} {:>8} {:>6} | {:>6} {:>5} | {:>6} {:>7}",
+        "{:<20} {:>6} {:>6} {:>6} | {:>6} {:>6} {:>8} {:>6} | {:>6} | {:>6} {:>7}",
         "floor",
-        "decks",
+        "holes",
         "plants",
         "stairs",
         "bush",
@@ -99,7 +111,6 @@ pub fn run(seed: u64, radius: i32) {
         "climber",
         "poi",
         "props",
-        "cars",
         "blocks",
         "fillers"
     );
@@ -107,17 +118,16 @@ pub fn run(seed: u64, radius: i32) {
         let p = design::profile(f);
         let pc = |x: f32| format!("{:.0}", x * 100.0);
         println!(
-            "{:<20} {:>6} {:>6} {:>6} | {:>6} {:>6} {:>8} {:>6} | {:>6} {:>5} | {:>6} {:>7}",
+            "{:<20} {:>6} {:>6} {:>6} | {:>6} {:>6} {:>8} {:>6} | {:>6} | {:>6} {:>7}",
             floors::name(f),
-            pc(p.deck_keep),
+            pc(p.holes),
             format!("x{:.2}", p.plants),
             pc(p.stair),
             pc(p.flowers.bush),
             pc(p.flowers.vine),
             format!("{:.1}", p.flowers.climber * 100.0),
             format!("{:.1}", p.flowers.poi * 100.0),
-            format!("x{:.2}", p.props),
-            format!("{:.2}", p.cars),
+            pc(p.props),
             pc(p.blocks),
             pc(p.fillers),
         );
@@ -127,7 +137,7 @@ pub fn run(seed: u64, radius: i32) {
         "Measured: decks, chunks and holes in % of lots, stairs in % of hub cells, then counts per lot"
     );
     println!(
-        "{:<20} {:>6} {:>6} {:>6} {:>7} {:>5} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>6} {:>5}",
+        "{:<20} {:>6} {:>6} {:>6} {:>7} {:>5} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>5}",
         "floor",
         "decks",
         "areas",
@@ -141,7 +151,6 @@ pub fn run(seed: u64, radius: i32) {
         "poi",
         "street",
         "leftovers",
-        "cars",
         "poi"
     );
     for f in (0..n).rev() {
@@ -149,7 +158,7 @@ pub fn run(seed: u64, radius: i32) {
         let fl = flowers[f];
         let pr = props[f];
         println!(
-            "{:<20} {:>6} {:>6} {:>6} {:>7} {:>5} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>6} {:>5}",
+            "{:<20} {:>6} {:>6} {:>6} {:>7} {:>5} {:>6} | {:>7} {:>7} {:>7} {:>7} | {:>7} {:>9} {:>5}",
             floors::name(f),
             format!("{:.0}", decks[f] as f32 * 100.0 / lots),
             format!("{:.0}", area_lots[f] as f32 * 100.0 / lots),
@@ -164,7 +173,6 @@ pub fn run(seed: u64, radius: i32) {
             per(pr[0]),
             per(pr[1]),
             per(pr[2]),
-            per(pr[3]),
         );
     }
     println!();

@@ -1,0 +1,24 @@
+// Hole: a void three lots wide, where the slabs of a whole block came down long ago and were never
+// rebuilt. Its rim is a ring of railings, bent or gone at places, rubble along the edge, lamps at
+// the corners, warning signs. Towers rise through it.
+Chunk(
+    name: "deck_void",
+    size: (5, 5),
+    zones: [Middle, Canopy],
+    labels: ["hole"],
+    weight: 3,
+    holes: [((1, 1), (4, 4))],
+    towers_rise: true,
+    parts: [
+        Mirror4(center: (60.0, 60.0), parts: [
+            Repeat(from: (24.0, 0.0, 24.0), step: (4.0, 0.0, 0.0), count: 18, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("railing"), Some("railing"),
+                    Some("railing_broken"), None]),
+            ]),
+            Module(name: "lamp", at: (22.5, 0.0, 22.5), turn: 2),
+            Slot(at: (40.0, 0.0, 21.5), pick: [Some("rubble"), None]),
+            Slot(at: (60.0, 0.0, 21.0), pick: [Some("sign_danger"), None]),
+            Slot(at: (78.0, 0.0, 21.5), turn: 1, pick: [Some("rubble"), Some("barrier"), None]),
+        ]),
+    ],
+)

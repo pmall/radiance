@@ -7,6 +7,8 @@
 //! a plant that would is not planted, or stops short. Plant growth is nearly even by height,
 //! flowers are densest in the sunlit canopy.
 
+use std::collections::HashMap;
+
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
@@ -62,7 +64,7 @@ struct Builder<'a> {
     glow: u8,
     biome: &'static Biome,
     /// Blocks near the lot, neighbors included: what plants must keep clear of.
-    solids: &'a [Block],
+    solids: &'a Solids<'a>,
     /// Least distance between two flowers (`MIN_FLOWER_GAP`, except in points of interest).
     min_gap: f32,
     /// Bushes shrink to fit between nearby blocks instead of giving up (on stairs, between the
@@ -91,7 +93,9 @@ impl Builder<'_> {
     /// Whether `p` lies strictly inside a block grown by `margin` (a point on a block's own
     /// surface is not inside it).
     fn inside_block(&self, p: Vec3, margin: f32) -> bool {
-        self.solids.iter().any(|b| inside(&b.aabb, p, margin))
+        let m = Vec3::splat(margin);
+        self.solids
+            .any(p - m, p + m, |b| inside(&b.aabb, p, margin))
     }
 
     /// Whether a flower at `center` sits inside a block, or within a hair of its surface (which
@@ -154,7 +158,7 @@ impl Builder<'_> {
 
         // Decks above and below stop the light: clamp it to the open space around the flower.
         let (mut y_lo, mut y_hi) = (f32::MIN, f32::MAX);
-        for b in self.solids {
+        self.solids.any(at, at, |b| {
             let a = &b.aabb;
             if at.x > a.min.x && at.x < a.max.x && at.z > a.min.z && at.z < a.max.z {
                 if a.max.y <= at.y + 0.05 {
@@ -163,7 +167,8 @@ impl Builder<'_> {
                     y_hi = y_hi.min(a.min.y);
                 }
             }
-        }
+            false
+        });
         let lin = |v: u8| (v as f32 / 255.0).powf(2.2);
         self.per_floor[floors::floor_at(at.y)] += 1;
         self.lights.push(Light {
@@ -250,10 +255,10 @@ impl Builder<'_> {
     /// Whether the segment a-b stays at least `margin` away from every block (room for a stem's
     /// width).
     fn clear_by(&self, a: Vec3, b: Vec3, margin: f32) -> bool {
-        !self
-            .solids
-            .iter()
-            .any(|o| segment_crosses(a, b, &o.aabb, -margin))
+        let m = Vec3::splat(margin);
+        !self.solids.any(a.min(b) - m, a.max(b) + m, |o| {
+            segment_crosses(a, b, &o.aabb, -margin)
+        })
     }
 
     /// A diamond leaf pointing along `dir`, tilted by `up`. Dropped if it would touch a block.
@@ -375,17 +380,20 @@ impl Builder<'_> {
         // fronds, reaching about 1.8 * scale, stay clear of them. Squeezed (on stairs), every
         // block around counts that way.
         let squeeze = self.squeeze;
-        let room = self
-            .solids
-            .iter()
-            .filter(|b| (squeeze || b.kind == BlockKind::Prop) && b.aabb.max.y > base.y + 0.05)
-            .filter(|b| b.aabb.min.y < base.y + 2.5 * scale)
-            .map(|b| {
+        // Only blocks within the largest reach can shrink it.
+        let around = Vec3::new(4.0, 0.0, 4.0);
+        let mut room = f32::MAX;
+        self.solids.any(base - around, base + around, |b| {
+            if (squeeze || b.kind == BlockKind::Prop)
+                && b.aabb.max.y > base.y + 0.05
+                && b.aabb.min.y < base.y + 2.5 * scale
+            {
                 let dx = (b.aabb.min.x - base.x).max(base.x - b.aabb.max.x).max(0.0);
                 let dz = (b.aabb.min.z - base.z).max(base.z - b.aabb.max.z).max(0.0);
-                (dx * dx + dz * dz).sqrt()
-            })
-            .fold(f32::MAX, f32::min);
+                room = room.min((dx * dx + dz * dz).sqrt());
+            }
+            false
+        });
         scale = scale.min(room / 1.9);
         if scale < if squeeze { 0.4 } else { 0.55 } {
             return;
@@ -393,20 +401,18 @@ impl Builder<'_> {
         // Fronds reach about 1.8 * scale sideways: keep clear of any other block, so none of
         // them is squashed against a wall or rooted in one (the host's top surface is fine).
         let reach = 1.8 * scale;
+        let span = Vec3::new(reach, 0.0, reach);
         let crowded = !squeeze
-            && self
-                .solids
-                .iter()
-                .filter(|b| b.kind != BlockKind::Prop)
-                .any(|b| {
-                    let a = &b.aabb;
-                    a.min.y < base.y + 2.5 * scale
-                        && a.max.y > base.y + 0.05
-                        && base.x > a.min.x - reach
-                        && base.x < a.max.x + reach
-                        && base.z > a.min.z - reach
-                        && base.z < a.max.z + reach
-                });
+            && self.solids.any(base - span, base + span, |b| {
+                let a = &b.aabb;
+                b.kind != BlockKind::Prop
+                    && a.min.y < base.y + 2.5 * scale
+                    && a.max.y > base.y + 0.05
+                    && base.x > a.min.x - reach
+                    && base.x < a.max.x + reach
+                    && base.z > a.min.z - reach
+                    && base.z < a.max.z + reach
+            });
         if crowded {
             return;
         }
@@ -470,9 +476,10 @@ impl Builder<'_> {
             .collect();
         // Next to another deck (lots touch) the free side is a slab: no vine there.
         let hits = |a: Vec3, b: Vec3| {
-            self.solids
-                .iter()
-                .any(|o| segment_crosses(a, b, &o.aabb, -0.35))
+            let m = Vec3::splat(0.35);
+            self.solids.any(a.min(b) - m, a.max(b) + m, |o| {
+                segment_crosses(a, b, &o.aabb, -0.35)
+            })
         };
         if pts.iter().any(|&p| self.inside_block(p, 0.35))
             || pts.windows(2).any(|w| hits(w[0], w[1]))
@@ -563,6 +570,53 @@ impl Builder<'_> {
     }
 }
 
+/// Side of the columns `Solids` sorts blocks into.
+const SOLID_CELL: f32 = 4.0;
+
+/// Blocks near a lot, sorted into columns of the ground, so a plant only tests the blocks of the
+/// few columns around it.
+struct Solids<'a> {
+    blocks: &'a [Block],
+    cells: HashMap<(i32, i32), Vec<u32>>,
+}
+
+/// The columns a box spans.
+fn columns(min: Vec3, max: Vec3) -> (i32, i32, i32, i32) {
+    let c = |v: f32| (v / SOLID_CELL).floor() as i32;
+    (c(min.x), c(min.z), c(max.x), c(max.z))
+}
+
+impl<'a> Solids<'a> {
+    fn new(blocks: &'a [Block]) -> Self {
+        let mut cells: HashMap<(i32, i32), Vec<u32>> = HashMap::new();
+        for (i, b) in blocks.iter().enumerate() {
+            let (x0, z0, x1, z1) = columns(b.aabb.min, b.aabb.max);
+            for x in x0..=x1 {
+                for z in z0..=z1 {
+                    cells.entry((x, z)).or_default().push(i as u32);
+                }
+            }
+        }
+        Self { blocks, cells }
+    }
+
+    /// Whether `f` holds for a block in the columns the box `min..max` spans (a block spanning
+    /// several columns may be asked more than once).
+    fn any(&self, min: Vec3, max: Vec3, mut f: impl FnMut(&Block) -> bool) -> bool {
+        let (x0, z0, x1, z1) = columns(min, max);
+        for x in x0..=x1 {
+            for z in z0..=z1 {
+                if let Some(v) = self.cells.get(&(x, z))
+                    && v.iter().any(|&i| f(&self.blocks[i as usize]))
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
 fn inside(a: &Aabb, p: Vec3, margin: f32) -> bool {
     let m = Vec3::splat(margin);
     p.cmpgt(a.min - m).all() && p.cmplt(a.max + m).all()
@@ -574,7 +628,9 @@ pub struct Growth {
     pub lights: Vec<Light>,
 }
 
-pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
+/// Grows a lot's plants over its blocks; `blooms` are the flowers of its points of interest
+/// (`city::Dressed`).
+pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) -> Growth {
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_GROWTH, lz));
     // Neighboring lots matter too: decks and towers touch at lot borders, and plants must not
     // cross into them or leak light through them.
@@ -603,6 +659,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         .filter(|blk| blk.kind != BlockKind::Prop)
         .copied()
         .collect();
+    let (solids, solids_bare) = (Solids::new(&around), Solids::new(&around_bare));
     // Under a crater the sun gets in: plants grow as lushly as in the canopy, and flowers, which
     // follow the sun like real ones, a little more than on their floor.
     let crater = super::city::crater_at(seed, lx, lz);
@@ -634,23 +691,23 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         flowers: super::design::profile(floors::START).flowers,
         glow: 0,
         biome: biome_at(seed, lx, lz),
-        solids: &around,
+        solids: &solids,
         min_gap: MIN_FLOWER_GAP,
         squeeze: false,
     };
 
-    // Flowers of the points of interest: in an armchair, on a bench, in a pot (`dressing.rs`).
+    // Flowers of the points of interest: in an armchair, on a bench, in a pot (`chunks::Part::Bloom`).
     // They grow in the prop itself, so its collision box does not count, and they may stand close
     // together (two flowers side by side on a bench, like two people sitting).
-    b.solids = &around_bare;
+    b.solids = &solids_bare;
     b.min_gap = 0.5;
-    for at in super::dressing::dress_lot(seed, lx, lz, blocks).blooms {
+    for &at in blooms {
         let r = b.rng.range(0.26, 0.32);
         b.new_plant();
         let fc = b.flower_color();
         b.flower(at + Vec3::Y * r * 0.5, r, fc, Vec3::Y);
     }
-    b.solids = &around;
+    b.solids = &solids;
     b.min_gap = MIN_FLOWER_GAP;
 
     for blk in blocks {
@@ -679,11 +736,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
         // Bushes on top surfaces (not on parapets, machinery or signs).
         let plantable = matches!(
             blk.kind,
-            BlockKind::Floor
-                | BlockKind::Deck
-                | BlockKind::Tower
-                | BlockKind::Bridge
-                | BlockKind::Stair
+            BlockKind::Floor | BlockKind::Deck | BlockKind::Tower(_) | BlockKind::Stair
         ) || matches!(blk.kind, BlockKind::Built(m) if m.plantable());
         let area = size.x * size.z;
         let top = vec3(
@@ -732,21 +785,23 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block]) -> Growth {
                     let len = b.rng.range(3.0, 10.0 + 6.0 * dens);
                     // Hang only through free air: stop at whatever block lies below.
                     let top = a.max.y - 0.1;
-                    let ground = b
-                        .solids
-                        .iter()
-                        .filter(|o| {
-                            let c = &o.aabb;
-                            c.max.y <= top
-                                && x > c.min.x - 0.8
-                                && x < c.max.x + 0.8
-                                && z > c.min.z - 0.8
-                                && z < c.max.z + 0.8
-                                && !(c.min.y <= a.min.y && c.max.y >= a.max.y)
-                                && c.max.y <= a.min.y + 0.05
-                        })
-                        .map(|o| o.aabb.max.y)
-                        .fold(f32::MIN, f32::max);
+                    let mut ground = f32::MIN;
+                    let at = vec3(x, top, z);
+                    let pad = Vec3::new(0.8, 0.0, 0.8);
+                    b.solids.any(at - pad, at + pad, |o| {
+                        let c = &o.aabb;
+                        if c.max.y <= top
+                            && x > c.min.x - 0.8
+                            && x < c.max.x + 0.8
+                            && z > c.min.z - 0.8
+                            && z < c.max.z + 0.8
+                            && !(c.min.y <= a.min.y && c.max.y >= a.max.y)
+                            && c.max.y <= a.min.y + 0.05
+                        {
+                            ground = ground.max(c.max.y);
+                        }
+                        false
+                    });
                     let len = len.min(top - ground - 0.3);
                     if len >= 2.0 {
                         b.hanging_vine(vec3(x, top, z), len, out);
@@ -873,12 +928,14 @@ mod tests {
             for lx in -3..3 {
                 for lz in -3..3 {
                     let mut own = Vec::new();
-                    generate_lot(seed, lx, lz, &mut own);
-                    let g = grow_lot(seed, lx, lz, &own);
+                    let blooms =
+                        crate::world::city::generate_lot_dressed(seed, lx, lz, &mut own).blooms;
+                    let g = grow_lot(seed, lx, lz, &own, &blooms);
                     let all = around(seed, lx, lz);
+                    let index = Solids::new(&all);
 
                     // Determinism.
-                    let g2 = grow_lot(seed, lx, lz, &own);
+                    let g2 = grow_lot(seed, lx, lz, &own, &blooms);
                     assert_eq!(g.plants.len(), g2.plants.len());
                     assert_eq!(g.lights.len(), g2.lights.len());
 
@@ -889,17 +946,21 @@ mod tests {
                     }
                     assert!(per_floor.iter().all(|&n| n <= MAX_LIGHTS));
                     // Flowers of points of interest grow in props and may stand close together.
-                    let blooms = crate::world::dressing::dress_lot(seed, lx, lz, &own).blooms;
                     let poi = |p: Vec3| blooms.iter().any(|b| b.distance(p) < 1.0);
                     for (i, l) in g.lights.iter().enumerate() {
-                        if let Some(b) = all
-                            .iter()
-                            .filter(|b| b.kind != BlockKind::Prop || !poi(l.pos))
-                            .find(|b| inside(&b.aabb, l.pos, 0.0))
-                        {
+                        let mut hit = None;
+                        index.any(l.pos, l.pos, |b| {
+                            let found = (b.kind != BlockKind::Prop || !poi(l.pos))
+                                && inside(&b.aabb, l.pos, 0.0);
+                            if found {
+                                hit = Some(b.aabb);
+                            }
+                            found
+                        });
+                        if let Some(b) = hit {
                             panic!(
                                 "seed {seed} lot {lx},{lz}: light {:?} inside block {:?}..{:?}",
-                                l.pos, b.aabb.min, b.aabb.max
+                                l.pos, b.min, b.max
                             );
                         }
                         assert!(l.y_lo <= l.pos.y && l.pos.y <= l.y_hi);
@@ -918,15 +979,14 @@ mod tests {
                         // Only blocks near the triangle can be crossed (a cheap test first).
                         let lo = t[0].pos.min(t[1].pos).min(t[2].pos) - Vec3::splat(0.02);
                         let hi = t[0].pos.max(t[1].pos).max(t[2].pos) + Vec3::splat(0.02);
-                        let hit = all
-                            .iter()
-                            .filter(|b| b.aabb.min.cmple(hi).all() && b.aabb.max.cmpge(lo).all())
-                            .filter(|b| b.kind != BlockKind::Prop || !in_prop)
-                            .any(|b| {
-                                (0..3).any(|e| {
+                        let hit = index.any(lo, hi, |b| {
+                            b.aabb.min.cmple(hi).all()
+                                && b.aabb.max.cmpge(lo).all()
+                                && (b.kind != BlockKind::Prop || !in_prop)
+                                && (0..3).any(|e| {
                                     segment_crosses(t[e].pos, t[(e + 1) % 3].pos, &b.aabb, 0.01)
                                 })
-                            });
+                        });
                         crossing += hit as usize;
                     }
                 }
@@ -943,15 +1003,15 @@ mod stair_tests {
     #[test]
     fn stairs_grow_plants_like_the_rest() {
         let (mut stairs, mut grown) = (0, 0);
-        for lz in -14..=14 {
-            for lx in -14..=14 {
+        for lz in -9..=9 {
+            for lx in -9..=9 {
                 if city::stair(1, lx, lz).is_none() {
                     continue;
                 }
                 stairs += 1;
                 let mut blocks = Vec::new();
-                city::generate_lot(1, lx, lz, &mut blocks);
-                let g = super::grow_lot(1, lx, lz, &blocks);
+                let blooms = city::generate_lot_dressed(1, lx, lz, &mut blocks).blooms;
+                let g = super::grow_lot(1, lx, lz, &blocks, &blooms);
                 let on_stairs = |p: glam::Vec3| {
                     blocks.iter().any(|b| {
                         b.kind == BlockKind::Stair

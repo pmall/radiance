@@ -1,0 +1,96 @@
+// Tower: a slab of apartments, 16 x 12 m. Balconies in two colored stacks in the middle of the
+// long faces, air conditioners and cages on the outer bays, shops on every street story; blank
+// side walls with a fire escape. Tall ones step back to a narrower top of double windows.
+// Elevations are seen from outside, the top story first and the street story last (docs/chunks.md,
+// "Towers"); seen from outside the front (-z), bays run from x = 20 down to x = 4.
+Chunk(
+    name: "tower_slab",
+    size: (1, 1),
+    labels: ["tower"],
+    weight: 4,
+    tower: (
+        tiers: [
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                facade: (
+                    front: [
+                        "a  b1 b1 a",
+                        "w  b1 b1 w",
+                        "c  b1 b1 c",
+                        "w  b2 b2 w",
+                        "a  b2 b2 a",
+                        "w  b2 b2 w",
+                        "c  u  u  c",
+                        "l  b1 b1 l",
+                        "s  S  h2 s",
+                    ],
+                    side: [
+                        "v  w  d",
+                        "v  a  d",
+                        "v  w  d",
+                        "v  w  d",
+                        "v  a  d",
+                        "v  w  d",
+                        "v  u  d",
+                        "v  l  d",
+                        "-  h  H",
+                    ],
+                ),
+                each_floor: [
+                    // On the blank bay of the -x wall.
+                    Slot(at: (4.0, 0.0, 8.0), turn: 3, pick: [Some("fire_escape"), None]),
+                    Slot(at: (12.0, 0.0, 6.0), turn: 2, pick: [Some("blade_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                    Slot(at: (12.0, 0.0, 18.0), turn: 0, pick: [Some("blade_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                ],
+                streets: [
+                    // A terrace before the shop window of the front, leftovers by the other walls.
+                    Slot(at: (14.0, 0.0, 6.0), turn: 2, rate: Props, pick: [Some("wall_terrace"), None]),
+                    Slot(at: (14.0, 0.0, 18.0), turn: 0, rate: Props, pick: [Some("wall_terrace"), None, None]),
+                    Slot(at: (4.0, 0.0, 13.0), turn: 3, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (20.0, 0.0, 10.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (7.0, 0.0, 18.0), turn: 0, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+                roof: [
+                    Box(at: (4.0, 0.0, 6.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 17.6), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Box(at: (19.6, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Slot(at: (7.0, 0.0, 9.0), pick: [Some("water_tank"), Some("roof_ac"), None]),
+                    Slot(at: (12.0, 0.0, 12.0), pick: [Some("stair_housing"), None]),
+                    Slot(at: (16.5, 0.0, 9.0), pick: [Some("roof_plant"), Some("roof_solar"), None]),
+                    Slot(at: (16.5, 0.0, 15.0), pick: [Some("roof_solar"), Some("roof_skylight"),
+                        Some("roof_ac"), None]),
+                    Slot(at: (7.0, 0.0, 15.0), pick: [Some("roof_ac"), Some("roof_skylight"),
+                        Some("water_tank"), None]),
+                    Slot(at: (12.0, 0.0, 16.5), pick: [Some("roof_pipes"), None, None]),
+                    Slot(at: (12.0, 0.0, 7.2), turn: 2, pick: [Some("billboard"), None, None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (90, 140, 100)]),
+                    Slot(at: (18.0, 0.0, 12.0), pick: [Some("roof_mast"), Some("antenna"), None, None]),
+                ],
+            ),
+            // The setback: the top stories, narrower, double windows in color bands.
+            (
+                at: (6.0, 8.0),
+                size: (12.0, 8.0),
+                stories: (5, 12),
+                chance: 0.7,
+                facade: (
+                    front: ["d1 d1 d1", "w  w  w", "h  H  h"],
+                    side: ["d1 d1", "w  w", "h  h"],
+                ),
+                roof: [
+                    Box(at: (6.0, 0.0, 8.0), size: (12.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (6.0, 0.0, 15.6), size: (12.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (6.0, 0.0, 8.4), size: (0.4, 0.9, 7.2), mat: Concrete),
+                    Box(at: (17.6, 0.0, 8.4), size: (0.4, 0.9, 7.2), mat: Concrete),
+                    Slot(at: (9.0, 0.0, 11.0), pick: [Some("water_tank"), Some("roof_ac")]),
+                    Slot(at: (14.0, 0.0, 12.0), pick: [Some("stair_housing"), Some("roof_plant")]),
+                    Slot(at: (16.0, 0.0, 14.5), pick: [Some("roof_mast"), Some("antenna"), None]),
+                ],
+            ),
+        ],
+    ),
+)

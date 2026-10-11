@@ -128,3 +128,19 @@ Candidates for the render, all seed-driven, none needing gameplay:
 5. **Foreshadowing tableaux as props**: a flower in an armchair, two flowers on a bench, one in a
    dead garden, one at a closed door. Silent, no text, pure mood; they fit the lore exactly.
 6. **Flower melody guidance**, the audio side of `docs/guidance-ideas.md`.
+
+## Progression shapes the city (owner's ideas, not decisions)
+
+Ideas on how to harness the player's progression with the generation, to constrain the narration.
+Nothing here is decided or planned yet.
+
+- The player's progress could be an input of the generation alongside the seed: same seed and same
+  progress, same city.
+- On the first floors (the start, the depths), no stair would exist until the player has found at
+  least one point of interest. Not a locked stair: finding a food store has nothing to do with
+  opening a gate. The stair would simply be generated once the planner knows a point of interest
+  was found, the lots around rebuilt out of view so it never pops in.
+- Higher up, a stair locked behind a code could work: by then the player is no longer exploring
+  but has found a code and chooses to climb, against the instructions.
+- Either would need a small save (seed and progress); the world itself never needs saving, the
+  seed rebuilds it.

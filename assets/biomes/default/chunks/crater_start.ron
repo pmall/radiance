@@ -1,0 +1,19 @@
+// Crater: the one always opening in front of the spawn (`planner::START_CRATER`), seven lots
+// across, round, down to the start floor: a wide shaft of daylight beyond the dark plaza, the
+// first pull upward. A garden of rubble and fallen slabs at the bottom.
+Chunk(
+    name: "crater_start",
+    size: (7, 7),
+    labels: ["crater", "start"],
+    weight: 0,
+    holes: [((2, 0), (5, 7)), ((1, 1), (2, 6)), ((5, 1), (6, 6)), ((0, 2), (1, 5)),
+        ((6, 2), (7, 5))],
+    parts: [
+        Growth(area: ((12.0, 12.0), (156.0, 156.0)), kind: Soil),
+        Module(name: "fallen_slab", at: (84.0, 0.0, 70.0)),
+        Mirror4(center: (84.0, 84.0), parts: [
+            Slot(at: (60.0, 0.0, 40.0), pick: [Some("rubble"), Some("fallen_slab")]),
+            Slot(at: (100.0, 0.0, 52.0), turn: 1, pick: [Some("rubble"), None]),
+        ]),
+    ],
+)

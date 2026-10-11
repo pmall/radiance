@@ -1,7 +1,7 @@
-//! Props: what people left in the streets, placed whole by the street dressing (`dressing.rs`).
-//! Most are box-built modules from `assets/modules/props.ron` (and the street furniture of
+//! Props: what people left in the streets. Chunks place them by module name (`by_module`), whole:
+//! most are box-built modules from `assets/modules/props.ron` (and the street furniture of
 //! `street.ron`), drawn in the same pixel-art materials as the hand-written chunks; the street
-//! light is built here, as a smooth mesh, since a box pole and arm read poorly.
+//! light (`street_light`) is built here, as a smooth mesh, since a box pole and arm read poorly.
 //!
 //! The seed decides what goes where; the renderer draws every prop of a kind in one instanced call
 //! from a single mesh (`src/render/props.rs`), and they get the same shading, outlines, fog,
@@ -50,6 +50,8 @@ enum Source {
 /// How a prop is loaded.
 struct Def {
     prop: Prop,
+    /// The module name chunks place it by (the module itself, for those built from one).
+    name: &'static str,
     source: Source,
     /// Collision only around a pole of this half width (a street light's arm overhangs the road).
     pole: Option<f32>,
@@ -58,6 +60,7 @@ struct Def {
 const fn module(prop: Prop, name: &'static str) -> Def {
     Def {
         prop,
+        name,
         source: Source::Module(name),
         pole: None,
     }
@@ -66,6 +69,7 @@ const fn module(prop: Prop, name: &'static str) -> Def {
 const DEFS: &[Def] = &[
     Def {
         prop: Prop::StreetLight,
+        name: "street_light",
         source: Source::Built(street_light),
         pole: Some(0.18),
     },
@@ -86,6 +90,12 @@ const DEFS: &[Def] = &[
     module(Prop::ClayPot, "clay_pot"),
 ];
 
+/// The prop a module of the catalog is drawn as, if it is one: chunks place these instanced
+/// (`chunks::Built::props`) instead of building their boxes.
+pub fn by_module(name: &str) -> Option<Prop> {
+    DEFS.iter().find(|d| d.name == name).map(|d| d.prop)
+}
+
 /// Every prop, in a stable order (the renderer keeps one mesh per prop).
 pub fn all() -> impl Iterator<Item = Prop> {
     DEFS.iter().map(|d| d.prop)
@@ -99,6 +109,8 @@ pub struct PropMesh {
     pub half: Vec3,
     /// Half width of the collision pole, if the prop only collides around one.
     pub pole: Option<f32>,
+    /// Where the mesh's origin (the footprint's center, on the floor) lies in its module.
+    pub base: Vec3,
 }
 
 #[derive(Clone, Copy)]
@@ -192,6 +204,7 @@ fn load() -> HashMap<Prop, PropMesh> {
                 verts,
                 half: vec3(size.x * 0.5, size.y, size.z * 0.5),
                 pole: d.pole,
+                base,
             };
             (d.prop, mesh)
         })
@@ -219,9 +232,11 @@ impl Placed {
     pub fn aabb(&self) -> super::Aabb {
         let m = mesh(self.prop);
         if let Some(r) = m.pole {
+            // The pole stands at the module's origin, off the footprint's center.
+            let pole = self.pos - Quat::from_rotation_y(self.yaw) * vec3(m.base.x, 0.0, m.base.z);
             return super::Aabb {
-                min: self.pos - vec3(r, 0.0, r),
-                max: self.pos + vec3(r, m.half.y, r),
+                min: pole - vec3(r, 0.0, r),
+                max: pole + vec3(r, m.half.y, r),
             };
         }
         let (s, c) = self.yaw.sin_cos();

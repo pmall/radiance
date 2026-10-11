@@ -3,15 +3,12 @@
 pub mod biome;
 pub mod chunks;
 pub mod city;
-pub mod construction;
 pub mod design;
-pub mod dressing;
-pub mod facade;
 pub mod floors;
 pub mod growth;
 pub mod planner;
 pub mod props;
-pub mod roof;
+pub mod tower;
 
 use std::collections::HashMap;
 
@@ -57,26 +54,15 @@ pub enum BlockKind {
     Floor,
     /// Deck slabs: the streets and plazas of the floors above the ground.
     Deck,
-    Tower,
-    /// Walkway deck and parapets between two towers.
-    Bridge,
+    /// A tower body, its walls painted from its chunk's elevations.
+    Tower(tower::Faces),
     /// Stair steps and landings.
     Stair,
     /// Hand-placed movement test blocks near spawn.
     Course,
-    /// Low wall around a roof edge.
+    /// The wall between a stair's two lanes.
     Parapet,
-    /// Rooftop machinery: air conditioners, vents, tanks, stairwell housings, billboard posts.
-    Equipment,
-    /// Billboard panel.
-    Sign,
-    /// Antenna mast.
-    Mast,
-    /// Rooftop solar panel array.
-    Solar,
-    /// Rooftop skylight.
-    Skylight,
-    /// Steel: fire escape platforms, rails and ladders, sign brackets.
+    /// Steel: stair rails.
     Steel,
     /// The collision box of a prop (`props.rs`); not drawn, the prop's own mesh is.
     Prop,
@@ -135,7 +121,7 @@ pub struct Light {
 pub struct Lot {
     pub blocks: Vec<Block>,
     pub plants: Vec<PlantVert>,
-    /// Props standing in the lot (`dressing.rs`); the renderer draws them instanced.
+    /// Props standing in the lot (from its chunks); the renderer draws them instanced.
     pub props: Vec<props::Placed>,
     pub lights: Vec<Light>,
     /// Material variant (palette index) of the lot's biome.
@@ -176,9 +162,10 @@ impl World {
         missing.sort_by_key(|&(x, z)| (x - cx).pow(2) + (z - cz).pow(2));
         for (x, z) in missing.into_iter().take(budget) {
             let mut blocks = Vec::new();
-            let dressing = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
-            let growth::Growth { plants, lights } = growth::grow_lot(self.seed, x, z, &blocks);
-            let props = dressing.props;
+            let dressed = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
+            let growth::Growth { plants, lights } =
+                growth::grow_lot(self.seed, x, z, &blocks, &dressed.blooms);
+            let props = dressed.props;
             self.lots.insert(
                 (x, z),
                 Lot {

@@ -6,6 +6,9 @@ use sola_raylib::ffi;
 use crate::rng::mix64;
 use crate::world::{BlockKind, Lot};
 
+/// Elevation ids the kind code can carry exactly (a float holds integers up to 2^24).
+const MAX_ELEVATION: u16 = 8191;
+
 pub struct WorldMesh {
     pub raw: ffi::Mesh,
 }
@@ -49,9 +52,19 @@ pub(super) fn raylib_copy<T: Copy>(data: &[T]) -> *mut T {
     }
 }
 
+/// Largest extent of a box that counts as detail (an air conditioner, a balcony, a railing post):
+/// those go to the lot's detail mesh, drawn only near the camera.
+const DETAIL_SIZE: f32 = 3.5;
+
+/// Whether a block is small detail rather than architecture.
+fn is_detail(kind: BlockKind, size: Vec3) -> bool {
+    matches!(kind, BlockKind::Built(_) | BlockKind::Steel) && size.max_element() <= DETAIL_SIZE
+}
+
 impl WorldMesh {
-    /// `key` distinguishes lots so outline ids differ between neighbours.
-    pub fn build(lot: &Lot, key: u64) -> Self {
+    /// A lot's architecture and plants (`detail` false), or its small boxes (`detail` true); `None`
+    /// if there is nothing. `key` distinguishes lots so outline ids differ between neighbours.
+    pub fn build(lot: &Lot, key: u64, detail: bool) -> Option<Self> {
         let mut pos: Vec<f32> = Vec::new();
         let mut nrm: Vec<f32> = Vec::new();
         let mut uv: Vec<f32> = Vec::new();
@@ -63,7 +76,9 @@ impl WorldMesh {
         let variant = lot.variant as f32 * 16.0;
         for (i, b) in lot.blocks.iter().enumerate() {
             // Prop boxes are only collision; the props draw their own mesh below.
-            if matches!(b.kind, BlockKind::Prop | BlockKind::Collider) {
+            if matches!(b.kind, BlockKind::Prop | BlockKind::Collider)
+                || is_detail(b.kind, b.aabb.size()) != detail
+            {
                 continue;
             }
             // Object id for outline detection between touching blocks; 0 is reserved for sky.
@@ -72,17 +87,11 @@ impl WorldMesh {
             // Shader material code: see `kind` in shaders/scene.fs (1 is plants).
             let kind = variant
                 + match b.kind {
-                    BlockKind::Tower => 0.0,
+                    BlockKind::Tower(_) => 0.0,
                     BlockKind::Floor | BlockKind::Deck => 2.0,
-                    BlockKind::Bridge => 3.0,
                     BlockKind::Stair => 4.0,
                     BlockKind::Course => 5.0,
                     BlockKind::Parapet => 6.0,
-                    BlockKind::Equipment => 7.0,
-                    BlockKind::Sign => 8.0,
-                    BlockKind::Mast => 9.0,
-                    BlockKind::Solar => 10.0,
-                    BlockKind::Skylight => 11.0,
                     BlockKind::Steel => 13.0,
                     BlockKind::Built(_) => 15.0,
                     BlockKind::Prop | BlockKind::Collider => unreachable!(),
@@ -92,6 +101,24 @@ impl WorldMesh {
                 if n.y < 0.0 && b.aabb.min.y >= -0.01 && b.aabb.min.y <= 0.01 {
                     continue;
                 }
+                // A tower wall carries its elevation and the tower's paint shift (`facade` in
+                // shaders/scene.fs), above the variant in the kind code.
+                let kind = match b.kind {
+                    BlockKind::Tower(f) if n.y == 0.0 => {
+                        let face = if n.x > 0.0 {
+                            0
+                        } else if n.x < 0.0 {
+                            1
+                        } else if n.z > 0.0 {
+                            2
+                        } else {
+                            3
+                        };
+                        let id = f.ids[face].min(MAX_ELEVATION) as f32;
+                        kind + id * 2048.0 + (f.paint % 8) as f32 * 256.0
+                    }
+                    _ => kind,
+                };
                 for k in [0, 1, 2, 0, 2, 3] {
                     let p = b.aabb.min + Vec3::from(corners[k]) * size;
                     pos.extend_from_slice(&p.to_array());
@@ -106,9 +133,6 @@ impl WorldMesh {
                         [m.index() as f32, 0.0]
                     } else if n.y != 0.0 {
                         [c[0], c[2]]
-                    } else if b.kind == BlockKind::Sign {
-                        // The thin edges of a panel are marked with -1: no art there.
-                        [if size[along] < 1.0 { -1.0 } else { c[along] }, c[1]]
                     } else {
                         [c[along] * size[along], size[along]]
                     };
@@ -119,7 +143,7 @@ impl WorldMesh {
             }
         }
 
-        for v in &lot.plants {
+        for v in lot.plants.iter().filter(|_| !detail) {
             pos.extend_from_slice(&v.pos.to_array());
             nrm.extend_from_slice(&v.normal.to_array());
             // uv.y = 1 marks plant geometry (architecture is 0), read by the scene shader.
@@ -129,6 +153,9 @@ impl WorldMesh {
         }
 
         let count = pos.len() / 3;
+        if count == 0 {
+            return None;
+        }
         let mut raw: ffi::Mesh = unsafe { std::mem::zeroed() };
         raw.vertexCount = count as i32;
         raw.triangleCount = (count / 3) as i32;
@@ -138,7 +165,7 @@ impl WorldMesh {
         raw.texcoords2 = raylib_copy(&uv2);
         raw.colors = raylib_copy(&col);
         unsafe { ffi::UploadMesh(&mut raw, false) };
-        Self { raw }
+        Some(Self { raw })
     }
 
     pub fn triangles(&self) -> i32 {

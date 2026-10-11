@@ -8,6 +8,7 @@
 //! Shaders hot-reload from disk when edited.
 
 mod cover;
+mod facades;
 mod halos;
 mod lights;
 pub mod look;
@@ -68,6 +69,10 @@ const LINE_WIDTH: f32 = 2.4;
 /// cast shadows this far.
 const PROP_REACH: f32 = 110.0;
 const PROP_SHADOW_REACH: f32 = 45.0;
+/// The lots' small boxes (`mesh::is_detail`) are drawn within this horizontal distance of the
+/// camera (to the lot's edge), and cast shadows within the second.
+const DETAIL_REACH: f32 = 110.0;
+const DETAIL_SHADOW_REACH: f32 = 45.0;
 /// How far ahead of the camera the shadow map is centered, in meters.
 const SHADOW_LEAD: f32 = 50.0;
 const RELOAD_POLL: f32 = 0.5;
@@ -107,16 +112,20 @@ pub struct Renderer {
     shadow: ShadowMap,
     targets: Option<SceneTargets>,
     meshes: HashMap<(i32, i32), WorldMesh>,
+    /// Each lot's small boxes, drawn near the camera only.
+    details: HashMap<(i32, i32), WorldMesh>,
     /// Props of each lot, drawn instanced (`props.rs`).
     lots_props: HashMap<(i32, i32), Vec<crate::world::props::Placed>>,
     prop_meshes: props::PropMeshes,
     /// Prop triangles drawn last frame.
     prop_triangles: i32,
+    detail_triangles: i32,
     lots_lights: HashMap<(i32, i32), Vec<Light>>,
     /// Souls that are singing: their lights swell and fade back (1 = just started).
     pulses: HashMap<crate::audio::Soul, f32>,
     light_grid: LightGrid,
     cover: CoverMap,
+    facades: facades::Facades,
     /// Seed of the synced world, for the cover map.
     seed: u64,
     particles: Particles,
@@ -133,6 +142,21 @@ fn v3(v: Vec3) -> ffi::Vector3 {
         y: v.y,
         z: v.z,
     }
+}
+
+/// The detail meshes of the lots within `reach` of `eye` (horizontally, to the lot's edge).
+fn details_near(
+    details: &HashMap<(i32, i32), WorldMesh>,
+    eye: Vec3,
+    reach: f32,
+) -> impl Iterator<Item = &WorldMesh> {
+    let lot = crate::world::city::LOT;
+    details.iter().filter_map(move |(&(x, z), m)| {
+        let (x0, z0) = (x as f32 * lot, z as f32 * lot);
+        let dx = (x0 - eye.x).max(eye.x - x0 - lot).max(0.0);
+        let dz = (z0 - eye.z).max(eye.z - z0 - lot).max(0.0);
+        (dx * dx + dz * dz < reach * reach).then_some(m)
+    })
 }
 
 impl Renderer {
@@ -159,6 +183,8 @@ impl Renderer {
         unsafe { (*material.maps.add(surfaces::COVER_SLOT)).texture = cover.texture };
         let prop_meshes = props::PropMeshes::new();
         unsafe { (*material.maps.add(pixels::SLOT)).texture = pixels::load() };
+        let facades = facades::Facades::new();
+        unsafe { (*material.maps.add(facades::SLOT)).texture = facades.texture };
         surfaces::bind_samplers(&mut material);
         let halos = Halos::new(light_grid.texture);
         Self {
@@ -168,13 +194,16 @@ impl Renderer {
             shadow,
             targets: None,
             meshes: HashMap::new(),
+            details: HashMap::new(),
             lots_props: HashMap::new(),
             prop_meshes,
             prop_triangles: 0,
+            detail_triangles: 0,
             lots_lights: HashMap::new(),
             pulses: HashMap::new(),
             light_grid,
             cover,
+            facades,
             seed: 0,
             particles: Particles::new(),
             halos,
@@ -195,6 +224,7 @@ impl Renderer {
     pub fn clear_world(&mut self) {
         self.pulses.clear();
         self.meshes.clear();
+        self.details.clear();
         self.lots_props.clear();
         self.lots_lights.clear();
     }
@@ -202,26 +232,35 @@ impl Renderer {
     /// Brings the per-lot meshes in line with the lots the world currently has loaded.
     pub fn sync_world(&mut self, world: &World) {
         self.seed = world.seed;
+        if self.facades.refresh() {
+            unsafe { (*self.material.maps.add(facades::SLOT)).texture = self.facades.texture };
+        }
         let live: std::collections::HashSet<_> = world.lots().map(|(k, _)| k).collect();
         self.meshes.retain(|k, _| live.contains(k));
+        self.details.retain(|k, _| live.contains(k));
         self.lots_props.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
         for (k, lot) in world.lots() {
-            self.lots_props
-                .entry(k)
-                .or_insert_with(|| lot.props.clone());
-            self.lots_lights
-                .entry(k)
-                .or_insert_with(|| lot.lights.clone());
-            self.meshes.entry(k).or_insert_with(|| {
-                let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
-                WorldMesh::build(lot, key)
-            });
+            if self.lots_props.contains_key(&k) {
+                continue;
+            }
+            self.lots_props.insert(k, lot.props.clone());
+            self.lots_lights.insert(k, lot.lights.clone());
+            let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
+            if let Some(m) = WorldMesh::build(lot, key, false) {
+                self.meshes.insert(k, m);
+            }
+            if let Some(m) = WorldMesh::build(lot, key, true) {
+                self.details.insert(k, m);
+            }
         }
     }
 
+    /// Triangles drawn in the last frame.
     pub fn triangles(&self) -> i32 {
-        self.meshes.values().map(|m| m.triangles()).sum::<i32>() + self.prop_triangles
+        self.meshes.values().map(|m| m.triangles()).sum::<i32>()
+            + self.detail_triangles
+            + self.prop_triangles
     }
 
     pub fn shaders_broken(&self) -> bool {
@@ -318,8 +357,9 @@ impl Renderer {
                     ahead: None,
                 },
             );
+            let near = details_near(&self.details, view.pos, DETAIL_SHADOW_REACH);
             light_vp = self.shadow.render(
-                self.meshes.values().map(|m| &m.raw),
+                self.meshes.values().chain(near).map(|m| &m.raw),
                 &casters,
                 view.pos + ahead,
                 sky.light_dir,
@@ -370,9 +410,15 @@ impl Renderer {
             // Alpha carries the object id in the normal target: it must not blend.
             ffi::rlDisableColorBlend();
             s.set_i32("uInstanced", 0);
+            let mut detail = 0;
             for mesh in self.meshes.values() {
                 ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
             }
+            for mesh in details_near(&self.details, view.pos, DETAIL_REACH) {
+                ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
+                detail += mesh.triangles();
+            }
+            self.detail_triangles = detail;
             s.set_i32("uInstanced", 1);
             props::draw(&batches, self.material);
             s.set_i32("uInstanced", 0);

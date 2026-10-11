@@ -1,0 +1,17 @@
+// Filler: a vacant lot, what a free lot holds when no housing or yard stands there: a small
+// square of two benches, debris, rubble, or nothing, at the floor's props chance.
+Chunk(
+    name: "vacant_lot",
+    size: (1, 1),
+    zones: [Depths, Middle],
+    labels: ["vacant"],
+    role: Filler,
+    weight: 3,
+    parts: [
+        Slot(at: (12.0, 0.0, 12.0), rate: Props, pick: [Some("vacant_square"), Some("vacant_debris"),
+            Some("rubble"), None]),
+        Slot(at: (7.0, 0.0, 17.0), turn: 1, rate: Props, pick: [Some("vacant_debris"),
+            Some("wall_crates"), None, None]),
+        Slot(at: (17.0, 0.0, 7.5), turn: 3, rate: Props, pick: [Some("wall_barrels"), None, None]),
+    ],
+)

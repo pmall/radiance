@@ -1,0 +1,24 @@
+// The plaza where the player wakes up (2 x 2 lots around the spawn, on the start floor; placed by
+// the planner, `planner::START_CHUNK`). Open, so the crater ahead (-z) pulls the eye: street
+// lights at its corners, a few benches facing the crater, and one armchair with a flower behind
+// the curb of the street before it, facing it. Only one, so the secret of the flowers is not
+// spelled out from the first step.
+Chunk(
+    name: "start_plaza",
+    size: (2, 2),
+    labels: ["start"],
+    role: Block,
+    weight: 0,
+    parts: [
+        Module(name: "poi_armchair", at: (17.0, 0.0, 4.0), turn: 2),
+        Module(name: "street_light", at: (3.5, 0.0, 3.5), turn: 2),
+        Module(name: "street_light", at: (27.5, 0.0, 3.5), turn: 2),
+        Module(name: "street_light", at: (3.5, 0.0, 27.5), turn: 2),
+        Module(name: "street_light", at: (27.5, 0.0, 27.5), turn: 2),
+        Module(name: "bench", at: (31.0, 0.0, 3.8), turn: 2),
+        Module(name: "curb_bench_bin", at: (38.0, 0.0, 3.8), turn: 2),
+        Module(name: "planter", at: (9.0, 0.0, 3.8)),
+        Module(name: "bin", at: (44.2, 0.0, 22.0), turn: 1),
+        Module(name: "utility_box", at: (3.8, 0.0, 40.0), turn: 3),
+    ],
+)

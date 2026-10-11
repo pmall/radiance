@@ -1,0 +1,77 @@
+// The rims of the holes in the floors and what crosses them (docs/chunks.md, "Holes"), used by
+// the hole and crater chunks.
+[
+    // A footbridge across one lot's span (24 m along +x from its origin), its walkway level with
+    // the floor (y = 0) and centered on z = 0: a metal deck, rusted girders and crossbeams under
+    // it, railings with posts every 2 m.
+    Module(
+        name: "footbridge_span",
+        parts: [
+            Box(at: (0.0, -0.3, -2.0), size: (24.0, 0.3, 4.0), mat: Metal),
+            Mirror2(axis: Z, at: 0.0, parts: [
+                Box(at: (0.0, -1.3, 1.6), size: (24.0, 1.0, 0.4), mat: Rust),
+                Box(at: (0.0, 1.0, 1.88), size: (24.0, 0.12, 0.12), mat: Metal),
+                Box(at: (0.0, 0.5, 1.88), size: (24.0, 0.08, 0.12), mat: Metal),
+                Repeat(from: (0.94, 0.0, 1.88), step: (2.0, 0.0, 0.0), count: 12, parts: [
+                    Box(at: (0.0, 0.0, 0.0), size: (0.12, 1.0, 0.12), mat: Metal),
+                ]),
+            ]),
+            Repeat(from: (1.85, -1.1, -1.6), step: (4.0, 0.0, 0.0), count: 6, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.3, 0.8, 3.2), mat: Rust),
+            ]),
+        ],
+    ),
+    // Where no footbridge was built: railings across the 8 m left open for it on both rims of a
+    // one-lot gap (the rims at x = 0 and x = 24, the opening from z = -4 to 4).
+    Module(
+        name: "gap_closed",
+        parts: [
+            Module(name: "railing", at: (0.0, 0.0, 0.0), turn: 1),
+            Module(name: "railing", at: (0.0, 0.0, 4.0), turn: 1),
+            Module(name: "railing", at: (24.0, 0.0, -4.0), turn: 3),
+            Module(name: "railing", at: (24.0, 0.0, 0.0), turn: 3),
+        ],
+    ),
+    // A steel girder sticking out over the void from the edge of a deck (the edge at z = 0, the
+    // void toward +z), as if the next slab was about to be laid.
+    Module(
+        name: "girder_stub",
+        parts: [
+            Box(at: (-0.2, -1.0, -0.6), size: (0.4, 0.7, 5.6), mat: Rust),
+            Box(at: (-0.3, -0.35, -0.6), size: (0.6, 0.08, 5.6), mat: Rust),
+        ],
+    ),
+    // A plastic barrier block, striped.
+    Module(
+        name: "barrier",
+        parts: [
+            Box(at: (-1.0, 0.0, -0.3), size: (2.0, 0.9, 0.6), mat: Paint((200, 70, 50))),
+            Box(at: (-1.0, 0.5, -0.31), size: (2.0, 0.15, 0.62), mat: Paint((226, 216, 190))),
+        ],
+    ),
+    // A slab fallen into a crater, broken: pieces of deck lying askew in steps, rebar out.
+    Module(
+        name: "fallen_slab",
+        parts: [
+            Box(at: (-4.0, 0.0, -2.5), size: (6.0, 0.6, 5.0), mat: StoneDark),
+            Box(at: (1.5, 0.0, -2.0), size: (3.0, 1.1, 4.0), mat: StoneDark),
+            Box(at: (2.0, 1.1, -1.5), size: (2.0, 0.5, 2.5), mat: Concrete),
+            Box(at: (-3.0, 0.6, -1.0), size: (0.06, 1.2, 0.06), mat: Rust),
+            Box(at: (-2.4, 0.6, 0.4), size: (0.06, 0.9, 0.06), mat: Rust),
+            Box(at: (3.6, 1.6, -0.3), size: (0.06, 1.0, 0.06), mat: Rust),
+        ],
+    ),
+    // A segment of a skybridge between two towers (`city::push_bridge` lays them wall to wall),
+    // 2 m along +x, its walkway level with y = 0 and centered on z = 0: a concrete deck with a
+    // beam under it, low parapets.
+    Module(
+        name: "skybridge_segment",
+        parts: [
+            Box(at: (0.0, -0.6, -2.0), size: (2.0, 0.6, 4.0), mat: Concrete),
+            Box(at: (0.0, -1.1, -1.2), size: (2.0, 0.5, 2.4), mat: Metal),
+            Mirror2(axis: Z, at: 0.0, parts: [
+                Box(at: (0.0, 0.0, 1.7), size: (2.0, 1.0, 0.3), mat: Concrete),
+            ]),
+        ],
+    ),
+]
