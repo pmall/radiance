@@ -1,0 +1,19 @@
+// Filler of the upper floors: a machines' depot behind a fence, stacks of beams and pallets of
+// blocks waiting for the next floor, a site cabin.
+Chunk(
+    name: "depot",
+    size: (1, 1),
+    zones: [Middle, Canopy],
+    labels: ["depot"],
+    weight: 3,
+    parts: [
+        Repeat(from: (5.5, 0.0, 5.5), step: (3.0, 0.0, 0.0), count: 4, parts: [Module(name: "fence_panel")]),
+        Repeat(from: (5.5, 0.0, 18.5), step: (3.0, 0.0, 0.0), count: 4, parts: [Module(name: "fence_panel")]),
+        Repeat(from: (5.5, 0.0, 8.5), step: (0.0, 0.0, 3.0), count: 3, parts: [Module(name: "fence_panel", turn: 3, at: (0.0, 0.0, 0.0))]),
+        Repeat(from: (18.5, 0.0, 5.5), step: (0.0, 0.0, 3.0), count: 4, parts: [Module(name: "fence_panel", turn: 3, at: (0.0, 0.0, 0.0))]),
+        Slot(at: (10.0, 0.0, 9.0), pick: [Some("beam_stack"), Some("block_pallet"), None]),
+        Slot(at: (14.0, 0.0, 9.0), pick: [Some("beam_stack"), Some("block_pallet")]),
+        Slot(at: (14.0, 0.0, 14.0), pick: [Some("block_pallet"), Some("beam_stack"), None]),
+        Slot(at: (9.5, 0.0, 14.5), pick: [Some("site_cabin"), Some("block_pallet")]),
+    ],
+)

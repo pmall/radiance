@@ -1,10 +1,13 @@
-//! Things attached to tower walls: fire escapes (solid steel platforms and ladders you can climb)
-//! and blade signs hanging over the street levels. Pure functions of the tower block and the
-//! lot's random stream.
+//! Things attached to tower walls: fire escapes (solid steel platforms and ladders you can climb),
+//! blade signs hanging over the street levels, and the facade units of the stories next to the
+//! decks (shop awnings, air conditioners, cages, balconies, laundry: `assets/modules/facade.ron`),
+//! on the grid of bays the shader paints (`facade` in `shaders/scene.fs`). Pure functions of the
+//! tower block and the lot's random stream.
 
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
+use super::chunks;
 use super::{Aabb, Block, BlockKind};
 use crate::rng::Rng;
 
@@ -136,6 +139,73 @@ pub fn push_facade_props(
                 BlockKind::Steel,
                 out,
             );
+        }
+    }
+}
+
+/// Width of a bay of the facade grid, and height of a story (as in `facade`, `shaders/scene.fs`).
+const BAY: f32 = 4.0;
+/// Stories above a street level whose windows get real units (the shader paints them plain).
+const NEAR_STORIES: usize = 2;
+
+/// Adds the facade units of the stories next to each street level in `levels`: on the street
+/// story, shop awnings and sign boxes; on the `NEAR_STORIES` above, what each window has in front
+/// of it. Bays as the shader lays them out: `BAY` wide, centered on the face.
+pub fn push_facade_units(
+    rng: &mut Rng,
+    tower: &Aabb,
+    levels: &[f32],
+    first: usize,
+    out: &mut Vec<Block>,
+) {
+    let cat = chunks::catalog();
+    for face in faces(tower) {
+        let width = if face.1 == Vec3::X {
+            tower.max.x - tower.min.x
+        } else {
+            tower.max.z - tower.min.z
+        };
+        let cols = (width / BAY).floor().max(1.0) as i32;
+        let u0 = (width - cols as f32 * BAY) * 0.5;
+        for &level in levels {
+            // Only where the tower stands on this level and rises past its near stories.
+            if tower.min.y > level + 0.5 || tower.max.y < level + BAY * (NEAR_STORIES + 1) as f32 {
+                continue;
+            }
+            for c in 0..cols {
+                let u = u0 + (c as f32 + 0.5) * BAY;
+                let shop = if rng.chance(0.65) {
+                    "facade_shop"
+                } else {
+                    "facade_awningless"
+                };
+                let mut units = vec![(shop, level)];
+                for s in 1..=NEAR_STORIES {
+                    units.push(("facade_unit", level + s as f32 * BAY + 1.0));
+                }
+                for (name, y) in units {
+                    let Some(built) = chunks::build_module_seeded(&cat, name, rng.next_u64())
+                    else {
+                        continue;
+                    };
+                    for (b, mat) in built.boxes {
+                        let aabb = wall_box(
+                            &face,
+                            (u + b.min.x, u + b.max.x),
+                            (b.min.z, b.max.z),
+                            (y + b.min.y, y + b.max.y),
+                        );
+                        // Never into another block of the lot (bridges, decks, fire escapes).
+                        if !out[first..].iter().any(|o| o.aabb.overlaps(&aabb)) {
+                            out.push(Block {
+                                aabb,
+                                color: mat.color(),
+                                kind: BlockKind::Built(mat),
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
 }

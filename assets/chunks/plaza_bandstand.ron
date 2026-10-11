@@ -1,0 +1,23 @@
+// Plaza quarter: a bandstand for the evening concerts, rows of chairs facing it, some knocked over
+// long ago, lamps around.
+Chunk(
+    name: "plaza_bandstand",
+    size: (2, 2),
+    role: Sub,
+    labels: ["plaza_quarter"],
+    weight: 2,
+    parts: [
+        Slot(at: (24.0, 0.0, 16.0), pick: [Some("bandstand")], accents: [(60, 96, 86), (150, 60, 44), (70, 80, 120)]),
+        Repeat(from: (12.0, 0.0, 28.0), step: (1.2, 0.0, 0.0), count: 21, parts: [
+            Repeat(step: (0.0, 0.0, 1.6), count: 6, parts: [
+                Slot(at: (0.0, 0.0, 0.0), turn: 2, pick: [Some("terrace_chair"), Some("terrace_chair"), Some("terrace_chair"), None]),
+            ]),
+        ]),
+        Mirror2(axis: X, at: 24.0, parts: [
+            Module(name: "lamp", at: (8.0, 0.0, 8.0), turn: 1),
+            Module(name: "lamp", at: (8.0, 0.0, 40.0), turn: 1),
+            Module(name: "tree_bed", at: (6.0, 0.0, 24.0)),
+        ]),
+        Growth(area: ((10.0, 26.0), (38.0, 38.0)), kind: Bare),
+    ],
+)

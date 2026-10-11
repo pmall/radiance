@@ -1,0 +1,22 @@
+// Block of the depths: a court of laundry on two lots, lines strung between poles in rows, water
+// tanks, washing basins, crates; people dried their clothes here when there was still sun.
+Chunk(
+    name: "laundry_court",
+    size: (2, 2),
+    zones: [Depths],
+    labels: ["yard"],
+    weight: 2,
+    ground: Some(Concrete),
+    parts: [
+        Repeat(from: (8.0, 0.0, 8.0), step: (8.0, 0.0, 0.0), count: 4, parts: [
+            Repeat(step: (0.0, 0.0, 3.0), count: 11, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("laundry_line"), Some("laundry_line"), None],
+                    accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (120, 150, 90), (200, 200, 190)]),
+            ]),
+        ]),
+        Mirror4(center: (24.0, 24.0), parts: [
+            Module(name: "water_tank", at: (5.0, 0.0, 5.0)),
+            Slot(at: (5.0, 0.0, 24.0), turn: 1, pick: [Some("crate_stack"), Some("barrel"), Some("barrel_blue"), None]),
+        ]),
+    ],
+)

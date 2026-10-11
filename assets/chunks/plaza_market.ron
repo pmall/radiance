@@ -1,0 +1,18 @@
+// Plaza quarter: a weekly market, rows of stalls with aisles between, crates where a stall was
+// packed up, a kiosk at the corner.
+Chunk(
+    name: "plaza_market",
+    size: (2, 2),
+    role: Sub,
+    labels: ["plaza_quarter"],
+    weight: 2,
+    parts: [
+        Repeat(from: (8.0, 0.0, 8.0), step: (4.0, 0.0, 0.0), count: 9, parts: [
+            Repeat(step: (0.0, 0.0, 8.0), count: 5, parts: [
+                Slot(at: (0.0, 0.0, 0.0), turn: 2, pick: [Some("stall"), Some("stall"), Some("crate_stack"), None],
+                    accents: [(176, 52, 44), (44, 110, 120), (200, 150, 40), (90, 120, 60)]),
+            ]),
+        ]),
+        Growth(area: ((6.0, 6.0), (42.0, 42.0)), kind: Bare),
+    ],
+)

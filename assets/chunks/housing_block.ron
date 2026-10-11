@@ -1,0 +1,14 @@
+// Filler: a five-story housing block in the middle of its lot, shops on the street story, a grid
+// of windows each with its own luck (caged, boarded, an air conditioner, laundry, a balcony).
+Chunk(
+    name: "housing_block",
+    size: (1, 1),
+    zones: [Depths, Middle],
+    labels: ["housing"],
+    weight: 3,
+    parts: [
+        Slot(at: (12.0, 0.0, 12.0), pick: [Some("housing_block")],
+            accents: [(150, 120, 96), (110, 128, 120), (170, 150, 120), (128, 104, 110), (96, 112, 132),
+                      (160, 96, 76), (120, 120, 112)]),
+    ],
+)

@@ -173,9 +173,28 @@ pub enum Zone {
     Canopy,
 }
 
+/// How the planner places a chunk (`planner.rs`). Left out, it follows from the chunk: 6 lots wide
+/// or more an area, labeled `stair_hub` a hub, one lot a filler, else a block.
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    /// A large designed place, one per area cell at most.
+    Area,
+    /// A smaller place (a light well, a pocket park), one per block cell and floor at most.
+    Block,
+    /// Frames a stair, which stands in its middle lot.
+    Hub,
+    /// Only fills the `Sub` openings of another chunk that ask for one of its labels.
+    Sub,
+    /// The city's background: one lot of housing, a yard, a depot.
+    Filler,
+}
+
 fn one() -> u32 {
     1
 }
+
+/// A rectangle of lots, local to a chunk: first lot (x, z), and past the last one.
+pub type LotRect = ((i32, i32), (i32, i32));
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Chunk {
@@ -195,7 +214,52 @@ pub struct Chunk {
     /// standard streets.
     #[serde(default)]
     pub ground: Option<Mat>,
+    #[serde(default)]
+    pub role: Option<Role>,
+    /// Lots left open on the chunk's floor and every floor above (a light well, a collapse): no
+    /// deck there, so the light falls to the floor below.
+    #[serde(default)]
+    pub holes: Vec<LotRect>,
     pub parts: Vec<Part>,
+}
+
+impl Chunk {
+    pub fn role(&self) -> Role {
+        if let Some(r) = self.role {
+            r
+        } else if self.size.0.max(self.size.1) >= 6 {
+            Role::Area
+        } else if self.labels.iter().any(|l| l == "stair_hub") {
+            Role::Hub
+        } else if self.size == (1, 1) {
+            Role::Filler
+        } else {
+            Role::Block
+        }
+    }
+
+    /// Its holes once placed with corner lot `origin` and turned by `turn` quarter turns (as
+    /// `build` turns it), in world lots.
+    pub fn placed_holes(&self, origin: (i32, i32), turn: u8) -> Vec<LotRect> {
+        let (w, d) = self.size;
+        self.holes
+            .iter()
+            .map(|&((x0, z0), (x1, z1))| {
+                // Lot (x, z) turned as `Tf::turn` turns points about the footprint's center.
+                let lot = |x: i32, z: i32| match turn % 4 {
+                    0 => (x, z),
+                    1 => (z, w - 1 - x),
+                    2 => (w - 1 - x, d - 1 - z),
+                    _ => (d - 1 - z, x),
+                };
+                let (a, b) = (lot(x0, z0), lot(x1 - 1, z1 - 1));
+                (
+                    (origin.0 + a.0.min(b.0), origin.1 + a.1.min(b.1)),
+                    (origin.0 + a.0.max(b.0) + 1, origin.1 + a.1.max(b.1) + 1),
+                )
+            })
+            .collect()
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -237,8 +301,11 @@ impl Catalog {
         for path in ron_files(&root.join("modules")) {
             match std::fs::read_to_string(&path)
                 .map_err(|e| e.to_string())
-                .and_then(|s| ron_options().from_str::<Vec<Module>>(&s).map_err(|e| e.to_string()))
-            {
+                .and_then(|s| {
+                    ron_options()
+                        .from_str::<Vec<Module>>(&s)
+                        .map_err(|e| e.to_string())
+                }) {
                 Ok(list) => c
                     .modules
                     .extend(list.into_iter().map(|m| (m.name.clone(), m))),
@@ -248,8 +315,11 @@ impl Catalog {
         for path in ron_files(&root.join("chunks")) {
             match std::fs::read_to_string(&path)
                 .map_err(|e| e.to_string())
-                .and_then(|s| ron_options().from_str::<Chunk>(&s).map_err(|e| e.to_string()))
-            {
+                .and_then(|s| {
+                    ron_options()
+                        .from_str::<Chunk>(&s)
+                        .map_err(|e| e.to_string())
+                }) {
                 Ok(ch) => {
                     c.chunks.insert(ch.name.clone(), ch);
                 }
@@ -528,10 +598,15 @@ pub fn build(chunk: &Chunk, catalog: &Catalog, origin: Vec3, turn: u8, seed: u64
 /// A module alone, at the origin, unturned (props are built this way, `props.rs`). `None` if the
 /// catalog has no such module.
 pub fn build_module(catalog: &Catalog, name: &str) -> Option<Built> {
+    build_module_seeded(catalog, name, 0)
+}
+
+/// `build_module`, its slots picked by `seed`.
+pub fn build_module_seeded(catalog: &Catalog, name: &str, seed: u64) -> Option<Built> {
     catalog.modules.get(name)?;
     let mut e = Expander {
         catalog,
-        rng: Rng::new(0),
+        rng: Rng::new(seed),
         out: Built::default(),
         accent: (150, 150, 150),
     };

@@ -1,7 +1,9 @@
 # City chunks: design
 
-Status: on the `chunks` branch. Phases 2 to 4 are done: format, catalog and preview; the pixel-art
-style; the planner placing areas and stair hubs in the city. Next: the first catalog. As phases land, this replaces the lot-by-lot
+Status: on the `chunks` branch. Phases 2 to 7 are done in a first pass: format, catalog and
+preview; the pixel-art style; the planner (areas and their sub-areas, blocks with designed holes,
+stair hubs, fillers); a first catalog; pixel-art tower facades with real units near the decks;
+props as modules. Next: grow the catalog (phase 8). As phases land, this replaces the lot-by-lot
 generation described in `docs/world.md` (see "Phases").
 
 ## Why
@@ -54,9 +56,9 @@ Props are box-built modules too (phase 7, done).
   - **blocks**, 3x3 to 5x5 lots: a stair hub with its surroundings, a courtyard block, a market
     street, a light well with its railings;
   - **fillers**, 1x1 to 2x2 lots: repetitive habitation blocks, the city's background.
-  A big chunk can leave **sub-areas** open for the planner to fill with smaller chunks of given
-  labels (`Sub(area, labels)`), so a 10x10 district is designed as a whole without being one
-  monolithic repetition.
+    A big chunk can leave **sub-areas** open for the planner to fill with smaller chunks of given
+    labels (`Sub(area, labels)`), so a 10x10 district is designed as a whole without being one
+    monolithic repetition.
 - **Module:** a reusable assembly used inside chunks: a bench, a kiosk, a stair flight, a lamp,
   an apartment facade unit. Written once, placed many times.
 - **Slot:** a spot in a chunk with a choice the seed makes: "bench, planter or nothing".
@@ -102,8 +104,13 @@ The vocabulary (`src/world/chunks.rs`), grown only when a chunk needs it:
 - `Growth(area, kind)`: hints for the random vegetation: `Soil` (six times denser; soil boxes too),
   `Bare` (nothing grows: paths, avenues), `Wall` (climbers welcome, not used yet). Flowers keep their
   own rules (below).
-- Not built yet: `Sub(area, labels)` (openings for the planner), `Variant(...)` (alternatives the
-  seed chooses between), module parameters (a 2 m or 4 m bench from one module).
+- `Sub(area, labels)`: an opening (whole lots) the planner fills with a chunk carrying one of the
+  labels, turned to fit and centered (the great square's quarters: `plaza_quarter`).
+- Header fields: `role` (`Area`, `Block`, `Hub`, `Sub`, `Filler`; left out it follows from the
+  size: 6 lots or more an area, `stair_hub` a hub, one lot a filler, else a block) and `holes`
+  (lot rectangles left open on the chunk's floor and every floor above: light wells, collapses).
+- Not built yet: `Variant(...)` (alternatives the seed chooses between), module parameters (a 2 m
+  or 4 m bench from one module).
 
 The engine turns chunks by quarter turns when placing them (and later mirrors them), so each file
 gives several looks.
@@ -139,15 +146,12 @@ deterministic:
    down to reach another stair is part of the climb (owner). Hubs grow rarer going up (the floor profiles' `stair`,
    `src/world/design.rs`), and the planned difficulty of the story (D4 to D5 locked) becomes a
    rule here when its time comes.
-3. **Stairs.** Stairs only stand in `stair_hub` chunks, one per hub, in the middle. The planner
-   finds the walkable islands of each floor (deck lots joined by streets or bridges) and gives
-   every island at least one hub up, so no part of a floor is a dead end by accident. Hubs grow
-   rarer going up (the floor profiles' `stair`, `src/world/design.rs`), and the planned
-   difficulty of the story (D4 to D5 locked) becomes a rule here when its time comes.
 4. **Holes are chunks.** Openings in the floors come from chunks labeled `light_well`,
    `collapse` or `construction_yard`, sized and placed by rules (rare low down, common at the
-   construction front; the profiles' `deck_keep` becomes their share), instead of bare missing
-   sections. A hole then always looks designed: railings, a collapsed edge, scaffolding.
+   construction front), instead of bare missing sections. A hole then always looks designed:
+   railings, a collapsed edge, scaffolding. *(First pass: blocks with `holes` exist alongside the
+   deck sections, which still make most holes; moving the profiles' `deck_keep` over to hole
+   chunks is still to do.)*
 5. **Fill the rest** with fillers (habitation blocks, tower bases, small yards), weighted by
    zone, with neighbor affinities where they help (a market near a square, workshops near the
    construction front).
@@ -156,10 +160,21 @@ deterministic:
 chunk covers it (cheap: the cell's choice), and builds only its own slice of that chunk: the boxes
 whose center falls in the lot, so big chunks cost nothing until the player comes near.
 6. **Edges.** Every chunk border is, by default, the standard street: half a road and a curb, as
-   today, so any chunk fits next to any other. A border with no deck across it becomes a sidewalk
-   edge with a railing (already the rule for roads). A chunk may pave over its own inner roads.
+today, so any chunk fits next to any other. A border with no deck across it becomes a sidewalk
+edge with a railing (already the rule for roads). A chunk may pave over its own inner roads.
 
 ## Towers
+
+*(First pass built.)* The tower bodies are still single boxes, painted by the scene shader
+(`facade` in `shaders/scene.fs`) as a grid of 4 m bays and 4 m stories, each cell a pixel-art
+facade unit of the atlas (`src/render/pixels.rs`: window, two windows, caged window, enclosed
+balcony, air conditioner, boarded, broken, vent; shops on the street story of every floor), units
+running in vertical stacks with the odd one out, the walls tinted in color blocks per face (runs of
+bays and stories, faded paints or bare concrete). Abandoned: no window lit, signs unlit. Where the
+player sees them up close, the two stories over each deck the tower crosses, the shader paints plain
+windows and `world/facade.rs` places real units from `assets/modules/facade.ron` on the same grid
+(air conditioners, cages, balconies, laundry, shop awnings, sign boxes). The plan below stays the
+target for later passes.
 
 Towers rise through many floors. Inside an area, the chunk places them (they are part of its
 design); elsewhere the filler places them, and a tower keeps its footprint on every floor it
@@ -193,7 +208,8 @@ Roofs and the construction front follow the same idea with their own modules.
   flowers grow on it at random as they will in the city. *(Built.)*
 - `--catalog`: lists chunks and modules with their labels, zones and weights, and the files that
   failed to load. *(Built.)*
-- `--report` gains chunks per label and floor, stair hubs per island, the share of holes.
+- `--report` gives, per floor, the lots covered by areas, blocks and fillers and opened by holes,
+  and the chunks placed by name. *(Built.)*
 - Chunk and module files hot-reload like the shaders: edit, see the city regenerate. *(Built.)*
 
 ## What changes, what stays
@@ -220,7 +236,7 @@ Each phase ends with shots the owner can judge.
    F8 (grain) in game, or `--fx 255` against `--fx 234` in shots. Seen so far: without outlines
    and bands the image is softer and closer to Nivalis; the plants (smooth folded leaves) do not
    match the pixel world yet, which calls for pixel or voxel foliage.
-4. **Planner** *(done, first pass: `src/world/planner.rs`)*:
+4. **Planner** *(done: `src/world/planner.rs`)*:
    - Areas: one cell of 32x32 lots holds at most one (60 %), on one floor of its zones, turned at
      random, never near the start; same-label areas keep their spacing (the lower priority roll
      gives way). Craters give way to areas; no tower stands in an area. The area's floor is a
@@ -235,22 +251,39 @@ Each phase ends with shots the owner can judge.
    - Lots under a chunk get no random props on its floor (the chunk brings its own).
    - No stair is guaranteed on every walkable island (owner: going down to reach another stair is
      fine). Bridges cross the gaps of a bridge's size instead (`city::bridges_through`).
-   - Not yet: holes as chunks, filling `Sub` openings, blocks other than hubs, fillers. The planner answers are cached per cell.
-5. **First catalog** *(in progress)*: areas `great_square` (10x10, depths and middle),
+   - Sub-areas: an area's `Sub` openings get a chunk of the labels they ask for (role `Sub`).
+   - Blocks: a cell of 8x8 lots holds at most one per floor, at the floor's `blocks` chance
+     (`design.rs`), entirely inside the cell, away from areas, craters and the start, on lots
+     built up to its floor (its floor becomes a full deck); a block's `holes` open its floor and
+     every floor above, never with a tower rising through, never over a lower block's hole. Hubs
+     avoid blocks; footbridges avoid designed holes.
+   - Fillers: every lot left free on a floor (a full deck, no stair, no tower through the floor,
+     no other chunk) holds a one-lot filler at the floor's `fillers` chance (50 % in the depths
+     down to 8 % at the top). A filler takes the inside of the lot; the street around keeps its
+     props and lights.
+   - Where chunks overlap on a floor, the lesser gives way: areas and sub-areas, then blocks,
+     then hubs' surroundings, then fillers. The planner's cell answers are cached.
+5. **First catalog** *(done)*: areas `great_square` (10x10, depths and middle; its four quarters
+   are sub-areas: `plaza_garden`, `plaza_terrace`, `plaza_bandstand`, `plaza_market`),
    `market_district` (8x6, depths and middle: shophouse lanes, stalls, flags, a covered hall),
-   `construction_yard` (6x6, middle and canopy: fence, crane, skeletons, stacks, cabins); stair
-   hubs `stair_hub_square` and `stair_hub_market`; modules for street furniture, architecture,
-   housing units (shophouses with caged windows, air conditioners, laundry, water tanks) and
-   construction. Still to do: fill out the great square (too empty at 240 m), a light well block,
-   housing fillers (they need the planner's filler step).
-6. **Facade modules** for towers.
+   `construction_yard` (6x6, middle and canopy: fence, crane, skeletons, stacks, cabins); blocks
+   `light_well` and `collapse` (3x3 with a hole in the middle), `pocket_park` and
+   `laundry_court` (2x2); stair hubs `stair_hub_square` and `stair_hub_market`; fillers
+   `housing_row` (walk-ups back to back, each its color), `housing_block` (five stories),
+   `laundry_yard`, `depot` (middle and canopy); modules for street furniture, architecture,
+   housing (walk-ups, balconies, boarded windows, roof clutter), railings, rubble, parasols, a
+   pergola, a bandstand, construction.
+6. **Facade modules** for towers *(first pass done, see "Towers")*.
 7. **Props as modules** *(done)*: props are modules of `assets/modules/props.ron` drawn
    instanced in pixel-art materials; the photoscans, their import tool and dependencies are gone.
 8. **Grow the catalog.**
 
 ## Open questions
 
-- Outlines, cel bands and paper grain in the new style (phase 3).
+- Outlines, cel bands and paper grain in the new style (phase 3): outlines and bands stay
+  (owner).
+- Lit windows and neon: the abandoned towers have none now (as this plan says), so at night the
+  flowers are the only light on the facades; to check with the owner.
 - Interiors (Nivalis has bars and shops one can enter): out of scope for now, but chunks could
   hold them later.
 - Infinite streaming or a fixed map: the planner supports both; to decide when the catalog

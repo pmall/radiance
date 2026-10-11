@@ -20,9 +20,9 @@ use sola_raylib::prelude::Color;
 
 use super::biome::biome_at;
 use super::chunks;
-use super::planner::{self, Placement, Role};
 use super::design;
 use super::floors::{self, START};
+use super::planner::{self, Placement, Role};
 use super::{Aabb, Block, BlockKind};
 use crate::rng::{Rng, hash_coords};
 
@@ -222,9 +222,10 @@ pub fn built(seed: u64, lx: i32, lz: i32) -> usize {
 
 /// What covers a lot on a floor. Pure, so the renderer can map the decks around the camera.
 pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
-    // A previewed chunk stands on a bare deck at the start floor.
+    // A previewed chunk stands on a bare deck at the start floor, open where it has holes.
     if chunks::preview().is_some() {
-        return if floor == 0 || floor == START {
+        let open = floor == START && preview_opens(lx, lz);
+        return if (floor == 0 || floor == START) && !open {
             Deck::Full
         } else {
             Deck::None
@@ -233,8 +234,16 @@ pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
     if floor == 0 || (floor == START && is_plaza(lx, lz)) {
         return Deck::Full;
     }
-    // An area's floor is a full deck under it.
-    if planner::area_at(seed, lx, lz).is_some_and(|a| a.floor == floor) {
+    // A block's hole (a light well, a collapse) opens its floor and every floor above.
+    if planner::hole_at(seed, lx, lz).is_some_and(|f| floor >= f) {
+        return Deck::None;
+    }
+    // An area's or a block's floor is a full deck under it.
+    if planner::area_at(seed, lx, lz).is_some_and(|a| a.floor == floor)
+        || planner::blocks_at(seed, lx, lz)
+            .iter()
+            .any(|b| b.floor == floor)
+    {
         return Deck::Full;
     }
     if let Some(f) = crater_at(seed, lx, lz) {
@@ -258,6 +267,21 @@ pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
     } else {
         Deck::None
     }
+}
+
+/// Whether the previewed chunk (`--chunk`) has a hole at this lot.
+fn preview_opens(lx: i32, lz: i32) -> bool {
+    let Some((origin, _)) = chunks::preview_footprint() else {
+        return false;
+    };
+    let cat = chunks::catalog();
+    chunks::preview()
+        .and_then(|p| cat.chunks.get(&p.name))
+        .is_some_and(|c| {
+            c.placed_holes(origin, 0)
+                .iter()
+                .any(|&((x0, z0), (x1, z1))| lx >= x0 && lx < x1 && lz >= z0 && lz < z1)
+        })
 }
 
 /// One bit per floor above the ground (bit `f - 1` for floor `f`), set where the lot has a deck.
@@ -412,6 +436,7 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
         // Wall props go on the body (the first tower block).
         if let Some(body) = out[before..].first().map(|b| b.aabb) {
             super::facade::push_facade_props(&mut decor, &body, &levels, first, out);
+            super::facade::push_facade_units(&mut decor, &body, &levels, first, out);
         }
     }
 
@@ -448,6 +473,10 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
 /// Pure, like the decks.
 pub fn bridges_through(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
     if floor == 0 || deck(seed, lx, lz, floor) != Deck::None {
+        return Vec::new();
+    }
+    // A designed hole has its own railings; a bridge would run through them.
+    if planner::hole_at(seed, lx, lz).is_some() || preview_opens(lx, lz) {
         return Vec::new();
     }
     let crosses = |along_x: bool| {
@@ -498,9 +527,17 @@ fn push_gap_bridge(o: Vec3, along_x: bool, top: f32, out: &mut Vec<Block>) {
     use chunks::Mat::{Metal, Rust};
     push((0.0, LOT), (-w, w), (top - 0.3, top), Metal);
     for side in [-1.0, 1.0] {
-        let v = if side < 0.0 { (-w, -w + 0.4) } else { (w - 0.4, w) };
+        let v = if side < 0.0 {
+            (-w, -w + 0.4)
+        } else {
+            (w - 0.4, w)
+        };
         push((0.0, LOT), v, (top - 1.3, top - 0.3), Rust);
-        let r = if side < 0.0 { (-w, -w + 0.12) } else { (w - 0.12, w) };
+        let r = if side < 0.0 {
+            (-w, -w + 0.12)
+        } else {
+            (w - 0.12, w)
+        };
         push((0.0, LOT), r, (top + 1.0, top + 1.12), Metal);
         push((0.0, LOT), r, (top + 0.5, top + 0.58), Metal);
         for i in 0..12 {
@@ -510,7 +547,12 @@ fn push_gap_bridge(o: Vec3, along_x: bool, top: f32, out: &mut Vec<Block>) {
     }
     for i in 0..6 {
         let u = 2.0 + 4.0 * i as f32;
-        push((u - 0.15, u + 0.15), (-w + 0.4, w - 0.4), (top - 1.1, top - 0.3), Rust);
+        push(
+            (u - 0.15, u + 0.15),
+            (-w + 0.4, w - 0.4),
+            (top - 1.1, top - 0.3),
+            Rust,
+        );
     }
 }
 
@@ -518,7 +560,9 @@ fn push_gap_bridge(o: Vec3, along_x: bool, top: f32, out: &mut Vec<Block>) {
 pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     if let Some(((ox, oz), size)) = chunks::preview_footprint() {
         let p = Placement {
-            chunk: chunks::preview().map(|p| p.name.clone()).unwrap_or_default(),
+            chunk: chunks::preview()
+                .map(|p| p.name.clone())
+                .unwrap_or_default(),
             role: Role::Area,
             origin: (ox, oz),
             size,
@@ -526,7 +570,10 @@ pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
             turn: 0,
             seed: hash_coords(seed, ox, SALT_CHUNK, oz),
         };
-        return if p.covers(lx, lz) { vec![p] } else { Vec::new() };
+        let mut all = planner::subs_of(&chunks::catalog(), &p);
+        all.push(p);
+        all.retain(|p| p.covers(lx, lz));
+        return all;
     }
     planner::covering(seed, lx, lz)
 }
@@ -570,10 +617,10 @@ fn push_chunks(seed: u64, lx: i32, lz: i32, first: usize, out: &mut Vec<Block>) 
     }
     let all = placements(seed, lx, lz);
     for p in &all {
-        // A hub's surroundings give way to an area, and need a deck to stand on.
-        if p.role == Role::Hub
-            && (all.iter().any(|a| a.role == Role::Area && a.floor == p.floor)
-                || deck(seed, lx, lz, p.floor) == Deck::None)
+        // Where two chunks cover the lot on one floor, the lesser gives way (`outranks`); every
+        // chunk but an area needs a deck to stand on.
+        if all.iter().any(|q| q.floor == p.floor && q.outranks(p))
+            || (p.role != Role::Area && deck(seed, lx, lz, p.floor) == Deck::None)
         {
             continue;
         }

@@ -215,119 +215,6 @@ vec3 pal(int slot)
     return uPalette[gVariant * 17 + slot];
 }
 
-vec3 neonColor(float r)
-{
-    return r < 0.4 ? pal(0) : (r < 0.75 ? pal(1) : pal(2));
-}
-
-vec3 windowLight(float r)
-{
-    // Mostly plain indoor light, warm or cool white; a few tinted ones.
-    return r < 0.55 ? pal(3) : (r < 0.88 ? pal(4) : (r < 0.95 ? pal(5) : pal(6)));
-}
-
-// Tower walls: stories of windows between piers, storefronts with neon on the street levels,
-// slab bands, rain streaks, an occasional vertical neon sign. `base` is the wall color (linear).
-// `emit` receives light the surface gives off. loc = (position along the face, face width).
-vec3 facade(vec3 base, vec3 p, vec2 loc, float fid, float px, out vec3 emit)
-{
-    const float H = 4.0;
-    float W = max(loc.y, 1.0);
-    // 0 windows between piers, 1 ribbon, 2 slits, 3 punched grid, 4 glass curtain wall.
-    int style = int(hash11(fid * 1.7) * 5.0);
-    float pitch = style == 2 ? 2.0 : style == 1 ? 4.0 : style == 3 ? 2.0 : style == 4 ? 1.8
-                : mix(2.6, 3.4, hash11(fid * 3.1));
-    float cols = max(floor((W - 2.4) / pitch), 1.0);
-    float u0 = (W - cols * pitch) * 0.5;
-    float cu = (loc.x - u0) / pitch;
-    float inCols = step(0.0, cu) * step(cu, cols);
-    float cell = floor(clamp(cu, 0.0, cols - 0.001));
-    float fu = clamp(cu, 0.0, cols) - cell;
-    float yy = p.y / H;
-    float story = floor(yy);
-    float vy = yy - story;
-
-    // The street level of every floor gets storefronts.
-    float shop = step(aboveFloor(p.y), 4.0);
-    vec2 q = vec2((fu - 0.5) * pitch, (vy - mix(0.52, 0.42, shop)) * H);
-    vec2 halfw = style == 0 ? vec2(0.31 * pitch, 0.95)
-               : style == 1 ? vec2(pitch * 0.5 - 0.15, 0.7)
-               : style == 2 ? vec2(0.35, 1.45)
-               : style == 3 ? vec2(0.42, 0.62) : vec2(pitch * 0.5 - 0.05, 1.7);
-    halfw = mix(halfw, vec2(pitch * 0.5 - 0.3, 1.45), shop);
-
-    // A big colored cladding panel on some buildings, in the style of painted accent blocks.
-    float hasP = step(0.55, hash11(fid * 8.1));
-    float pw = W * mix(0.35, 0.6, hash11(fid * 8.7));
-    float pu = (W - pw) * hash11(fid * 9.1);
-    float py0 = floor(mix(uFloorY[0] + 20.0, uFloorY[uFloorCount - 1], hash11(fid * 10.3)) / H) * H;
-    float ph = H * floor(mix(2.0, 5.0, hash11(fid * 11.7)));
-    float inP = hasP * step(pu, loc.x) * step(loc.x, pu + pw) * step(py0, p.y) * step(p.y, py0 + ph) * (1.0 - shop);
-    float pr = hash11(fid * 12.9);
-    vec3 pcol = pr < 0.4 ? pal(7) : pr < 0.7 ? pal(8) : pr < 0.9 ? pal(9) : pal(10);
-
-    float fr = style == 4 ? 0.05 : 0.14;
-    float win = boxMask(q, halfw, px) * inCols * (1.0 - inP);
-    float frame = (boxMask(q, halfw + fr, px) - boxMask(q, halfw, px)) * inCols * (1.0 - inP);
-    float sill = boxMask(q - vec2(0.0, -halfw.y - 0.1), vec2(halfw.x + 0.12, 0.07), px) * inCols * (1.0 - inP);
-
-    // Wall: concrete with soft blotches, darker slab band at the foot of every story.
-    float blotch = 0.88 + 0.24 * fbm(vec2(loc.x * 0.6, p.y * 0.25));
-    vec3 col = base * pal(16) * blotch * mix(1.0, grit(vec2(loc.x, p.y) / 4.5).b, 0.5) * mix(1.0, grit2(vec2(loc.x, p.y) / 7.3).a, 0.5);
-    col *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.5, vy * H));
-    // Rain streaks running down from the sills, heavier lower down.
-    float streak = vnoise(vec2(loc.x * 6.0 + floor(cu) * 3.0, p.y * 0.1));
-    float low = 1.0 - smoothstep(uFloorY[0], uFloorY[3], p.y);
-    col *= 1.0 - 0.3 * smoothstep(0.55, 0.9, streak) * (0.3 + 0.7 * low);
-
-    // Glass: dark, a little lighter toward the top of each pane; some panes are lit.
-    float r = hash12(vec2(cell + fid * 13.0, story));
-    float litP = style == 4 ? 0.04 : mix(0.07, 0.12, shop);
-    float lit = step(1.0 - litP, r);
-    float shade = clamp(q.y / halfw.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 glass = mix(vec3(0.012, 0.02, 0.028), vec3(0.05, 0.1, 0.12), shade);
-    if (style == 4) glass = mix(vec3(0.02, 0.05, 0.08), vec3(0.09, 0.22, 0.3), shade * shade);
-    vec3 wl = windowLight(hash12(vec2(story, cell + fid * 7.0) + 9.0)) * (0.55 + 0.45 * hash12(vec2(r, cell)));
-    // Lit panes: blinds (horizontal slats) and a center mullion keep them from reading as flat patches.
-    float slats = 0.55 + 0.45 * step(0.5, fract(q.y * 4.0 + hash12(vec2(cell, story)) * 3.0));
-    float mullion = 1.0 - smoothstep(0.03, 0.03 + px, abs(q.x));
-    emit = wl * lit * win * slats * (1.0 - 0.8 * mullion);
-    // Cladding seams every 1.5 m on the accent panel.
-    vec2 ps = abs(fract(vec2(loc.x, p.y) / 1.5) - 0.5);
-    float pseam = 1.0 - smoothstep(0.015, 0.015 + px / 1.5, 0.5 - max(ps.x, ps.y));
-    col = mix(col, pcol * (1.0 - 0.25 * pseam) * (0.9 + 0.2 * fbm(vec2(loc.x, p.y) * 0.8)), inP);
-    col = mix(col, glass, win);
-    col = mix(col, base * 0.35, frame);
-    col = mix(col, base * 1.25, sill);
-
-    // Window air conditioners under some sills, and a projecting cornice band every 4 stories.
-    float acHas = step(0.9, hash12(vec2(cell + fid * 3.0, story + 40.0))) * inCols * (1.0 - shop) * (1.0 - inP) * step(float(style), 3.5);
-    vec2 aq = q - vec2(0.0, -halfw.y - 0.42);
-    float ac = boxMask(aq, vec2(0.42, 0.26), px) * acHas;
-    float grille = 0.55 + 0.45 * step(0.5, fract(aq.y * 9.0));
-    col = mix(col, vec3(0.55, 0.57, 0.6) * grille, ac);
-    float band = (1.0 - smoothstep(0.0, 0.3 + px, abs(vy * H - 0.0))) * step(mod(story, 4.0), 0.5);
-    col = mix(col, base * 1.2, band * (1.0 - shop));
-    col *= 1.0 - 0.25 * (1.0 - smoothstep(0.0, 0.5, (vy * H - 0.3))) * step(mod(story, 4.0), 0.5) * step(0.3, vy * H) ;
-
-    // Neon lintel above storefronts.
-    float lintel = boxMask(vec2(q.x, q.y - halfw.y - 0.5), vec2(halfw.x, 0.07), px) * inCols * shop;
-    vec3 lc = neonColor(hash12(vec2(cell, fid * 5.0 + story)));
-    emit += lc * lintel * 1.4;
-    col = mix(col, lc * 0.4, lintel);
-
-    // A vertical neon sign on some buildings.
-    float has = step(0.72, hash11(fid * 5.3));
-    float su = W * (0.2 + 0.6 * hash11(fid * 9.7));
-    float y0 = floor(mix(-70.0, 8.0, hash11(fid * 2.3)) / H) * H;
-    float sy = (p.y - y0) / (10.0 + 14.0 * hash11(fid * 4.1));
-    float sign = has * boxMask(vec2(loc.x - su, 0.0), vec2(0.11, 1.0), px) * step(0.0, sy) * step(sy, 1.0);
-    vec3 sc = neonColor(hash11(fid * 6.7));
-    emit += sc * sign * 1.8;
-    col = mix(col, sc * 0.5, sign);
-    return col;
-}
-
 // Whether the lot holding xz has a deck on the floor whose walking surface is at height y.
 float deckAt(vec2 xz, float y)
 {
@@ -538,22 +425,76 @@ vec3 steel(vec3 base, vec3 p, vec3 n, float px)
     return col;
 }
 
-// Boxes of hand-written chunks (src/world/chunks.rs): the pixel-art tile of their material
-// (src/render/pixels.rs; 0 stone, 1 dark stone, 2 concrete, 3 brick, 4 tile, 5 metal, 6 rust,
-// 7 wood, 8 glass, 9 soil, 10 paint, which takes the box color), 4 m per tile, mapped in world
-// space by the face's plane, crisp pixels up close.
-const float PIXEL_MATS = 11.0;
+// The atlas of pixel-art tiles (src/render/pixels.rs): the chunk materials, then the facade
+// units, 4 m per tile. `t` is in tiles; crisp pixels up close.
+const float ATLAS_TILES = 21.0;
+vec4 atlasTile(float tile, vec2 t)
+{
+    vec2 a = (vec2(tile, 0.0) + fract(t)) / vec2(ATLAS_TILES, 1.0);
+    // Gradients of the unwrapped coordinates, so the tile seams never pick a blurry mip level.
+    vec2 dx = dFdx(t) / vec2(ATLAS_TILES, 1.0);
+    vec2 dy = dFdy(t) / vec2(ATLAS_TILES, 1.0);
+    vec4 c = textureGrad(texture10, a, dx, dy);
+    return vec4(pow(c.rgb, vec3(2.2)), c.a);
+}
+
+// Boxes of hand-written chunks (src/world/chunks.rs): the tile of their material (0 stone,
+// 1 dark stone, 2 concrete, 3 brick, 4 tile, 5 metal, 6 rust, 7 wood, 8 glass, 9 soil, 10 paint,
+// which takes the box color), mapped in world space by the face's plane.
 vec3 built(vec3 base, int mat, vec3 p, vec3 n)
 {
     vec3 an = abs(n);
     vec2 uv = an.y > 0.5 ? p.xz : (an.x > an.z ? vec2(p.z, -p.y) : vec2(p.x, -p.y));
-    vec2 t = uv / 4.0;
-    vec2 a = (vec2(float(mat), 0.0) + fract(t)) / vec2(PIXEL_MATS, 1.0);
-    // Gradients of the unwrapped coordinates, so the tile seams never pick a blurry mip level.
-    vec2 dx = dFdx(t) / vec2(PIXEL_MATS, 1.0);
-    vec2 dy = dFdy(t) / vec2(PIXEL_MATS, 1.0);
-    vec3 col = pow(textureGrad(texture10, a, dx, dy).rgb, vec3(2.2));
+    vec3 col = atlasTile(float(mat), uv / 4.0).rgb;
     return mat == 10 ? col * base : col;
+}
+
+// Tower walls in pixel art (docs/chunks.md, "Towers"): a grid of bays 4 m wide and stories 4 m
+// high, each cell a facade unit of the atlas (src/render/pixels.rs: window, two windows, caged
+// window, enclosed balcony, air conditioner, boarded, broken, vent; shops on the street story of
+// every floor). Units run in vertical stacks with the odd one out; wall pixels take the color of
+// their block (runs of bays and stories per building, faded paints or bare concrete). Abandoned:
+// no window is lit. loc = (position along the face, face width).
+const float FACADE_FIRST = 11.0;
+const vec3 FACADE_PAINT[8] = vec3[8](
+    vec3(150, 60, 48), vec3(96, 130, 70), vec3(200, 186, 150), vec3(60, 120, 118),
+    vec3(190, 140, 60), vec3(180, 110, 110), vec3(80, 100, 130), vec3(170, 90, 50));
+vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid)
+{
+    float W = max(loc.y, 1.0);
+    float cols = max(floor(W / 4.0), 1.0);
+    float u0 = (W - cols * 4.0) * 0.5;
+    vec2 t = vec2((loc.x - u0) / 4.0, -p.y / 4.0);
+    float ci = floor(t.x);
+    float si = floor(p.y / 4.0 + 1e-3);
+    // Piers at the corners, outside the grid of bays.
+    if (ci < 0.0 || ci >= cols) return built(base, 2, p, n);
+
+    float tile;
+    float above = aboveFloor(p.y);
+    if (above < 4.0) {
+        tile = hash12(vec2(ci + fid * 5.0, si)) < 0.6 ? 8.0 : 9.0;
+    } else if (above < 12.0) {
+        // The two stories over the street: plain windows, the units in front of them are real
+        // boxes (src/world/facade.rs, NEAR_STORIES).
+        tile = 0.0;
+    } else {
+        float run = 2.0 + floor(hash11(fid * 2.9) * 5.0);
+        float r = hash12(vec2(ci + fid * 17.0, floor(si / run) + 3.0));
+        float odd = hash12(vec2(ci * 3.1 + fid, si * 1.7 + 11.0));
+        if (odd < 0.22) r = odd / 0.22;
+        tile = r < 0.24 ? 0.0 : r < 0.38 ? 1.0 : r < 0.53 ? 2.0 : r < 0.67 ? 3.0
+             : r < 0.81 ? 4.0 : r < 0.88 ? 5.0 : r < 0.94 ? 6.0 : 7.0;
+    }
+    vec4 c = atlasTile(FACADE_FIRST + tile, t);
+
+    // Color blocks: runs of 1 to 3 bays and 2 to 5 stories, per building.
+    float gw = 1.0 + floor(hash11(fid * 4.3) * 3.0);
+    float gh = 2.0 + floor(hash11(fid * 5.9) * 4.0);
+    float bk = hash12(vec2(floor(ci / gw) + fid * 7.0, floor(si / gh) + 5.0));
+    vec3 tint = base;
+    if (bk > 0.45) tint = pow(FACADE_PAINT[int(hash11(bk * 91.0 + fid) * 8.0) % 8] / 255.0, vec3(2.2));
+    return mix(c.rgb, c.rgb / 0.44 * tint, c.a);
 }
 
 // Leaf and frond painting from leaf coordinates (across with the midrib at 0.5, along from the
@@ -598,7 +539,7 @@ void main()
             albedo *= paintPlant(fragWorldPos) * mix(1.0, grit2(fragWorldPos.xz * 1.3 + fragWorldPos.y * 0.7).g, 0.6);
             if (fragLoc.x >= 0.0) albedo = leaf(albedo, fragLoc);
         } else if (kind == 0) {
-            if (vertical) albedo = facade(albedo, fragWorldPos, fragLoc, fid, px, emit);
+            if (vertical) albedo = facade(albedo, fragWorldPos, n, fragLoc, fid);
             else if (n.y > 0.0) albedo = roof(albedo, fragWorldPos, px);
             else albedo = underside(albedo, fragWorldPos, px);
         } else if (kind == 2) {
