@@ -103,6 +103,10 @@ What the project owner has said so far. Treat as requirements.
   Props built from boxes in text are liked: make as many as needed. Tests must stay fast.
   Explain status in plain words, simply.
 
+- Biomes: in the end, a set of chunks and props per biome; a biome is a meta collection of chunks,
+  today's city the default one (done: `assets/biomes/<biome>/`). From now on no chunks or props
+  are created on the side: when the owner wants more, they ask for a new biome.
+
 ## How to work on generation (owner's direction)
 
 - Think of the game as one consistent system, not fix after fix. The code must be as consistent

@@ -25,6 +25,8 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - Rust with `sola-raylib` 6.x (binds raylib 6.0). Drop to the raw FFI (`sola_raylib::ffi`) when the
   wrapper is missing or awkward.
 - **The only goal is a great final render.** Everything else is a means.
+- **No new chunks or props unless the owner asks.** More content comes as a new biome, written
+  when the owner asks for one (`docs/chunks.md`, "Catalog rule").
 - **World generation must be procedural**: the city, its layout, architecture and plants come from
   the seed (random, extensible, deterministic). This is a hard requirement. Vertically the city is a
   finite stack of floors; horizontally it streams infinitely for now, but that may be cut if it makes
