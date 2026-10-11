@@ -1,0 +1,29 @@
+// Street: the plain street around a lot, on every lot and floor no area, block or hub designs
+// (around its tower or its filler). A street light at the crossing of the lot's -x/-z corner,
+// its arm over the road: the planner never turns a street, so there is one at every crossing,
+// all alike. Benches, bins, planters and cabinets behind the curbs (the road takes the 3 m along
+// each edge), facing the road, at the floor's props chance; now and then a flower in a human
+// place. Only along the sides with a street: where the deck ends, the sidewalk stays empty.
+Chunk(
+    name: "street_plain",
+    size: (1, 1),
+    zones: [Depths, Middle],
+    labels: ["street"],
+    parts: [
+        If(street: [XMin, ZMin], parts: [
+            Module(name: "street_light", at: (3.5, 0.0, 3.5), turn: 2),
+        ]),
+        Mirror4(center: (12.0, 12.0), parts: [
+            If(street: [ZMin], parts: [
+                Slot(at: (8.0, 0.0, 3.8), turn: 2, rate: Props, pick: [Some("bench"),
+                    Some("curb_bench_bin"), Some("bin"), Some("planter"), None, None, None]),
+                Slot(at: (16.5, 0.0, 3.8), turn: 2, rate: Props, pick: [Some("bench"), Some("bin"),
+                    Some("utility_box"), Some("planter"), None, None, None, None]),
+            ]),
+        ]),
+        If(street: [ZMin], parts: [
+            Slot(at: (12.0, 0.0, 4.0), turn: 2, rate: Poi, pick: [Some("poi_bench"),
+                Some("poi_armchair"), Some("poi_garden"), Some("poi_bed")]),
+        ]),
+    ],
+)

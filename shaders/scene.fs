@@ -27,6 +27,7 @@ uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 s
 uniform float uGlow;         // plant emission and light strength for the time of day
 uniform sampler2D texture5;  // cover map
 uniform sampler2D texture10; // chunk materials in pixel art (src/render/pixels.rs)
+uniform sampler2D texture6;  // tower elevations (src/render/facades.rs)
 #define COVER_TEX texture5
 
 // Cover map: which decks stand over each lot around the camera (src/render/cover.rs).
@@ -317,99 +318,6 @@ vec3 concrete(vec3 base, vec3 p, vec3 n, vec2 loc)
     return col * (1.0 - 0.3 * smoothstep(0.55, 0.9, streak));
 }
 
-// Bridge walkway: metal plates with a grid of seams; parapets get a bright top edge.
-vec3 bridgeMetal(vec3 base, vec3 p, vec3 n, float px)
-{
-    vec2 uv = abs(n.y) > 0.5 ? p.xz : vec2(p.x + p.z, p.y);
-    vec2 g = uv / 1.5;
-    vec2 d = abs(fract(g) - 0.5);
-    vec2 w = vec2(px / 1.5) * 1.5;
-    float seam = max(1.0 - smoothstep(0.5 - 0.02 - w.x, 0.5 - 0.02 + w.x, 0.5 - (0.5 - d.x) ),
-                     1.0 - smoothstep(0.5 - 0.02 - w.y, 0.5 - 0.02 + w.y, 0.5 - (0.5 - d.y)));
-    vec3 col = base * (0.8 + 0.3 * fbm(uv * 0.6)) * grit(uv / 1.2).a;
-    return col * (1.0 - 0.3 * seam);
-}
-
-
-// Rooftop machinery: louvered casing with a fan or cap on top. loc is normalized on top faces.
-vec3 equipment(vec3 base, vec3 p, vec3 n, vec2 loc, float px)
-{
-    vec3 col = base * (0.85 + 0.25 * fbm(p.xz * 1.5 + p.y)) * grit((abs(n.y) > 0.5 ? p.xz : vec2(p.x + p.z, p.y)) / 1.3).a;
-    if (n.y > 0.5) {
-        vec2 c = loc - 0.5;
-        float r = length(c);
-        float aa = max(fwidth(r), 1e-3);
-        float disc = 1.0 - smoothstep(0.38 - aa, 0.38 + aa, r);
-        float inner = 1.0 - smoothstep(0.32 - aa, 0.32 + aa, r);
-        float blades = 0.5 + 0.5 * step(0.0, sin(atan(c.y, c.x) * 6.0 + r * 9.0));
-        col = mix(col, base * 0.4, disc);
-        col = mix(col, base * 0.15 * (0.6 + 0.8 * blades), inner);
-        return col;
-    }
-    if (n.y < -0.5) return col * 0.6;
-    float u = loc.x / max(loc.y, 0.01);
-    float louver = step(0.12, u) * step(u, 0.88);
-    float slat = 1.0 - smoothstep(0.08, 0.08 + px * 8.0, abs(fract(p.y * 8.0) - 0.5) * 2.0 - 0.55);
-    col *= 1.0 - 0.4 * louver * slat;
-    col *= 1.0 - 0.25 * smoothstep(0.55, 0.9, vnoise(vec2(loc.x * 4.0, p.y * 0.3)));
-    return col;
-}
-
-// Billboard art: a colored field with a round emblem and rows of blocky "text", backlit.
-vec3 billboard(vec2 uv, float fid, float px, out vec3 emit)
-{
-    float h = hash11(fid * 3.3);
-    vec3 bg = h < 0.3 ? pal(11) : h < 0.55 ? pal(12) : h < 0.75 ? pal(13) : h < 0.9 ? pal(14) : pal(15);
-    vec3 fg = h >= 0.9 ? vec3(0.05, 0.06, 0.08) : vec3(0.95, 0.95, 0.92);
-    vec2 q = vec2((uv.x - 0.5) * 2.4, uv.y - 0.5);
-    float aa = max(fwidth(q.x), 1e-3);
-    vec3 col = bg;
-    float ring = abs(length(q - vec2(-0.72, 0.0)) - 0.3);
-    float emblem = 1.0 - smoothstep(0.07 - aa, 0.07 + aa, ring);
-    emblem = max(emblem, 1.0 - smoothstep(0.12 - aa, 0.12 + aa, length(q - vec2(-0.72, 0.0))));
-    float rows = 0.0;
-    for (int i = 0; i < 3; i++) {
-        float y = 0.2 - float(i) * 0.19;
-        float inRow = step(abs(q.y - y), 0.07) * step(-0.25, q.x) * step(q.x, 1.05 - 0.25 * float(i) * hash11(fid + float(i)));
-        float word = step(0.28, hash12(vec2(floor((q.x + 0.25) * 7.0), float(i) + fid)));
-        rows = max(rows, inRow * word);
-    }
-    col = mix(col, fg, max(emblem, rows));
-    float border = 1.0 - smoothstep(0.0, 0.03, min(min(uv.x, 1.0 - uv.x) * 2.4 / 2.4, min(uv.y, 1.0 - uv.y)));
-    col = mix(col, bg * 0.5, border);
-    emit = col * 0.9;
-    return col;
-}
-
-// Antenna mast: white with darker rungs.
-vec3 mast(vec3 base, vec3 p, float px)
-{
-    float rung = 1.0 - smoothstep(0.03, 0.03 + px, abs(fract(p.y / 0.7) - 0.5) - 0.42);
-    return base * (1.0 - 0.5 * rung);
-}
-
-
-// Rooftop solar array: dark blue cells with silver seams and a sheen.
-vec3 solar(vec3 base, vec3 p, vec3 n, float px)
-{
-    if (n.y < 0.5) return base * 0.6;
-    vec2 g = p.xz / 0.55;
-    vec2 d = abs(fract(g) - 0.5);
-    float seam = 1.0 - smoothstep(0.46, 0.46 + px / 0.55, max(d.x, d.y));
-    float sheen = 0.7 + 0.6 * smoothstep(0.2, 0.9, vnoise(p.xz * 0.35));
-    return mix(vec3(0.5, 0.52, 0.56), base * sheen * 1.8, seam);
-}
-
-// Skylight: dark glass in a frame with a cross of bars.
-vec3 skylight(vec3 base, vec3 loc3, vec3 n, vec2 loc, float px)
-{
-    if (n.y < 0.5) return base * 0.7;
-    vec2 c = abs(loc - 0.5);
-    float frame = step(0.42, max(c.x, c.y));
-    float bars = 1.0 - smoothstep(0.015, 0.015 + fwidth(c.x) , min(c.x, c.y));
-    return mix(base * 0.25, vec3(0.5, 0.52, 0.55), max(frame, bars));
-}
-
 // Steel (fire escapes, brackets): painted metal with rust streaks; landings show a grating.
 vec3 steel(vec3 base, vec3 p, vec3 n, float px)
 {
@@ -427,7 +335,7 @@ vec3 steel(vec3 base, vec3 p, vec3 n, float px)
 
 // The atlas of pixel-art tiles (src/render/pixels.rs): the chunk materials, then the facade
 // units, 4 m per tile. `t` is in tiles; crisp pixels up close.
-const float ATLAS_TILES = 21.0;
+const float ATLAS_TILES = 22.0;
 vec4 atlasTile(float tile, vec2 t)
 {
     vec2 a = (vec2(tile, 0.0) + fract(t)) / vec2(ATLAS_TILES, 1.0);
@@ -450,50 +358,46 @@ vec3 built(vec3 base, int mat, vec3 p, vec3 n)
 }
 
 // Tower walls in pixel art (docs/chunks.md, "Towers"): a grid of bays 4 m wide and stories 4 m
-// high, each cell a facade unit of the atlas (src/render/pixels.rs: window, two windows, caged
-// window, enclosed balcony, air conditioner, boarded, broken, vent; shops on the street story of
-// every floor). Units run in vertical stacks with the odd one out; wall pixels take the color of
-// their block (runs of bays and stories per building, faded paints or bare concrete). Abandoned:
-// no window is lit. loc = (position along the face, face width).
+// high, each cell the facade unit its tower chunk's elevation writes there (src/render/facades.rs:
+// far tile, tile near a deck, paint), a tile of the atlas (src/render/pixels.rs: window, two
+// windows, caged window, enclosed balcony, air conditioner, boarded, broken, vent, shop shutter,
+// shop window, blank wall). The rows repeat every floor from its street story up. On the street
+// story and the two above it, where a deck meets the wall, the units stand in boxes in front of
+// plain windows (src/world/tower.rs). Abandoned: no window is lit, and now and then a far window
+// is boarded up or broken. Wall pixels take the tower's color, or the paint the elevation gives.
+// loc = (position along the face, face width).
 const float FACADE_FIRST = 11.0;
+// Mirrored in src/world/tower.rs (PAINT).
 const vec3 FACADE_PAINT[8] = vec3[8](
     vec3(150, 60, 48), vec3(96, 130, 70), vec3(200, 186, 150), vec3(60, 120, 118),
     vec3(190, 140, 60), vec3(180, 110, 110), vec3(80, 100, 130), vec3(170, 90, 50));
-vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid)
+
+vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid, int elev, int shift)
 {
     float W = max(loc.y, 1.0);
-    float cols = max(floor(W / 4.0), 1.0);
+    float cols = max(floor(W / 4.0 + 1e-3), 1.0);
     float u0 = (W - cols * 4.0) * 0.5;
+    // Bays are written from the left seen from outside: right to left along the world axis on
+    // the faces toward +x and -z.
+    bool rev = n.x > 0.5 || n.z < -0.5;
     vec2 t = vec2((loc.x - u0) / 4.0, -p.y / 4.0);
     float ci = floor(t.x);
-    float si = floor(p.y / 4.0 + 1e-3);
     // Piers at the corners, outside the grid of bays.
     if (ci < 0.0 || ci >= cols) return built(base, 2, p, n);
-
-    float tile;
-    float above = aboveFloor(p.y);
-    if (above < 4.0) {
-        tile = hash12(vec2(ci + fid * 5.0, si)) < 0.6 ? 8.0 : 9.0;
-    } else if (above < 12.0) {
-        // The two stories over the street: plain windows, the units in front of them are real
-        // boxes (src/world/facade.rs, NEAR_STORIES).
-        tile = 0.0;
-    } else {
-        float run = 2.0 + floor(hash11(fid * 2.9) * 5.0);
-        float r = hash12(vec2(ci + fid * 17.0, floor(si / run) + 3.0));
-        float odd = hash12(vec2(ci * 3.1 + fid, si * 1.7 + 11.0));
-        if (odd < 0.22) r = odd / 0.22;
-        tile = r < 0.24 ? 0.0 : r < 0.38 ? 1.0 : r < 0.53 ? 2.0 : r < 0.67 ? 3.0
-             : r < 0.81 ? 4.0 : r < 0.88 ? 5.0 : r < 0.94 ? 6.0 : 7.0;
+    if (rev) t.x = -t.x;
+    int col = int(rev ? cols - 1.0 - ci : ci);
+    int row = clamp(int(floor(aboveFloor(p.y) / 4.0 + 1e-3)), 0, 8);
+    ivec2 o = ivec2((elev % 16) * 16, (elev / 16) * 9);
+    int bays = max(int(texelFetch(texture6, o, 0).a * 255.0 + 0.5), 1);
+    ivec4 e = ivec4(texelFetch(texture6, o + ivec2(min(col, bays - 1), row), 0) * 255.0 + 0.5);
+    bool near = row <= 2 && deckAt(p.xz + n.xz * 1.5, p.y) > 0.5;
+    float tile = float(near ? e.g : e.r);
+    if (!near && tile < 1.5) {
+        float r = hash12(vec2(ci + fid * 13.0, floor(p.y / 4.0 + 1e-3) * 1.3 + 7.0));
+        tile = r < 0.04 ? 5.0 : r < 0.07 ? 6.0 : tile;
     }
     vec4 c = atlasTile(FACADE_FIRST + tile, t);
-
-    // Color blocks: runs of 1 to 3 bays and 2 to 5 stories, per building.
-    float gw = 1.0 + floor(hash11(fid * 4.3) * 3.0);
-    float gh = 2.0 + floor(hash11(fid * 5.9) * 4.0);
-    float bk = hash12(vec2(floor(ci / gw) + fid * 7.0, floor(si / gh) + 5.0));
-    vec3 tint = base;
-    if (bk > 0.45) tint = pow(FACADE_PAINT[int(hash11(bk * 91.0 + fid) * 8.0) % 8] / 255.0, vec3(2.2));
+    vec3 tint = e.b == 0 ? base : pow(FACADE_PAINT[(e.b + shift) % 8] / 255.0, vec3(2.2));
     return mix(c.rgb, c.rgb / 0.44 * tint, c.a);
 }
 
@@ -529,7 +433,10 @@ void main()
     bool painted = textured && fragColor.a < 0.01;
     int kindCode = int(fragKind + 0.5);
     int kind = kindCode % 16;
-    gVariant = kindCode / 16;
+    gVariant = (kindCode / 16) % 16;
+    // Tower walls: the tower's paint shift and the face's elevation (src/render/mesh.rs).
+    int paintShift = (kindCode / 256) % 8;
+    int elevation = kindCode / 2048;
     vec3 emit = vec3(0.0);
     if (painted) {
         float px = max(length(fwidth(fragWorldPos)), 1e-4);
@@ -539,35 +446,19 @@ void main()
             albedo *= paintPlant(fragWorldPos) * mix(1.0, grit2(fragWorldPos.xz * 1.3 + fragWorldPos.y * 0.7).g, 0.6);
             if (fragLoc.x >= 0.0) albedo = leaf(albedo, fragLoc);
         } else if (kind == 0) {
-            if (vertical) albedo = facade(albedo, fragWorldPos, n, fragLoc, fid);
+            if (vertical) albedo = facade(albedo, fragWorldPos, n, fragLoc, fid, elevation, paintShift);
             else if (n.y > 0.0) albedo = roof(albedo, fragWorldPos, px);
             else albedo = underside(albedo, fragWorldPos, px);
         } else if (kind == 2) {
             if (n.y > 0.5) albedo = pavement(albedo, fragWorldPos, px);
             else if (n.y < -0.5) albedo = underside(albedo, fragWorldPos, px);
             else albedo = concrete(albedo, fragWorldPos, n, fragLoc);
-        } else if (kind == 3) {
-            albedo = bridgeMetal(albedo, fragWorldPos, n, px);
         } else if (kind == 4) {
             // Stone steps.
             vec2 suv = abs(n.y) > 0.5 ? fragWorldPos.xz : vec2(fragWorldPos.x + fragWorldPos.z, fragWorldPos.y);
             albedo *= (0.8 + 0.4 * fbm(suv * 1.5)) * grit(suv / 1.4).r;
         } else if (kind == 6) {
             albedo = concrete(albedo, fragWorldPos, n, fragLoc);
-        } else if (kind == 7) {
-            albedo = equipment(albedo, fragWorldPos, n, fragLoc, px);
-        } else if (kind == 8) {
-            if (vertical && fragLoc.x > -0.5) {
-                albedo = billboard(fragLoc, fid, px, emit);
-            } else {
-                albedo = albedo * 0.5;
-            }
-        } else if (kind == 9) {
-            albedo = mast(albedo, fragWorldPos, px);
-        } else if (kind == 10) {
-            albedo = solar(albedo, fragWorldPos, n, px);
-        } else if (kind == 11) {
-            albedo = skylight(albedo, fragWorldPos, n, fragLoc, px);
         } else if (kind == 14) {
             // Props built in code (the street light): worn by the same photo detail as the walls
             // (same scale), darker at the foot.

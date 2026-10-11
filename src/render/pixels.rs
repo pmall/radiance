@@ -13,7 +13,7 @@ pub const TILE: usize = 64;
 /// Chunk materials, in `Mat::index` order.
 pub const MATERIALS: usize = 11;
 /// Tower facade units (`facade_tiles`), after the materials: 4 m bays one story (4 m) high.
-pub const FACADES: usize = 10;
+pub const FACADES: usize = 11;
 /// Tiles in the atlas.
 pub const COUNT: usize = MATERIALS + FACADES;
 /// Material slot (sampler `texture10`) of the atlas.
@@ -510,7 +510,7 @@ fn bars(t: &mut Tile, (x0, y0): (i32, i32), (x1, y1): (i32, i32), step: i32, sal
 
 /// The facade units, in shader order: window, two narrow windows, caged window, enclosed balcony,
 /// window with an air conditioner, boarded window, broken window, blank wall with a vent and a
-/// pipe, shop shutter, shop window.
+/// pipe, shop shutter, shop window, blank wall.
 fn facade_tiles() -> Vec<Tile> {
     let mut out = Vec::new();
     // 0: a window.
@@ -649,6 +649,8 @@ fn facade_tiles() -> Vec<Tile> {
     t.rect((5, 50), (31, 51), |_, _| FRAME[0]);
     letters(&mut t, 6, 192);
     out.push(t);
+    // 10: blank wall.
+    out.push(facade_wall(200));
     out
 }
 

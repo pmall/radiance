@@ -1,11 +1,11 @@
-//! The city's design in one place: what each floor is like (decks, plants, flowers, stairs, props,
-//! cars) and the switches for props and points of interest. Generation tunes nothing elsewhere;
+//! The city's design in one place: what each floor is like (decks, plants, flowers, stairs, props)
+//! and the switches for props and points of interest. Generation tunes nothing elsewhere;
 //! `--report` prints these profiles next to what a seed actually produced.
 //!
 //! Profiles are written per zone of the stack (`floors::Zone`), as the values at the zone's lowest
 //! and highest floor, and interpolated in between, so they hold for any number of floors.
 //! The lore behind the numbers (`docs/lore.md`): people lived longest in the depths and moved up
-//! with the city, so their leftovers (props, cars, stairs) thin out going up; flowers follow the
+//! with the city, so their leftovers (props, stairs) thin out going up; flowers follow the
 //! sun like real flowers, so they grow denser toward the canopy; the canopy was built by machines
 //! after the humans, so it holds almost nothing human.
 
@@ -30,19 +30,19 @@ pub struct Flowers {
 /// Everything generation needs to know about one floor.
 #[derive(Clone, Copy, Debug)]
 pub struct FloorProfile {
-    /// Chance that a deck section is built up to this floor (`city::built`): the share of the floor
-    /// that has a deck. Never grows going up (a section with no deck on a floor has none above).
-    pub deck_keep: f32,
+    /// Chance that a hole cell (`planner::HOLE_CELL` lots a side) opens a hole chunk on this floor:
+    /// a light well, a gap, the unbuilt edge of the construction front. A hole opens every floor
+    /// above too, so the floors thin out going up.
+    pub holes: f32,
     /// Multiplier on how many plants grow.
     pub plants: f32,
     pub flowers: Flowers,
     /// Chance that a stair hub cell (`planner::HUB_CELL` lots a side) holds a stair from this floor
     /// to the next.
     pub stair: f32,
-    /// Multiplier on the props tried per lot (`dressing.rs`).
+    /// Chance that a slot for what people left (street furniture, leftovers: `chunks::Rate::Props`)
+    /// holds anything.
     pub props: f32,
-    /// Cars tried per lot (parked along the curbs).
-    pub cars: f32,
     /// Chance that a block cell (`planner::BLOCK_CELL` lots a side) holds a block chunk on this
     /// floor (a light well, a pocket park).
     pub blocks: f32,
@@ -50,6 +50,16 @@ pub struct FloorProfile {
     /// low housing, a yard, a depot. The city's density.
     pub fillers: f32,
 }
+
+/// Chance that a crater cell (`planner::CRATER_CELL` lots a side) holds a crater, and that a crater
+/// goes all the way down to the start floor (else it stops on a floor of the middle).
+pub const CRATER_CHANCE: f32 = 0.45;
+pub const CRATER_START: f32 = 0.25;
+
+/// How tall towers are, as shares of the towers: old buildings of the depths, long since covered by
+/// the floors above; towers ending somewhere in the stack, a little above one of its floors; the
+/// construction front, rising past the top deck (`chunks::Height`).
+pub const TOWER_HEIGHTS: [f32; 3] = [0.2, 0.68, 0.12];
 
 /// Most flowers per lot and floor (their lights are what the renderer can afford).
 pub const MAX_FLOWERS_PER_LOT: usize = 24;
@@ -69,7 +79,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
     match zone {
         Zone::Depths => (
             FloorProfile {
-                deck_keep: 0.97,
+                holes: 0.3,
                 plants: 0.45,
                 flowers: Flowers {
                     bush: 0.2,
@@ -79,12 +89,11 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.35,
                 props: 1.0,
-                cars: 1.0,
                 blocks: 0.35,
                 fillers: 0.5,
             },
             FloorProfile {
-                deck_keep: 0.95,
+                holes: 0.25,
                 plants: 0.5,
                 flowers: Flowers {
                     bush: 0.22,
@@ -94,14 +103,13 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.3,
                 props: 0.9,
-                cars: 0.9,
                 blocks: 0.35,
                 fillers: 0.5,
             },
         ),
         Zone::Middle => (
             FloorProfile {
-                deck_keep: 0.92,
+                holes: 0.75,
                 plants: 0.8,
                 flowers: Flowers {
                     bush: 0.28,
@@ -111,12 +119,11 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.25,
                 props: 0.7,
-                cars: 0.6,
                 blocks: 0.35,
                 fillers: 0.4,
             },
             FloorProfile {
-                deck_keep: 0.8,
+                holes: 0.9,
                 plants: 1.2,
                 flowers: Flowers {
                     bush: 0.4,
@@ -126,14 +133,13 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.18,
                 props: 0.4,
-                cars: 0.2,
                 blocks: 0.3,
                 fillers: 0.3,
             },
         ),
         Zone::Canopy => (
             FloorProfile {
-                deck_keep: 0.65,
+                holes: 0.7,
                 plants: 1.6,
                 flowers: Flowers {
                     bush: 0.65,
@@ -143,12 +149,11 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.12,
                 props: 0.12,
-                cars: 0.0,
                 blocks: 0.25,
                 fillers: 0.15,
             },
             FloorProfile {
-                deck_keep: 0.45,
+                holes: 0.65,
                 plants: 0.8,
                 flowers: Flowers {
                     bush: 0.3,
@@ -158,7 +163,6 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.08,
                 props: 0.05,
-                cars: 0.0,
                 blocks: 0.2,
                 fillers: 0.08,
             },
@@ -173,7 +177,7 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 fn blend(a: &FloorProfile, b: &FloorProfile, t: f32) -> FloorProfile {
     let f = |x: f32, y: f32| lerp(x, y, t);
     FloorProfile {
-        deck_keep: f(a.deck_keep, b.deck_keep),
+        holes: f(a.holes, b.holes),
         plants: f(a.plants, b.plants),
         flowers: Flowers {
             bush: f(a.flowers.bush, b.flowers.bush),
@@ -183,7 +187,6 @@ fn blend(a: &FloorProfile, b: &FloorProfile, t: f32) -> FloorProfile {
         },
         stair: f(a.stair, b.stair),
         props: f(a.props, b.props),
-        cars: f(a.cars, b.cars),
         blocks: f(a.blocks, b.blocks),
         fillers: f(a.fillers, b.fillers),
     }
@@ -199,10 +202,6 @@ pub fn profile(floor: usize) -> &'static FloorProfile {
                 blend(&lo, &hi, floors::zone_t(f))
             })
             .collect();
-        // The share of the floor with a deck only shrinks going up.
-        for f in 1..v.len() {
-            v[f].deck_keep = v[f].deck_keep.min(v[f - 1].deck_keep);
-        }
         // No stair leaves the top floor.
         if let Some(top) = v.last_mut() {
             top.stair = 0.0;
@@ -269,7 +268,6 @@ mod tests {
             top.props < bottom.props,
             "human leftovers thin out going up"
         );
-        assert_eq!(top.cars, 0.0, "no cars in the machine-built canopy");
         assert_eq!(top.stair, 0.0, "no stair above the top");
         let peak = (0..n).find(|&f| floors::zone(f) == Zone::Canopy).unwrap();
         assert!(
@@ -281,8 +279,8 @@ mod tests {
             "stairs grow rarer going up"
         );
         assert!(
-            (1..n).all(|f| profile(f).deck_keep <= profile(f - 1).deck_keep),
-            "decks thin out going up"
+            profile(n - 1).holes > profile(1).holes,
+            "more holes toward the construction front"
         );
     }
 }

@@ -31,10 +31,10 @@ and lot coordinates):
    chunk per block cell and of a filler per free lot (`docs/chunks.md`). Written
    per zone as values at its lowest and highest floor, interpolated in between, so they hold for
    any number of floors. **Every generation number that depends on the floor lives there.**
-3. **Structure** (`city.rs`): ground, decks (`deck_keep`), craters, stairs (`stair`), towers,
+3. **Structure** (`city.rs`, now from the planner's chunks, see `docs/chunks.md`): ground, decks (hole chunks), craters, stairs (`stair`), towers,
    bridges, then the hand-written chunks the planner places (`planner.rs`: areas and their
    sub-areas, blocks with their holes, stair hubs, fillers; see `docs/chunks.md`).
-4. **Dressing** (`dressing.rs`): street lights at the crossroads, then props placed by the street
+4. **Dressing** (now street and filler chunks, `docs/chunks.md`; this was `dressing.rs`): street lights at the crossroads, then props placed by the street
    layout (below), at the floor's `props` and `cars` densities; points of interest drawn apart at the floor's `poi` rate.
 5. **Growth** (`growth.rs`): plants at the floor's density, flowers at the floor's chances; plants
    grow around the props.
@@ -46,7 +46,7 @@ city. Values are tuned with the report, then checked in game.
 
 ### The floor stack in detail
 
-- **Decks:** the city was laid floor by floor, in sections. Each district of 6 x 6 lots is split
+- **Decks** (history: holes are now hole chunks, `docs/chunks.md`): the city was laid floor by floor, in sections. Each district of 6 x 6 lots is split
   into rectangular sections of one to three lots a side, and each section is built up to some
   floor (`city::built`): a deck on every floor up to it, none above. The chance that a section
   reaches a floor is the profile's `deck_keep`, which never grows going up (97 % on D1, 92 % on
@@ -128,7 +128,7 @@ Status: the machinery is in place with a single biome, `default` (the original l
 more biomes (including a rare "rainbow" one with every flower color), blending across zone borders,
 per-biome fog and sky tint, and per-biome plant species and tower styles.
 
-## Set dressing (implemented, second pass)
+## Set dressing (history: replaced by street, filler and tower chunks, `docs/chunks.md`)
 
 Every lot follows one street layout, the one the pavement shader draws: a road along each border
 (3 m deep on each lot's side), a curb, the sidewalk, then the tower's facades. `src/world/dressing.rs`

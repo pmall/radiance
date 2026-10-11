@@ -1,0 +1,83 @@
+// Tower: a point tower, 12 x 12 m: stacks of caged windows in color on the corners of the front,
+// air conditioners and laundry up the middle; plain windows on the sides around a stack of cages.
+// Tall ones end in a slim top of two bays. Seen from outside the front (-z), bays run from x = 18
+// down to x = 6.
+Chunk(
+    name: "tower_point",
+    size: (1, 1),
+    labels: ["tower"],
+    weight: 4,
+    tower: (
+        tiers: [
+            (
+                at: (6.0, 6.0),
+                size: (12.0, 12.0),
+                facade: (
+                    front: [
+                        "c1 a  c1",
+                        "c1 w  c1",
+                        "A  l  A",
+                        "c2 w  c2",
+                        "c2 a  c2",
+                        "A  l  A",
+                        "c1 u  c1",
+                        "a1 l  a1",
+                        "s1 H  s1",
+                    ],
+                    side: [
+                        "w  c3 w",
+                        "a  c3 a",
+                        "w  c3 w",
+                        "x  c3 w",
+                        "a  c3 a",
+                        "w  c3 k",
+                        "u  c3 u",
+                        "w  b3 w",
+                        "h  s  h",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (10.0, 0.0, 6.0), turn: 2, pick: [Some("blade_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                    Slot(at: (14.0, 0.0, 18.0), turn: 0, pick: [Some("blade_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                ],
+                streets: [
+                    Slot(at: (12.0, 0.0, 6.0), turn: 2, rate: Props, pick: [Some("wall_terrace"), None]),
+                    Slot(at: (9.0, 0.0, 18.0), turn: 0, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (6.0, 0.0, 12.0), turn: 3, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (18.0, 0.0, 12.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+                roof: [
+                    Box(at: (6.0, 0.0, 6.0), size: (12.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (6.0, 0.0, 17.6), size: (12.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (6.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Box(at: (17.6, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Slot(at: (9.0, 0.0, 9.0), pick: [Some("water_tank"), Some("roof_ac")]),
+                    Slot(at: (15.0, 0.0, 9.0), pick: [Some("roof_ac"), Some("roof_skylight"), None]),
+                    Slot(at: (12.0, 0.0, 13.0), pick: [Some("stair_housing"), Some("roof_plant")]),
+                    Slot(at: (9.0, 0.0, 16.0), pick: [Some("antenna"), Some("water_tank"), None]),
+                    Slot(at: (15.5, 0.0, 16.0), pick: [Some("roof_mast"), Some("antenna"), None]),
+                ],
+            ),
+            (
+                at: (8.0, 8.0),
+                size: (8.0, 8.0),
+                stories: (4, 10),
+                chance: 0.6,
+                facade: (
+                    front: ["a  w", "w  a", "c1 c1", "h  H"],
+                    side: ["w  w", "c1 c1", "w  a", "h  h"],
+                ),
+                roof: [
+                    Box(at: (8.0, 0.0, 8.0), size: (8.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (8.0, 0.0, 15.6), size: (8.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (8.0, 0.0, 8.4), size: (0.4, 0.9, 7.2), mat: Concrete),
+                    Box(at: (15.6, 0.0, 8.4), size: (0.4, 0.9, 7.2), mat: Concrete),
+                    Slot(at: (10.5, 0.0, 10.5), pick: [Some("water_tank"), Some("roof_ac")]),
+                    Slot(at: (13.5, 0.0, 13.5), pick: [Some("roof_mast"), Some("antenna"), None]),
+                ],
+            ),
+        ],
+    ),
+)

@@ -8,9 +8,14 @@
 //!   way). No tower stands in an area's footprint, on any floor.
 //! - **Sub-areas:** the `Sub` openings an area leaves are filled with chunks of the labels they ask
 //!   for (a garden, a café terrace in a quarter of the great square), each its own seed.
-//! - **Blocks** (a light well, a pocket park): cells of `BLOCK_CELL` lots hold at most one per
-//!   floor, at the floor's `blocks` chance (`design.rs`), entirely inside the cell, away from areas
-//!   and craters. A block's `holes` open its floor and every floor above.
+//! - **Blocks** (a pocket park, a laundry court): cells of `BLOCK_CELL` lots hold at most one per
+//!   floor, at the floor's `blocks` chance (`design.rs`), entirely inside the cell, on a deck, away
+//!   from areas, craters and holes.
+//! - **Holes** (a light well, a gap a footbridge crosses, the unbuilt edge of the construction
+//!   front): cells of `HOLE_CELL` lots hold at most one per floor, at the floor's `holes` chance; a
+//!   hole chunk's `holes` open its floor and every floor above, so the city thins out going up.
+//! - **Craters:** cells of `CRATER_CELL` lots hold one now and then, its shape open above its floor;
+//!   one always opens in front of the spawn.
 //! - **Stair hubs:** every stair stands in the middle lot of a hub chunk, which frames it (railings,
 //!   lamps, benches). Cells of `HUB_CELL` lots hold at most one hub per floor, at the floor's
 //!   `stair` chance, so stairs never cluster.
@@ -18,7 +23,11 @@
 //!   hold a one-lot filler, at the floor's `fillers` chance: the housing and yards that make the
 //!   city dense.
 //!
-//! What no chunk covers is still the lot generator of `city.rs` (towers, streets, props).
+//! - **Towers:** cells of `TOWER_CELL` lots hold a big tower now and then (2x1, 2x2 lots), the
+//!   other lots a one-lot tower unless the biome leaves them empty; never in an area, a crater, the
+//!   start's plaza or its stair lot. Each gets a height (`design::TOWER_HEIGHTS`).
+//!
+//! What no chunk covers is still the lot generator of `city.rs` (streets, props).
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -47,6 +56,25 @@ const SALT_HUB: i32 = 21;
 const SALT_BLOCK: i32 = 22;
 const SALT_SUB: i32 = 23;
 const SALT_FILLER: i32 = 24;
+const SALT_TOWER: i32 = 25;
+const SALT_STREET: i32 = 26;
+const SALT_HOLE: i32 = 27;
+const SALT_CRATER: i32 = 28;
+
+/// Side of a hole cell, in lots.
+pub const HOLE_CELL: i32 = 6;
+/// Spots a hole cell tries before giving up.
+const HOLE_TRIES: usize = 8;
+/// Side of a crater cell, in lots.
+pub const CRATER_CELL: i32 = 8;
+/// The crater always opening in front of the spawn.
+pub const START_CRATER: &str = "crater_start";
+
+/// The chunk of the plaza where the player wakes up.
+pub const START_CHUNK: &str = "start_plaza";
+
+/// Side of a tower cell, in lots: the biggest tower footprint.
+pub const TOWER_CELL: i32 = 2;
 
 /// A chunk placed in the city.
 #[derive(Clone, Debug)]
@@ -63,6 +91,8 @@ pub struct Placement {
     pub turn: u8,
     /// Seeds the chunk's slots.
     pub seed: u64,
+    /// A tower's height, in stories from the bottom of the stack (0 for other chunks).
+    pub stories: u32,
 }
 
 impl Placement {
@@ -86,7 +116,7 @@ impl Placement {
     }
 
     /// Whether one of the chunk's holes opens this lot.
-    fn opens(&self, lx: i32, lz: i32) -> bool {
+    pub fn opens(&self, lx: i32, lz: i32) -> bool {
         chunks::catalog(self.biome)
             .chunks
             .get(&self.chunk)
@@ -97,16 +127,24 @@ impl Placement {
             })
     }
 
-    /// Whether this placement takes precedence over `other` where both cover a lot on one floor:
-    /// areas and their sub-areas, then blocks, then hubs' surroundings, then fillers.
-    pub fn outranks(&self, other: &Placement) -> bool {
-        let rank = |r: Role| match r {
+    /// Its precedence where chunks cover a lot on one floor (lower first): areas and their
+    /// sub-areas, then blocks, then hubs' surroundings, then fillers, then streets.
+    pub fn rank(&self) -> u8 {
+        match self.role {
             Role::Area | Role::Sub => 0,
-            Role::Block => 1,
+            Role::Block | Role::Hole | Role::Crater => 1,
             Role::Hub => 2,
             Role::Filler => 3,
-        };
-        rank(self.role) < rank(other.role)
+            Role::Street => 4,
+            Role::Tower => 5,
+        }
+    }
+
+    /// Whether this placement takes precedence over `other` where both cover a lot on one floor.
+    /// A street and a filler share their lot (the street keeps its border), and so does a tower.
+    pub fn outranks(&self, other: &Placement) -> bool {
+        let shared = |r: Role| matches!(r, Role::Filler | Role::Street | Role::Tower);
+        !(shared(self.role) && shared(other.role)) && self.rank() < other.rank()
     }
 }
 
@@ -221,6 +259,7 @@ fn area_candidate(seed: u64, cx: i32, cz: i32) -> Option<(Placement, f32)> {
         floor,
         turn,
         seed: rng.next_u64(),
+        stories: 0,
     };
     // Never over the start. Craters give way to areas (`city::crater_at`).
     let clear = p.lots().all(|(x, z)| !near_start(x, z));
@@ -331,6 +370,7 @@ pub fn subs_of(area: &Placement) -> Vec<Placement> {
                 floor: area.floor,
                 turn,
                 seed: rng.next_u64(),
+                stories: 0,
             });
         }
         out
@@ -364,11 +404,6 @@ fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<P
         c.role() == Role::Block && zone_fits(c, floor) && c.size.0.max(c.size.1) <= BLOCK_CELL
     });
     let chunk = pick(&pool, &mut rng)?;
-    // Holes of the blocks below in this cell: a block never stands over one.
-    let below: Vec<Placement> = (1..floor)
-        .filter_map(|f| block_of_cell(seed, cx, cz, f))
-        .collect();
-    let y = floors::y(floor);
     for _ in 0..BLOCK_TRIES {
         let turn = rng.range_i(0, 4) as u8;
         let size = turned(chunk.size, turn);
@@ -384,16 +419,15 @@ fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<P
             floor,
             turn,
             seed: rng.next_u64(),
+            stories: 0,
         };
+        // On a deck no hole or crater opens, clear of the hole chunks of its floor.
         let fits = p.lots().all(|(x, z)| {
-            let open = p.opens(x, z);
             !near_start_or_hub(x, z)
-                && city::built(seed, x, z) >= floor
+                && !city::opened(seed, x, z, floor)
                 && city::crater_at(seed, x, z).is_none()
                 && area_at(seed, x, z).is_none()
-                && !below.iter().any(|b| b.covers(x, z) && b.opens(x, z))
-                // Nothing rises through a hole.
-                && (!open || city::tower(seed, x, z).is_none_or(|t| t.top() < y - 1.0))
+                && !holes_at(seed, x, z).iter().any(|h| h.floor == floor)
         });
         if fits {
             return Some(p);
@@ -414,13 +448,190 @@ pub fn blocks_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
         .collect()
 }
 
-/// The lowest floor a block's hole opens at this lot (no deck there or above), if any.
+// Holes.
+
+/// The hole chunk a cell holds on a floor, if any: placed entirely inside the cell, never on an
+/// area's floor or below it, clear of towers unless it lets them rise through
+/// (`Chunk::towers_rise`).
+fn hole_of_cell(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
+    cached((5, cx, cz, floor), seed, || {
+        hole_of_cell_uncached(seed, cx, cz, floor)
+            .into_iter()
+            .collect()
+    })
+    .pop()
+}
+
+fn hole_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
+    if floor == 0 || chunks::preview().is_some() {
+        return None;
+    }
+    let biome = biome_of_cell(seed, cx, cz, HOLE_CELL);
+    let cat = chunks::catalog(biome);
+    let cat = &*cat;
+    let mut rng = Rng::new(hash_coords(seed, cx, SALT_HOLE + 64 * floor as i32, cz));
+    if !rng.chance(design::profile(floor).holes) {
+        return None;
+    }
+    let pool = pool(cat, |c| {
+        c.role() == Role::Hole && zone_fits(c, floor) && c.size.0.max(c.size.1) <= HOLE_CELL
+    });
+    let chunk = pick(&pool, &mut rng)?;
+    let y = floors::y(floor);
+    for _ in 0..HOLE_TRIES {
+        let turn = rng.range_i(0, 4) as u8;
+        let size = turned(chunk.size, turn);
+        let (ox, oz) = hole_grid(floor);
+        let p = Placement {
+            chunk: chunk.name.clone(),
+            biome,
+            role: Role::Hole,
+            origin: (
+                cx * HOLE_CELL - ox + rng.range_i(0, HOLE_CELL - size.0 + 1),
+                cz * HOLE_CELL - oz + rng.range_i(0, HOLE_CELL - size.1 + 1),
+            ),
+            size,
+            floor,
+            turn,
+            seed: rng.next_u64(),
+            stories: 0,
+        };
+        // The start floor around the spawn keeps its look, and its stair what it stands on.
+        let start = floor <= START + 1;
+        // A rim on lots a hole below already opened simply has nothing there.
+        let fits = p.lots().all(|(x, z)| {
+            let open = p.opens(x, z);
+            !(start && near_start_or_hub(x, z))
+                && area_at(seed, x, z).is_none_or(|a| a.floor < floor)
+                && (!open
+                    || chunk.towers_rise
+                    || city::tower(seed, x, z).is_none_or(|t| t.top() < y - 1.0))
+        });
+        if fits {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// How far the hole cells of a floor are shifted (lots): each floor its own grid, so the holes of
+/// the floors do not pile up in the same places.
+fn hole_grid(floor: usize) -> (i32, i32) {
+    let f = floor as i32;
+    ((f * 2) % HOLE_CELL, (f * 5) % HOLE_CELL)
+}
+
+/// The hole cell holding a lot on a floor.
+fn hole_cell(lx: i32, lz: i32, floor: usize) -> (i32, i32) {
+    let (ox, oz) = hole_grid(floor);
+    (
+        (lx + ox).div_euclid(HOLE_CELL),
+        (lz + oz).div_euclid(HOLE_CELL),
+    )
+}
+
+/// The hole chunks covering a lot, on every floor.
+pub fn holes_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
+    (1..floors::count())
+        .filter_map(|f| {
+            let (cx, cz) = hole_cell(lx, lz, f);
+            hole_of_cell(seed, cx, cz, f)
+        })
+        .filter(|p| p.covers(lx, lz))
+        .collect()
+}
+
+/// The lowest floor a hole chunk opens at this lot (no deck there or above), if any.
 pub fn hole_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
-    blocks_at(seed, lx, lz)
+    holes_at(seed, lx, lz)
         .iter()
         .filter(|p| p.opens(lx, lz))
         .map(|p| p.floor)
         .min()
+}
+
+// Craters.
+
+/// The crater always opening in front of the spawn (the player wakes up facing -z), down to the
+/// start floor: a wide shaft of daylight beyond the dark plaza, the first pull upward.
+fn start_crater() -> Option<Placement> {
+    let cat = chunks::catalog(chunks::DEFAULT_BIOME);
+    let c = cat.chunks.get(START_CRATER)?;
+    Some(Placement {
+        chunk: c.name.clone(),
+        biome: chunks::DEFAULT_BIOME,
+        role: Role::Crater,
+        origin: (-c.size.0 / 2, -5 - c.size.1 / 2),
+        size: c.size,
+        floor: START,
+        turn: 0,
+        seed: 0,
+        stories: 0,
+    })
+}
+
+/// The crater of a cell, entirely inside it, if it has one: on the start floor now and then,
+/// mostly on a floor of the middle.
+fn crater_of_cell(seed: u64, cx: i32, cz: i32) -> Option<Placement> {
+    cached((6, cx, cz, 0), seed, || {
+        crater_of_cell_uncached(seed, cx, cz).into_iter().collect()
+    })
+    .pop()
+}
+
+fn crater_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Option<Placement> {
+    // The start's crater stands across these cells.
+    if (cx == -1 || cx == 0) && cz == -1 {
+        return None;
+    }
+    let biome = biome_of_cell(seed, cx, cz, CRATER_CELL);
+    let cat = chunks::catalog(biome);
+    let cat = &*cat;
+    let mut rng = Rng::new(hash_coords(seed, cx, SALT_CRATER, cz));
+    if !rng.chance(design::CRATER_CHANCE) {
+        return None;
+    }
+    let pool = pool(cat, |c| {
+        c.role() == Role::Crater && c.size.0.max(c.size.1) <= CRATER_CELL
+    });
+    let chunk = pick(&pool, &mut rng)?;
+    let middle: Vec<usize> = (0..floors::count())
+        .filter(|&f| floors::zone(f) == floors::Zone::Middle)
+        .collect();
+    let floor = if rng.chance(design::CRATER_START) || middle.is_empty() {
+        START
+    } else {
+        middle[rng.range_i(0, middle.len() as i32) as usize]
+    };
+    let turn = rng.range_i(0, 4) as u8;
+    let size = turned(chunk.size, turn);
+    Some(Placement {
+        chunk: chunk.name.clone(),
+        biome,
+        role: Role::Crater,
+        origin: (
+            cx * CRATER_CELL + rng.range_i(0, CRATER_CELL - size.0 + 1),
+            cz * CRATER_CELL + rng.range_i(0, CRATER_CELL - size.1 + 1),
+        ),
+        size,
+        floor,
+        turn,
+        seed: rng.next_u64(),
+        stories: 0,
+    })
+}
+
+/// The crater whose shape takes a lot, if any (areas win over craters, and the start's plaza
+/// stays).
+pub fn crater_placement(seed: u64, lx: i32, lz: i32) -> Option<Placement> {
+    if city::is_plaza(lx, lz) || chunks::preview().is_some() || area_at(seed, lx, lz).is_some() {
+        return None;
+    }
+    let (cx, cz) = (lx.div_euclid(CRATER_CELL), lz.div_euclid(CRATER_CELL));
+    start_crater()
+        .into_iter()
+        .chain(crater_of_cell(seed, cx, cz))
+        .find(|p| p.covers(lx, lz) && p.opens(lx, lz))
 }
 
 // Stair hubs.
@@ -481,9 +692,10 @@ fn hub_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Pla
                     // A tower ending below this floor leaves the lot free above it.
                     && city::tower(seed, x, z).is_none_or(|t| t.top() < floors::y(floor) - 1.0)
                     && city::crater_at(seed, x, z).is_none()
-                    && city::built(seed, x, z) > floor
+                    && !city::opened(seed, x, z, floor + 1)
                     && area_at(seed, x, z).is_none()
                     && blocks_at(seed, x, z).is_empty()
+                    && holes_at(seed, x, z).iter().all(|h| h.floor > floor + 1)
             })
             .collect();
         if free.is_empty() {
@@ -500,6 +712,7 @@ fn hub_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Pla
         floor,
         turn,
         seed: rng.next_u64(),
+        stories: 0,
     })
 }
 
@@ -541,17 +754,166 @@ fn hubs_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     out
 }
 
+// Towers.
+
+/// Whether a tower may stand on a lot: not in an area or a crater, not on the start's plaza or its
+/// stair lot.
+fn tower_may_stand(seed: u64, lx: i32, lz: i32) -> bool {
+    !city::is_plaza(lx, lz)
+        && (lx, lz) != START_HUB
+        && area_at(seed, lx, lz).is_none()
+        && city::crater_at(seed, lx, lz).is_none()
+}
+
+/// A tower's height in stories, from the shares of `design::TOWER_HEIGHTS` the chunk allows.
+fn tower_stories(chunk: &Chunk, rng: &mut Rng) -> u32 {
+    use chunks::Height;
+    let bands = [Height::Old, Height::Stack, Height::Front];
+    let allowed = |h: Height| {
+        chunk
+            .tower
+            .as_ref()
+            .is_none_or(|t| t.heights.is_empty() || t.heights.contains(&h))
+    };
+    let total: f32 = (0..3)
+        .filter(|&i| allowed(bands[i]))
+        .map(|i| design::TOWER_HEIGHTS[i])
+        .sum();
+    let mut roll = rng.f32() * total;
+    let band = (0..3)
+        .filter(|&i| allowed(bands[i]))
+        .find(|&i| {
+            roll -= design::TOWER_HEIGHTS[i];
+            roll < 0.0
+        })
+        .map_or(Height::Stack, |i| bands[i]);
+    let top = match band {
+        Height::Old => rng.range(floors::y(1) + 8.0, floors::y(START) + 14.0),
+        Height::Stack => {
+            floors::y(rng.range_i(START as i32, floors::count() as i32) as usize)
+                + rng.range(8.0, 28.0)
+        }
+        Height::Front => rng.range(floors::top() + 30.0, floors::top() + 110.0),
+    };
+    (((top - floors::bottom()) / chunks::STORY).round() as u32).max(3)
+}
+
+/// The towers of a cell.
+fn towers_of_cell(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
+    cached((4, cx, cz, 0), seed, || {
+        towers_of_cell_uncached(seed, cx, cz)
+    })
+}
+
+fn towers_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
+    let biome = biome_of_cell(seed, cx, cz, TOWER_CELL);
+    let cat = chunks::catalog(biome);
+    let cat = &*cat;
+    let pool = pool(cat, |c| c.role() == Role::Tower && c.tower.is_some());
+    let small: Vec<&Chunk> = pool.iter().copied().filter(|c| c.size == (1, 1)).collect();
+    let (x0, z0) = (cx * TOWER_CELL, cz * TOWER_CELL);
+    let lots: Vec<(i32, i32)> = (0..TOWER_CELL * TOWER_CELL)
+        .map(|i| (x0 + i % TOWER_CELL, z0 + i / TOWER_CELL))
+        .collect();
+    let mut taken = vec![false; lots.len()];
+    let mut out = Vec::new();
+    let mut rng = Rng::new(hash_coords(seed, cx, SALT_TOWER, cz));
+    // A big tower now and then, where its lots are all free.
+    if let Some(c) = pick(&pool, &mut rng).filter(|c| c.size != (1, 1)) {
+        let turn = rng.range_i(0, 4) as u8;
+        let size = turned(c.size, turn);
+        if size.0 <= TOWER_CELL && size.1 <= TOWER_CELL {
+            let origin = (
+                x0 + rng.range_i(0, TOWER_CELL - size.0 + 1),
+                z0 + rng.range_i(0, TOWER_CELL - size.1 + 1),
+            );
+            let mut p = Placement {
+                chunk: c.name.clone(),
+                biome,
+                role: Role::Tower,
+                origin,
+                size,
+                floor: 0,
+                turn,
+                seed: rng.next_u64(),
+                stories: 0,
+            };
+            p.stories = tower_stories(c, &mut rng);
+            if p.lots().all(|(x, z)| tower_may_stand(seed, x, z)) {
+                for (i, &(x, z)) in lots.iter().enumerate() {
+                    taken[i] = p.covers(x, z);
+                }
+                out.push(p);
+            }
+        }
+    }
+    for (i, &(x, z)) in lots.iter().enumerate() {
+        if taken[i] || !tower_may_stand(seed, x, z) {
+            continue;
+        }
+        let mut rng = Rng::new(hash_coords(seed, x, SALT_TOWER + 1, z));
+        if rng.chance(biome::biome_at(seed, x, z).tower_empty) {
+            continue;
+        }
+        let Some(c) = pick(&small, &mut rng) else {
+            continue;
+        };
+        let turn = rng.range_i(0, 4) as u8;
+        let own = rng.next_u64();
+        out.push(Placement {
+            chunk: c.name.clone(),
+            biome,
+            role: Role::Tower,
+            origin: (x, z),
+            size: (1, 1),
+            floor: 0,
+            turn,
+            seed: own,
+            stories: tower_stories(c, &mut rng),
+        });
+    }
+    out
+}
+
+/// The tower standing on a lot, if any (a big one covers several lots).
+pub fn tower_at(seed: u64, lx: i32, lz: i32) -> Option<Placement> {
+    if let Some(pv) = chunks::preview() {
+        // A previewed tower stands alone in front of the spawn, a few floors high.
+        let ((ox, oz), size) = chunks::preview_footprint()?;
+        let cat = chunks::catalog(pv.biome);
+        let c = cat
+            .chunks
+            .get(&pv.name)
+            .filter(|c| c.role() == Role::Tower)?;
+        let p = Placement {
+            chunk: c.name.clone(),
+            biome: pv.biome,
+            role: Role::Tower,
+            origin: (ox, oz),
+            size,
+            floor: 0,
+            turn: 0,
+            seed: hash_coords(seed, ox, SALT_TOWER, oz),
+            stories: ((floors::y(START + 1) + 24.0 - floors::bottom()) / chunks::STORY) as u32,
+        };
+        return p.covers(lx, lz).then_some(p);
+    }
+    let (cx, cz) = (lx.div_euclid(TOWER_CELL), lz.div_euclid(TOWER_CELL));
+    towers_of_cell(seed, cx, cz)
+        .into_iter()
+        .find(|p| p.covers(lx, lz))
+}
+
 // Fillers.
 
 /// The filler standing on a lot on a floor, given the other chunks covering the lot.
 fn filler_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) -> Option<Placement> {
-    if near_start_or_hub(lx, lz) || others.iter().any(|p| p.floor == floor) {
+    if others.iter().any(|p| p.floor == floor) {
         return None;
     }
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_FILLER + 64 * floor as i32, lz));
-    if !rng.chance(design::profile(floor).fillers) {
-        return None;
-    }
+    // Housing and yards at the floor's chance (never by the start), else a vacant lot.
+    let housing = rng.chance(design::profile(floor).fillers) && !near_start_or_hub(lx, lz);
     let free = city::deck(seed, lx, lz, floor) == city::Deck::Full
         && city::stair(seed, lx, lz).is_none()
         && city::tower(seed, lx, lz).is_none_or(|t| t.top() < floors::y(floor) - 1.0);
@@ -561,7 +923,10 @@ fn filler_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) ->
     let biome = biome::biome_at(seed, lx, lz).name;
     let cat = chunks::catalog(biome);
     let pool = pool(&cat, |c| {
-        c.role() == Role::Filler && c.size == (1, 1) && zone_fits(c, floor)
+        c.role() == Role::Filler
+            && c.size == (1, 1)
+            && zone_fits(c, floor)
+            && c.labels.iter().any(|l| l == "vacant") != housing
     });
     let chunk = pick(&pool, &mut rng)?;
     Some(Placement {
@@ -573,16 +938,69 @@ fn filler_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) ->
         floor,
         turn: rng.range_i(0, 4) as u8,
         seed: rng.next_u64(),
+        stories: 0,
     })
 }
 
-/// Every chunk covering a lot, on every floor: areas and their sub-areas, blocks, stair hubs and
-/// fillers.
+// Streets.
+
+/// The street around a lot on a floor, given the chunks covering it: wherever the lot has a deck
+/// and no area, block or hub designs it. Never turned: its lamps stand at the same corner of every
+/// lot, one at each crossing.
+fn street_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) -> Option<Placement> {
+    if others.iter().any(|p| p.floor == floor)
+        || city::deck(seed, lx, lz, floor) == city::Deck::None
+    {
+        return None;
+    }
+    let biome = biome::biome_at(seed, lx, lz).name;
+    let cat = chunks::catalog(biome);
+    let pool = pool(&cat, |c| {
+        c.role() == Role::Street && c.size == (1, 1) && zone_fits(c, floor)
+    });
+    let mut rng = Rng::new(hash_coords(seed, lx, SALT_STREET + 64 * floor as i32, lz));
+    let chunk = pick(&pool, &mut rng)?;
+    Some(Placement {
+        chunk: chunk.name.clone(),
+        biome,
+        role: Role::Street,
+        origin: (lx, lz),
+        size: (1, 1),
+        floor,
+        turn: 0,
+        seed: rng.next_u64(),
+        stories: 0,
+    })
+}
+
+/// The plaza where the player wakes up, on the start floor (`START_CHUNK`, if the catalog has it).
+fn start_at(lx: i32, lz: i32) -> Option<Placement> {
+    if !city::is_plaza(lx, lz) {
+        return None;
+    }
+    let cat = chunks::catalog(chunks::DEFAULT_BIOME);
+    let c = cat.chunks.get(START_CHUNK)?;
+    Some(Placement {
+        chunk: c.name.clone(),
+        biome: chunks::DEFAULT_BIOME,
+        role: Role::Block,
+        origin: (-1, -1),
+        size: c.size,
+        floor: START,
+        turn: 0,
+        seed: 0,
+        stories: 0,
+    })
+}
+
+/// Every chunk covering a lot, on every floor: areas and their sub-areas, blocks, stair hubs,
+/// fillers and streets.
 pub fn covering(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
     if chunks::preview().is_some() {
         return Vec::new();
     }
     let mut out: Vec<Placement> = Vec::new();
+    out.extend(start_at(lx, lz));
     if let Some(a) = area_at(seed, lx, lz) {
         out.extend(
             subs_of_area(seed, &a)
@@ -592,6 +1010,8 @@ pub fn covering(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
         out.push(a);
     }
     out.extend(blocks_at(seed, lx, lz));
+    out.extend(holes_at(seed, lx, lz));
+    out.extend(crater_placement(seed, lx, lz));
     out.extend(hubs_at(seed, lx, lz));
     // Fillers only where nothing else stands (a hub's surroundings without a deck do not count:
     // they build nothing there).
@@ -602,6 +1022,7 @@ pub fn covering(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
         .collect();
     for f in 0..floors::count() {
         out.extend(filler_at(seed, lx, lz, f, &taken));
+        out.extend(street_at(seed, lx, lz, f, &taken));
     }
     out
 }
@@ -673,7 +1094,7 @@ mod tests {
 
     #[test]
     fn blocks_and_holes() {
-        let (mut blocks, mut holes) = (0, 0);
+        let mut blocks = 0;
         for cz in -4..4 {
             for cx in -4..4 {
                 for f in 1..floors::count() {
@@ -683,17 +1104,34 @@ mod tests {
                     blocks += 1;
                     for (x, z) in b.lots() {
                         assert!(x.div_euclid(BLOCK_CELL) == cx && z.div_euclid(BLOCK_CELL) == cz);
-                        if b.opens(x, z) {
-                            holes += 1;
-                            assert_eq!(city::deck(3, x, z, f), city::Deck::None);
-                            assert!(city::stair(3, x, z).is_none());
-                        }
+                        assert_eq!(city::deck(3, x, z, f), city::Deck::Full);
                     }
                 }
             }
         }
         assert!(blocks > 10, "only {blocks} blocks on 64 cells");
-        assert!(holes > 0, "no hole");
+        let mut holes = 0;
+        for cz in -5..5 {
+            for cx in -5..5 {
+                for f in 1..floors::count() {
+                    let Some(h) = hole_of_cell(3, cx, cz, f) else {
+                        continue;
+                    };
+                    for (x, z) in h.lots() {
+                        assert_eq!(hole_cell(x, z, f), (cx, cz));
+                        if h.opens(x, z) {
+                            holes += 1;
+                            // Open on its floor and every floor above, no stair there.
+                            for g in f..floors::count() {
+                                assert_eq!(city::deck(3, x, z, g), city::Deck::None);
+                            }
+                            assert!(city::stair(3, x, z).is_none_or(|(lo, _)| lo + 1 < f));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(holes > 30, "only {holes} hole lots on 100 cells");
     }
 
     #[test]

@@ -1,0 +1,85 @@
+// Tower: an office block, 16 x 12 m: bands of double windows between blank spandrels, one band
+// in color, a service column of vents; shop windows all along the street story. Tall ones step
+// back to a top of colored bands.
+Chunk(
+    name: "tower_office",
+    size: (1, 1),
+    labels: ["tower"],
+    weight: 3,
+    tower: (
+        heights: [Stack, Front],
+        tiers: [
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                facade: (
+                    front: [
+                        "d  d  d  v",
+                        "d  d  d  v",
+                        "-  -  -  v",
+                        "d1 d1 d1 v",
+                        "d1 d1 d1 v",
+                        "-  -  -  v",
+                        "d  d  d  v",
+                        "d  d  d  v",
+                        "H  H  H  h",
+                    ],
+                    side: [
+                        "d  d  d",
+                        "d  d  d",
+                        "-  -  -",
+                        "d1 d1 d1",
+                        "d1 d1 d1",
+                        "-  -  -",
+                        "d  d  d",
+                        "d  d  d",
+                        "-  H  H",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (6.0, 0.0, 6.0), turn: 2, pick: [Some("vertical_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                    Slot(at: (12.0, 0.0, 18.0), turn: 0, pick: [Some("blade_sign"), None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                ],
+                streets: [
+                    Slot(at: (14.0, 0.0, 6.0), turn: 2, rate: Props, pick: [Some("wall_terrace"), None, None]),
+                    Slot(at: (10.0, 0.0, 18.0), turn: 0, rate: Props, pick: [Some("wall_terrace"), None]),
+                    Slot(at: (6.0, 0.0, 6.0), turn: 2, rate: Props, pick: [Some("wall_cabinet"), None]),
+                    Slot(at: (4.0, 0.0, 8.0), turn: 3, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (20.0, 0.0, 14.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+                roof: [
+                    Box(at: (4.0, 0.0, 6.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 17.6), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Box(at: (19.6, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Slot(at: (7.5, 0.0, 10.0), pick: [Some("roof_plant"), Some("roof_solar")]),
+                    Slot(at: (12.5, 0.0, 10.0), pick: [Some("roof_plant"), Some("roof_skylight"), None]),
+                    Slot(at: (17.0, 0.0, 14.0), pick: [Some("stair_housing")]),
+                    Slot(at: (8.0, 0.0, 15.0), pick: [Some("roof_solar"), Some("roof_pipes")]),
+                    Slot(at: (12.0, 0.0, 7.2), turn: 2, pick: [Some("billboard"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (90, 140, 100)]),
+                ],
+            ),
+            (
+                at: (6.0, 8.0),
+                size: (12.0, 8.0),
+                stories: (6, 14),
+                chance: 0.7,
+                facade: (
+                    front: ["d2 d2 d2", "-  -  -", "d2 d2 d2", "H  H  H"],
+                    side: ["d2 d2", "-  -", "d2 d2", "H  H"],
+                ),
+                roof: [
+                    Box(at: (6.0, 0.0, 8.0), size: (12.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (6.0, 0.0, 15.6), size: (12.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (6.0, 0.0, 8.4), size: (0.4, 0.9, 7.2), mat: Concrete),
+                    Box(at: (17.6, 0.0, 8.4), size: (0.4, 0.9, 7.2), mat: Concrete),
+                    Slot(at: (9.5, 0.0, 12.0), pick: [Some("roof_plant"), Some("stair_housing")]),
+                    Slot(at: (15.0, 0.0, 12.0), pick: [Some("roof_mast"), Some("roof_ac")]),
+                ],
+            ),
+        ],
+    ),
+)

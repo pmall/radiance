@@ -107,7 +107,16 @@ What the project owner has said so far. Treat as requirements.
   today's city the default one (done: `assets/biomes/<biome>/`). From now on no chunks or props
   are created on the side: when the owner wants more, they ask for a new biome.
   Completing the default biome (the chunks that replace today's random code: towers, streets,
-  holes) is part of the plan and approved.
+  holes) is part of the plan and approved. Done: everything is a chunk (`docs/chunks.md`), to be
+  judged by the owner.
+- Tests: running in seconds is fine; don't over-polish (owner, while the pass ran long).
+- After everything-is-a-chunk: "phenomenal", close to the wanted feel and look. Vines hanging from
+  crane jibs are liked. Known bug (screenshot 004, seed 7, D7): crane jibs floating without their
+  mast. A module's boxes give way together, but the decision is made per lot with that lot's
+  obstacles, so a big module spanning lots (a crane) can lose its mast in one lot and keep its jib
+  in another. Fix: decide what gives way once per chunk placement, not per lot.
+- Ideas on how to harness the player's progression: `docs/game-ideas.md`, "Progression shapes the
+  city" (ideas, not decisions).
 
 ## How to work on generation (owner's direction)
 

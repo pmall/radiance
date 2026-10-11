@@ -1,0 +1,15 @@
+// Crater: a small one, three lots across, where the floors above gave way: nothing built over it,
+// the sun pours down onto a garden of rubble. The floors around end at its rim.
+Chunk(
+    name: "crater_small",
+    size: (3, 3),
+    labels: ["crater"],
+    weight: 3,
+    holes: [((0, 0), (3, 3))],
+    parts: [
+        Growth(area: ((6.0, 6.0), (66.0, 66.0)), kind: Soil),
+        Module(name: "fallen_slab", at: (36.0, 0.0, 34.0), turn: 1),
+        Slot(at: (14.0, 0.0, 50.0), pick: [Some("rubble"), None]),
+        Slot(at: (56.0, 0.0, 18.0), turn: 2, pick: [Some("rubble"), Some("fallen_slab"), None]),
+    ],
+)

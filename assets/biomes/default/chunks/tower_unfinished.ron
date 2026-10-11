@@ -1,0 +1,65 @@
+// Tower: the construction front. The machines never stopped: a block of apartments whose top is
+// still a bare frame of columns and slabs, rebar sticking out, a tower crane frozen mid-job.
+Chunk(
+    name: "tower_unfinished",
+    size: (1, 1),
+    labels: ["tower", "construction"],
+    weight: 2,
+    tower: (
+        heights: [Front],
+        tiers: [
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                facade: (
+                    front: [
+                        "w  a  w  a",
+                        "w  w  w  w",
+                        "a  w  a  w",
+                        "w  w  w  w",
+                        "h  H  H  h",
+                    ],
+                    side: [
+                        "w  -  w",
+                        "a  -  a",
+                        "w  -  w",
+                        "w  -  w",
+                        "h  -  h",
+                    ],
+                ),
+                roof: [
+                    Box(at: (4.0, 0.0, 6.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 17.6), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Box(at: (19.6, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Module(name: "block_pallet", at: (5.5, 0.0, 7.5)),
+                    Module(name: "beam_stack", at: (12.0, 0.0, 17.0)),
+                ],
+            ),
+            // The frame going up: columns on a grid and a slab at every story.
+            (
+                at: (6.0, 8.0),
+                size: (12.0, 8.0),
+                stories: (3, 8),
+                each_story: [
+                    Repeat(from: (6.0, 0.0, 8.0), step: (3.8, 0.0, 0.0), count: 4, parts: [
+                        Repeat(step: (0.0, 0.0, 3.7), count: 3, parts: [
+                            Box(at: (0.0, 0.0, 0.0), size: (0.4, 3.65, 0.4), mat: Concrete),
+                        ]),
+                    ]),
+                    Box(at: (6.0, 3.65, 8.0), size: (12.0, 0.35, 8.0), mat: Concrete),
+                ],
+                roof: [
+                    Repeat(from: (6.0, 0.0, 8.0), step: (3.8, 0.0, 0.0), count: 4, parts: [
+                        Repeat(step: (0.0, 0.0, 3.7), count: 3, parts: [
+                            Box(at: (0.08, 0.0, 0.08), size: (0.06, 1.4, 0.06), mat: Rust),
+                            Box(at: (0.26, 0.0, 0.26), size: (0.06, 1.1, 0.06), mat: Rust),
+                        ]),
+                    ]),
+                    Module(name: "tower_crane", at: (12.0, 0.0, 12.0)),
+                    Module(name: "block_pallet", at: (8.0, 0.0, 14.0)),
+                ],
+            ),
+        ],
+    ),
+)

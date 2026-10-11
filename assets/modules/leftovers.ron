@@ -1,0 +1,125 @@
+// What people left in the streets, gathered from the props (`props.ron`, `street.ron`): along the
+// curbs, against the walls, on vacant lots, and the points of interest where a flower grows in a
+// human place. Placed by the street, tower and filler chunks, mostly in slots at the floor's
+// `props` or `poi` rate (`chunks::Rate`). Each stands on its origin, its front toward +z (wall
+// modules: the wall at z = 0).
+[
+    // Behind a curb, facing the road.
+    Module(
+        name: "curb_bench_bin",
+        parts: [
+            Module(name: "bench"),
+            Module(name: "bin", at: (1.5, 0.0, 0.0)),
+        ],
+    ),
+    // At the foot of the walls: what people left there, against the wall (+z the street).
+    Module(
+        name: "wall_trash",
+        parts: [
+            Module(name: "trash_bag", at: (-0.6, 0.0, 0.3)),
+            Module(name: "trash_bag", at: (0.0, 0.0, 0.45), turn: 1),
+            Module(name: "bin", at: (0.75, 0.0, 0.4)),
+        ],
+    ),
+    Module(
+        name: "wall_barrels",
+        parts: [
+            Module(name: "barrel", at: (-0.8, 0.0, 0.35)),
+            Module(name: "barrel_blue", at: (-0.1, 0.0, 0.4)),
+            Module(name: "crate", at: (0.8, 0.0, 0.45)),
+        ],
+    ),
+    Module(
+        name: "wall_crates",
+        parts: [
+            Module(name: "crate", at: (-0.6, 0.0, 0.45)),
+            Module(name: "cardboard_box", at: (0.2, 0.0, 0.25)),
+            Module(name: "cardboard_box", at: (0.75, 0.0, 0.3), turn: 1),
+            Module(name: "cardboard_box", at: (0.2, 0.4, 0.25)),
+        ],
+    ),
+    // Someone moving out, never finished: a sofa and boxes by the wall.
+    Module(
+        name: "wall_moving",
+        parts: [
+            Module(name: "sofa", at: (-0.4, 0.0, 0.5)),
+            Module(name: "cardboard_box", at: (1.0, 0.0, 0.3)),
+            Module(name: "cardboard_box", at: (1.1, 0.0, 0.8), turn: 1),
+        ],
+    ),
+    // A café terrace in front of a shop.
+    Module(
+        name: "wall_terrace",
+        parts: [
+            Module(name: "cafe_set", at: (-1.0, 0.0, 1.2)),
+            Module(name: "cafe_set", at: (1.0, 0.0, 1.2)),
+        ],
+    ),
+    Module(
+        name: "wall_cabinet",
+        parts: [
+            Module(name: "utility_box", at: (0.0, 0.0, 0.3)),
+        ],
+    ),
+    // One of the above, or nothing (the seed picks).
+    Module(
+        name: "wall_leftovers",
+        parts: [
+            Slot(at: (0.0, 0.0, 0.0), pick: [Some("wall_trash"), Some("wall_barrels"),
+                Some("wall_crates"), Some("wall_moving"), Some("wall_cabinet"), None, None, None]),
+        ],
+    ),
+    // A vacant lot: two benches facing each other, a small square.
+    Module(
+        name: "vacant_square",
+        parts: [
+            Module(name: "bench", at: (0.0, 0.0, -1.8)),
+            Module(name: "bench", at: (0.0, 0.0, 1.8), turn: 2),
+        ],
+    ),
+    // Debris on a vacant lot: a drum, a bag, a crate.
+    Module(
+        name: "vacant_debris",
+        parts: [
+            Module(name: "barrel"),
+            Module(name: "trash_bag", at: (1.0, 0.0, 0.3)),
+            Module(name: "crate", at: (-1.0, 0.0, 0.3)),
+        ],
+    ),
+    // Points of interest (docs/poi-catalog.md): a flower growing in a human place.
+    // A flower growing out of an armchair (D2-07).
+    Module(
+        name: "poi_armchair",
+        parts: [
+            Module(name: "armchair"),
+            Bloom(at: (0.0, 0.5, 0.05)),
+        ],
+    ),
+    // Two flowers side by side on a bench, about the distance two people sit (D1-09).
+    Module(
+        name: "poi_bench",
+        parts: [
+            Module(name: "bench"),
+            Bloom(at: (-0.32, 0.58, 0.0)),
+            Bloom(at: (0.32, 0.58, 0.0)),
+        ],
+    ),
+    // A dead garden, one flower alive in a pot (D1-13).
+    Module(
+        name: "poi_garden",
+        parts: [
+            Module(name: "clay_pot"),
+            Module(name: "clay_pot", at: (0.45, 0.0, 0.15)),
+            Module(name: "clay_pot", at: (0.9, 0.0, -0.1)),
+            Bloom(at: (0.9, 0.3, -0.1)),
+        ],
+    ),
+    // An old bed frame, a flower where someone slept.
+    Module(
+        name: "poi_bed",
+        parts: [
+            Module(name: "bed_frame"),
+            Bloom(at: (0.0, 0.55, -0.5)),
+        ],
+    ),
+]

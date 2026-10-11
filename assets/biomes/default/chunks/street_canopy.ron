@@ -1,0 +1,13 @@
+// Street: the street around a lot in the canopy, built by machines after the humans left: the
+// street lights only, nothing anyone sat on or left behind.
+Chunk(
+    name: "street_canopy",
+    size: (1, 1),
+    zones: [Canopy],
+    labels: ["street"],
+    parts: [
+        If(street: [XMin, ZMin], parts: [
+            Module(name: "street_light", at: (3.5, 0.0, 3.5), turn: 2),
+        ]),
+    ],
+)

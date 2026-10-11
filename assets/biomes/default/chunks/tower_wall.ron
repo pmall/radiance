@@ -1,0 +1,72 @@
+// Tower: a Kowloon wall of apartments, 16 x 16 m: every bay an apartment with its own color in
+// vertical stripes, cages, air conditioners, laundry and balconies all the way up, shops below; a
+// roof crowded with tanks and antennas. No setback.
+Chunk(
+    name: "tower_wall",
+    size: (1, 1),
+    labels: ["tower"],
+    weight: 3,
+    tower: (
+        heights: [Old, Stack],
+        tiers: [
+            (
+                at: (4.0, 4.0),
+                size: (16.0, 16.0),
+                facade: (
+                    front: [
+                        "c1 A2 l3 c4",
+                        "a1 c2 b3 a4",
+                        "l1 c2 c3 A4",
+                        "c1 a2 l3 c4",
+                        "A1 l2 c3 a4",
+                        "c1 c2 b3 l4",
+                        "u1 u2 u3 u4",
+                        "l1 c2 b3 a4",
+                        "s1 S2 s3 h4",
+                    ],
+                    side: [
+                        "a5 c6 l7 c1",
+                        "c5 A6 c7 b1",
+                        "l5 c6 a7 c1",
+                        "c5 l6 c7 A1",
+                        "a5 c6 b7 c1",
+                        "c5 a6 c7 l1",
+                        "u5 u6 u7 u1",
+                        "b5 c6 l7 a1",
+                        "h5 s6 S7 s1",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (12.0, 0.0, 4.0), turn: 2, pick: [Some("blade_sign"), None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                    Slot(at: (8.0, 0.0, 20.0), turn: 0, pick: [Some("blade_sign"), None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                    Slot(at: (20.0, 0.0, 12.0), turn: 1, pick: [Some("blade_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60), (200, 200, 190)]),
+                ],
+                streets: [
+                    Slot(at: (14.0, 0.0, 4.0), turn: 2, rate: Props, pick: [Some("wall_terrace"), None]),
+                    Slot(at: (6.0, 0.0, 4.0), turn: 2, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (16.0, 0.0, 20.0), turn: 0, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (4.0, 0.0, 10.0), turn: 3, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (20.0, 0.0, 16.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+                roof: [
+                    Box(at: (4.0, 0.0, 4.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 19.6), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 4.4), size: (0.4, 0.9, 15.2), mat: Concrete),
+                    Box(at: (19.6, 0.0, 4.4), size: (0.4, 0.9, 15.2), mat: Concrete),
+                    Slot(at: (7.0, 0.0, 7.0), pick: [Some("water_tank"), Some("roof_ac")]),
+                    Slot(at: (12.0, 0.0, 7.0), pick: [Some("antenna"), Some("water_tank")]),
+                    Slot(at: (17.0, 0.0, 7.0), pick: [Some("roof_ac"), Some("antenna"), None]),
+                    Slot(at: (7.0, 0.0, 12.0), pick: [Some("roof_ac"), Some("antenna")]),
+                    Slot(at: (12.0, 0.0, 12.0), pick: [Some("stair_housing")]),
+                    Slot(at: (17.0, 0.0, 12.0), pick: [Some("water_tank"), Some("roof_plant")]),
+                    Slot(at: (7.0, 0.0, 17.0), pick: [Some("antenna"), Some("water_tank"), None]),
+                    Slot(at: (12.0, 0.0, 17.0), pick: [Some("roof_solar"), Some("roof_ac")]),
+                    Slot(at: (17.0, 0.0, 17.0), pick: [Some("roof_mast"), Some("antenna")]),
+                ],
+            ),
+        ],
+    ),
+)
