@@ -11,6 +11,8 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `docs/art-direction.md`: rendering look, palettes, day/night cycle, light plants.
 - `docs/audio.md`: piano notes, ambient soundscape. `docs/guidance-ideas.md`: ideas to guide the player by sound.
 - `docs/roadmap.md`: milestones, current status, debug tooling.
+- `docs/chunks.md`: the planned move to hand-written map chunks placed by rules, in a Nivalis-like
+  box and pixel-art style (proposal, `chunks` branch).
 - `docs/biome-ideas.md`: brainstormed biomes (not implemented), for inspiration.
 - `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.
 - `docs/story.md`, `docs/game-ideas.md`, `docs/poi-catalog.md`: *Last Radiance*, a brainstormed narrative game on this
