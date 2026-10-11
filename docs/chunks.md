@@ -3,7 +3,7 @@
 Status: on the `chunks` branch. Phases 2 to 7 are done in a first pass: format, catalog and
 preview; the pixel-art style; the planner (areas and their sub-areas, blocks with designed holes,
 stair hubs, fillers); a first catalog; pixel-art tower facades with real units near the decks;
-props as modules. Next: "everything is a chunk" (section below), growing the catalog along the way. As phases land, this replaces the lot-by-lot
+props as modules. Next: "everything is a chunk" (section below). As phases land, this replaces the lot-by-lot
 generation described in `docs/world.md` (see "Phases").
 
 ## Why
@@ -122,6 +122,12 @@ gives several looks.
 beds and benches: at this size, emptiness shows. Big chunks must be dense (terraces, stalls,
 canopies, level changes, sub-areas), which is what the sub-areas and a larger module library are
 for.
+
+## Catalog rule (owner)
+
+The catalog does not grow on its own: no new chunks or props are written unless the owner asks.
+When the owner wants more content, they ask for a **new biome**, and that biome's chunks and props
+are written then, in its own folder. The `default` biome is what exists now.
 
 ## Biomes
 
@@ -302,7 +308,7 @@ Each phase ends with shots the owner can judge.
 6. **Facade modules** for towers *(first pass done, see "Towers")*.
 7. **Props as modules** *(done)*: props are modules of `assets/modules/props.ron` drawn
    instanced in pixel-art materials; the photoscans, their import tool and dependencies are gone.
-8. **Grow the catalog.**
+8. **More content comes as new biomes**, only when the owner asks for one (see "Catalog rule").
 
 ## Next: everything is a chunk
 
@@ -350,9 +356,10 @@ compared with before):
    footbridges as part of hole chunks).
 5. **Delete** the retired code and the shader's random unit choice; `city.rs` keeps only what
    every lot needs (ground, decks as the planner says, stairs of hubs).
-6. **Grow the catalog** all along, in the `default` biome's folder (shared props in
-   `assets/modules/`): many fillers per zone so repetition does not show, props as modules (vending machines, bus stops, shop interiors seen through windows, scrap, rooftop
-   gardens).
+6. **No new content on the side** (see "Catalog rule"): this pass only writes the chunks needed to
+   replace what the random code builds today (towers, plain street lots, holes, craters, bridges)
+   in the `default` biome, reusing existing modules where they fit. Anything beyond that waits
+   for the owner to ask for a new biome.
 
 **Rules to keep:** same seed, same city (all randomness through `src/rng.rs`); lots stream one by
 one and every planner answer stays a pure function of the seed and the lot; big chunks' boxes
