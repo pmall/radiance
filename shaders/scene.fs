@@ -26,6 +26,7 @@ uniform vec3 uGridOrigin;
 uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 signs, 1 tint
 uniform float uGlow;         // plant emission and light strength for the time of day
 uniform sampler2D texture5;  // cover map
+uniform sampler2D texture10; // chunk materials in pixel art (src/render/pixels.rs)
 uniform sampler2D texture6;  // prop atlas: the photoscanned props' color textures (src/world/props.rs)
 #define COVER_TEX texture5
 
@@ -538,51 +539,22 @@ vec3 steel(vec3 base, vec3 p, vec3 n, float px)
     return col;
 }
 
-// Boxes of hand-written chunks (src/world/chunks.rs), by material: 0 stone, 1 dark stone,
-// 2 concrete, 3 brick, 4 tile, 5 metal, 6 rust, 7 wood, 8 glass, 9 soil, 10 paint. A first pass
-// in world space; the pixel-art textures of docs/chunks.md replace it.
-vec3 built(vec3 base, int mat, vec3 p, vec3 n, float px)
+// Boxes of hand-written chunks (src/world/chunks.rs): the pixel-art tile of their material
+// (src/render/pixels.rs; 0 stone, 1 dark stone, 2 concrete, 3 brick, 4 tile, 5 metal, 6 rust,
+// 7 wood, 8 glass, 9 soil, 10 paint, which takes the box color), 4 m per tile, mapped in world
+// space by the face's plane, crisp pixels up close.
+const float PIXEL_MATS = 11.0;
+vec3 built(vec3 base, int mat, vec3 p, vec3 n)
 {
     vec3 an = abs(n);
-    vec2 uv = an.y > 0.5 ? p.xz : (an.x > an.z ? p.zy : p.xy);
-    float lines = 0.0;
-    vec3 col = base;
-    if (mat <= 1 || mat == 4) {
-        // Slabs (1 m) or tiles (0.5 m) with joints.
-        float s = mat == 4 ? 0.5 : 1.0;
-        vec2 f = fract(uv / s);
-        float d = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * s;
-        lines = 1.0 - smoothstep(0.015, 0.03 + px, d);
-        col *= 0.85 + 0.3 * hash12(floor(uv / s));
-        col *= mix(1.0, grit(uv / 2.4).r, 0.8);
-    } else if (mat == 2) {
-        col = concrete(base, p, n, vec2(p.x + p.z, 0.0));
-    } else if (mat == 3) {
-        // Bricks 0.25 x 0.0625... read at 0.25 x 0.125 for the voxel grain.
-        vec2 b = uv / vec2(0.25, 0.125);
-        b.x += 0.5 * mod(floor(b.y), 2.0);
-        vec2 f = fract(b);
-        float d = min(min(f.x, 1.0 - f.x) * 0.25, min(f.y, 1.0 - f.y) * 0.125);
-        lines = 1.0 - smoothstep(0.008, 0.016 + px, d);
-        col *= 0.8 + 0.4 * hash12(floor(b));
-    } else if (mat == 5) {
-        col = steel(base, p, n, px);
-    } else if (mat == 6) {
-        col *= (0.7 + 0.6 * fbm(uv * 2.0)) * grit2(uv / 1.5).b;
-    } else if (mat == 7) {
-        // Planks 0.25 m wide along the longer direction of the face.
-        float v = an.y > 0.5 ? uv.y : uv.y;
-        float f = fract(v / 0.25);
-        lines = 1.0 - smoothstep(0.02, 0.06 + px * 4.0, min(f, 1.0 - f));
-        col *= 0.8 + 0.4 * hash12(vec2(floor(v / 0.25), 3.0)) * (0.8 + 0.4 * vnoise(uv * vec2(0.5, 8.0)));
-    } else if (mat == 8) {
-        col *= 0.8 + 0.6 * smoothstep(0.4, 0.9, vnoise(uv * 0.3 + p.y * 0.1));
-    } else if (mat == 9) {
-        col *= (0.7 + 0.6 * fbm(uv * 3.0)) * grit2(uv / 1.2).g;
-    } else {
-        col *= mix(1.0, grit(uv / 3.0).a, 0.5) * (0.88 + 0.24 * fbm(uv * 0.8));
-    }
-    return col * (1.0 - 0.45 * lines);
+    vec2 uv = an.y > 0.5 ? p.xz : (an.x > an.z ? vec2(p.z, -p.y) : vec2(p.x, -p.y));
+    vec2 t = uv / 4.0;
+    vec2 a = (vec2(float(mat), 0.0) + fract(t)) / vec2(PIXEL_MATS, 1.0);
+    // Gradients of the unwrapped coordinates, so the tile seams never pick a blurry mip level.
+    vec2 dx = dFdx(t) / vec2(PIXEL_MATS, 1.0);
+    vec2 dy = dFdy(t) / vec2(PIXEL_MATS, 1.0);
+    vec3 col = pow(textureGrad(texture10, a, dx, dy).rgb, vec3(2.2));
+    return mat == 10 ? col * base : col;
 }
 
 // Leaf and frond painting from leaf coordinates (across with the midrib at 0.5, along from the
@@ -674,7 +646,7 @@ void main()
         } else if (kind == 13) {
             albedo = steel(albedo, fragWorldPos, n, px);
         } else if (kind == 15) {
-            albedo = built(albedo, int(fragLoc.x + 0.5), fragWorldPos, n, px);
+            albedo = built(albedo, int(fragLoc.x + 0.5), fragWorldPos, n);
         }
     }
 

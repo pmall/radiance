@@ -211,8 +211,13 @@ Each phase ends with shots the owner can judge.
 2. **Format and preview** *(done)*: chunk and module loading, the vocabulary above, `--chunk`
    preview, hot reload, vegetation hints. Test chunk: the great square. Big chunk boxes belong to
    the lot holding their center and reach the neighbors as collision only.
-3. **Style test:** pixel textures and the 0.25 m grain on that chunk, next to the current look.
-   The owner picks; outlines and cel bands are decided here.
+3. **Style test** *(built, waiting for the owner's call)*: every chunk material has a pixel-art
+   tile (4 m at 16 pixels per meter, limited palette, ordered dithering, chunky joints, cracks,
+   rivets, stains), drawn by code in `src/render/pixels.rs` and sampled with crisp nearest
+   filtering. To compare: `--chunk great_square` with F3 (outlines), F5 (flat light bands) and
+   F8 (grain) in game, or `--fx 255` against `--fx 234` in shots. Seen so far: without outlines
+   and bands the image is softer and closer to Nivalis; the plants (smooth folded leaves) do not
+   match the pixel world yet, which calls for pixel or voxel foliage.
 4. **Planner:** rare chunks with spacing, stair hubs per island, holes as chunks, the current
    generator as filler.
 5. **First catalog:** a great square (10x10), a market district (8x6), two stair hub blocks, a
