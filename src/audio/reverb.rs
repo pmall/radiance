@@ -1,5 +1,5 @@
 //! A stereo reverb on the whole mix (Freeverb: parallel damped combs into series allpasses), so
-//! every note and creak rings into the empty canyons of the city. Runs in raylib's audio thread
+//! every note rings into the empty canyons of the city. Runs in raylib's audio thread
 //! as a mixed-output processor.
 
 use std::ffi::c_void;

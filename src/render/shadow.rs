@@ -6,6 +6,7 @@ use glam::{Mat4, Vec3, vec3};
 use sola_raylib::ffi;
 
 use super::shader::HotShader;
+use super::targets::texture;
 use super::{IDENTITY, v3};
 
 const SIZE: i32 = 4096;
@@ -59,13 +60,7 @@ impl ShadowMap {
             Self {
                 fbo,
                 color_id,
-                depth: ffi::Texture2D {
-                    id: depth_id,
-                    width: SIZE,
-                    height: SIZE,
-                    mipmaps: 1,
-                    format: 0,
-                },
+                depth: texture(depth_id, SIZE, SIZE, 0),
                 shader,
                 material,
             }
@@ -127,13 +122,7 @@ impl ShadowMap {
             ffi::rlSetClipPlanes(1.0, DEPTH_RANGE as f64);
             ffi::BeginTextureMode(ffi::RenderTexture2D {
                 id: self.fbo,
-                texture: ffi::Texture2D {
-                    id: self.color_id,
-                    width: SIZE,
-                    height: SIZE,
-                    mipmaps: 1,
-                    format: 0,
-                },
+                texture: texture(self.color_id, SIZE, SIZE, 0),
                 depth: self.depth,
             });
             ffi::rlClearColor(255, 255, 255, 255);

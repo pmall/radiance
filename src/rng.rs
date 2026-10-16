@@ -11,7 +11,6 @@ pub fn mix64(mut z: u64) -> u64 {
 }
 
 /// Stable hash of a seed and integer coordinates (e.g. a chunk position).
-#[allow(dead_code)] // used once chunk streaming lands (milestone 4)
 pub fn hash_coords(seed: u64, x: i32, y: i32, z: i32) -> u64 {
     let mut h = mix64(seed);
     h = mix64(h ^ x as u32 as u64);

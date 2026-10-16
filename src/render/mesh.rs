@@ -1,10 +1,11 @@
-//! Builds one static GPU mesh from the world's blocks.
+//! Static GPU meshes: one per lot from the world's blocks (`WorldMesh`), and the upload every
+//! mesh of the renderer goes through (`MeshData`).
 
-use glam::{Vec3, vec3};
+use glam::Vec3;
 use sola_raylib::ffi;
 
 use crate::rng::mix64;
-use crate::world::{BlockKind, Lot};
+use crate::world::{BOX_FACES, BlockKind, Lot};
 
 /// Elevation ids the kind code can carry exactly (a float holds integers up to 2^24).
 const MAX_ELEVATION: u16 = 8191;
@@ -13,37 +14,38 @@ pub struct WorldMesh {
     pub raw: ffi::Mesh,
 }
 
-/// Each face: outward normal and its 4 corners (counter-clockwise seen from outside),
-/// as unit-cube corner selectors (0 = min, 1 = max per axis).
-const FACES: [(Vec3, [[f32; 3]; 4]); 6] = [
-    (
-        vec3(1.0, 0.0, 0.0),
-        [[1., 0., 1.], [1., 0., 0.], [1., 1., 0.], [1., 1., 1.]],
-    ),
-    (
-        vec3(-1.0, 0.0, 0.0),
-        [[0., 0., 0.], [0., 0., 1.], [0., 1., 1.], [0., 1., 0.]],
-    ),
-    (
-        vec3(0.0, 1.0, 0.0),
-        [[0., 1., 1.], [1., 1., 1.], [1., 1., 0.], [0., 1., 0.]],
-    ),
-    (
-        vec3(0.0, -1.0, 0.0),
-        [[0., 0., 0.], [1., 0., 0.], [1., 0., 1.], [0., 0., 1.]],
-    ),
-    (
-        vec3(0.0, 0.0, 1.0),
-        [[0., 0., 1.], [1., 0., 1.], [1., 1., 1.], [0., 1., 1.]],
-    ),
-    (
-        vec3(0.0, 0.0, -1.0),
-        [[1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.]],
-    ),
-];
+/// Vertex arrays in raylib's layout; an empty array leaves that attribute out.
+#[derive(Default)]
+pub struct MeshData {
+    pub pos: Vec<f32>,
+    pub nrm: Vec<f32>,
+    pub uv: Vec<f32>,
+    pub uv2: Vec<f32>,
+    pub col: Vec<u8>,
+}
 
-/// Copies a slice into memory owned by raylib (freed by `UnloadMesh`).
-pub(super) fn raylib_copy<T: Copy>(data: &[T]) -> *mut T {
+impl MeshData {
+    /// Uploads the arrays as a mesh owned by raylib (freed by `UnloadMesh`).
+    pub fn upload(&self) -> ffi::Mesh {
+        let count = self.pos.len() / 3;
+        let mut raw: ffi::Mesh = unsafe { std::mem::zeroed() };
+        raw.vertexCount = count as i32;
+        raw.triangleCount = (count / 3) as i32;
+        raw.vertices = raylib_copy(&self.pos);
+        raw.normals = raylib_copy(&self.nrm);
+        raw.texcoords = raylib_copy(&self.uv);
+        raw.texcoords2 = raylib_copy(&self.uv2);
+        raw.colors = raylib_copy(&self.col);
+        unsafe { ffi::UploadMesh(&mut raw, false) };
+        raw
+    }
+}
+
+/// Copies a slice into memory owned by raylib (freed by `UnloadMesh`); null if it is empty.
+fn raylib_copy<T: Copy>(data: &[T]) -> *mut T {
+    if data.is_empty() {
+        return std::ptr::null_mut();
+    }
     let bytes = std::mem::size_of_val(data);
     unsafe {
         let p = ffi::MemAlloc(bytes as u32) as *mut T;
@@ -96,7 +98,7 @@ impl WorldMesh {
                     BlockKind::Built(_) => 15.0,
                     BlockKind::Prop | BlockKind::Collider => unreachable!(),
                 };
-            for (n, corners) in FACES {
+            for (n, corners) in BOX_FACES {
                 // Faces resting on the ground can never be seen.
                 if n.y < 0.0 && b.aabb.min.y >= -0.01 && b.aabb.min.y <= 0.01 {
                     continue;
@@ -143,7 +145,7 @@ impl WorldMesh {
             }
         }
 
-        for v in lot.plants.iter().filter(|_| !detail) {
+        for v in lot.plants().filter(|_| !detail) {
             pos.extend_from_slice(&v.pos.to_array());
             nrm.extend_from_slice(&v.normal.to_array());
             // uv.y = 1 marks plant geometry (architecture is 0), read by the scene shader.
@@ -152,19 +154,17 @@ impl WorldMesh {
             col.extend_from_slice(&[v.color.r, v.color.g, v.color.b, v.glow]);
         }
 
-        let count = pos.len() / 3;
-        if count == 0 {
+        if pos.is_empty() {
             return None;
         }
-        let mut raw: ffi::Mesh = unsafe { std::mem::zeroed() };
-        raw.vertexCount = count as i32;
-        raw.triangleCount = (count / 3) as i32;
-        raw.vertices = raylib_copy(&pos);
-        raw.normals = raylib_copy(&nrm);
-        raw.texcoords = raylib_copy(&uv);
-        raw.texcoords2 = raylib_copy(&uv2);
-        raw.colors = raylib_copy(&col);
-        unsafe { ffi::UploadMesh(&mut raw, false) };
+        let raw = MeshData {
+            pos,
+            nrm,
+            uv,
+            uv2,
+            col,
+        }
+        .upload();
         Some(Self { raw })
     }
 

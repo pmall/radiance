@@ -1,8 +1,8 @@
 //! Sound: each light flower is a human soul, and it sings a soft piano note when the machine
 //! (the player) comes close. Notes come from a minor pentatonic scale, so walking through a
 //! cluster plays a gentle melody; souls high in the city sing high, those in the depths low. A
-//! synthesized hum, wind and distant creaks fill the city, and a reverb on the whole mix makes it
-//! feel enormous and empty.
+//! synthesized machinery hum fills the city, and a reverb on the whole mix makes it feel enormous
+//! and empty.
 
 mod ambient;
 mod piano;
@@ -18,11 +18,7 @@ use sola_raylib::ffi;
 
 use crate::rng::{Rng, hash_coords};
 use crate::world::World;
-use crate::world::city::LOT;
-
-/// The synthesized background is just the machinery hum: the owner likes it. The wind and the
-/// metal groans are off (see `ambient.rs`).
-const AMBIENCE: bool = true;
+use crate::world::city;
 
 /// Distance at which a soul starts to sing.
 const REACH: f32 = 6.5;
@@ -50,7 +46,7 @@ struct Pending {
 
 pub struct Audio {
     piano: piano::Piano,
-    ambient: Option<ambient::Ambient>,
+    ambient: ambient::Ambient,
     seed: u64,
     clock: f32,
     last_stats: f32,
@@ -74,7 +70,7 @@ impl Audio {
         reverb::attach();
         Some(Self {
             piano: piano::Piano::new(),
-            ambient: AMBIENCE.then(|| ambient::Ambient::new(seed)),
+            ambient: ambient::Ambient::new(seed),
             seed,
             clock: 0.0,
             last_stats: 0.0,
@@ -98,7 +94,7 @@ impl Audio {
     }
 
     /// Advances the sound: starts the notes of souls the player has come near, plays the ones due,
-    /// and sets the ambient beds for the player's height and the daylight. `right` is the
+    /// and sets the hum for the player's height and the daylight. `right` is the
     /// listener's right-hand direction. Returns the souls that started to sing this call.
     pub fn update(
         &mut self,
@@ -110,19 +106,17 @@ impl Audio {
     ) -> Vec<Soul> {
         self.clock += dt;
         let master = if self.muted { 0.0 } else { 1.0 };
-        if let Some(ambient) = self.ambient.as_mut() {
-            ambient.update(dt, eye.y, day, master);
-        }
+        self.ambient.update(eye.y, day, master);
 
         let mut started = Vec::new();
         // RADIANCE_NO_SOULS silences the souls only (to compare the ambience on its own).
         if !self.muted && std::env::var_os("RADIANCE_NO_SOULS").is_none() {
-            let here = ((eye.x / LOT).floor() as i32, (eye.z / LOT).floor() as i32);
+            let here = city::lot_of(eye);
             for (key, lot) in world.lots() {
                 if (key.0 - here.0).abs() > 1 || (key.1 - here.1).abs() > 1 {
                     continue;
                 }
-                for (index, light) in lot.lights.iter().enumerate() {
+                for (index, light) in lot.lights() {
                     let d = light.pos.distance(eye);
                     // Only souls in the same open space: not through a deck.
                     if d > REACH || eye.y < light.y_lo - 0.5 || eye.y > light.y_hi + 0.5 {
@@ -142,7 +136,7 @@ impl Audio {
                     let to = (light.pos - eye).normalize_or_zero();
                     self.queue.push(Pending {
                         at: self.clock + nth * STAGGER + self.rng.range(0.0, 0.12),
-                        note: note_for(self.seed, soul, light.pos.y, &mut self.rng),
+                        note: note_for(self.seed, soul, light.pos.y),
                         // The samples are recorded loud: keep the souls' voices soft next to the ambience.
                         volume: 0.25 + 0.4 * (1.0 - d / REACH),
                         pan: (to.dot(right) * 0.85).clamp(-1.0, 1.0),
@@ -156,7 +150,8 @@ impl Audio {
             }
         }
 
-        if std::env::var_os("RADIANCE_AUDIO_LOG").is_some() && self.clock - self.last_stats > 4.0 {
+        let log = std::env::var_os("RADIANCE_AUDIO_LOG").is_some();
+        if log && self.clock - self.last_stats > 4.0 {
             self.last_stats = self.clock;
             let (frames, limited, peak) = take_limiter_stats();
             eprintln!(
@@ -166,7 +161,6 @@ impl Audio {
             );
         }
         let clock = self.clock;
-        let log = std::env::var_os("RADIANCE_AUDIO_LOG").is_some();
         let piano = &mut self.piano;
         let mut played = 0;
         self.queue.retain(|p| {
@@ -188,13 +182,12 @@ impl Audio {
 /// The note (MIDI key) a soul sings: a pitch of the scale chosen from where the soul is, in a
 /// register that follows its height (low in the depths, high in the canopy), always the same one
 /// for the same soul.
-fn note_for(seed: u64, soul: Soul, height: f32, rng: &mut Rng) -> i32 {
+fn note_for(seed: u64, soul: Soul, height: f32) -> i32 {
     let h = hash_coords(seed, soul.lot.0, SALT_NOTE + soul.index as i32, soul.lot.1);
     let pitch_class = piano::SCALE[(h % 5) as usize];
     // Register center: D3 deep down to A5 high up, a little spread so neighbors differ.
     let t = crate::world::floors::depth01(height);
     let center = 50.0 + 30.0 * t + ((h >> 8) % 9) as f32 - 4.0;
-    let _ = rng;
     // The key with that pitch class closest to the center.
     (0..128)
         .filter(|k| k % 12 == pitch_class)
@@ -220,19 +213,18 @@ mod tests {
 
     #[test]
     fn notes_stay_in_the_scale_follow_height_and_repeat() {
-        let mut rng = Rng::new(0);
         let (mut deep, mut high) = (0.0, 0.0);
         for index in 0..60 {
             let soul = Soul {
                 lot: (3, -2),
                 index,
             };
-            let low = note_for(5, soul, floors::bottom() + 5.0, &mut rng);
-            let up = note_for(5, soul, floors::top(), &mut rng);
+            let low = note_for(5, soul, floors::bottom() + 5.0);
+            let up = note_for(5, soul, floors::top());
             assert!(piano::SCALE.contains(&(low % 12)) && piano::SCALE.contains(&(up % 12)));
             assert_eq!(
                 low,
-                note_for(5, soul, floors::bottom() + 5.0, &mut rng),
+                note_for(5, soul, floors::bottom() + 5.0),
                 "same soul, same note"
             );
             deep += low as f32;

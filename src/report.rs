@@ -93,13 +93,14 @@ pub fn run(seed: u64, radius: i32) {
         if design::pois_on() { "on" } else { "off" },
     );
     println!();
+    let (hole, hub, block) = (planner::HOLE_CELL, planner::HUB_CELL, planner::BLOCK_CELL);
     println!(
-        "Profiles (world/design.rs): chances in %. Holes: per hole cell (6x6 lots). Stairs: per stair hub cell (6x6 lots). Flowers: per"
+        "Profiles (world/design.rs): chances in %. Holes: per hole cell ({hole}x{hole} lots). Stairs: per stair hub cell ({hub}x{hub} lots). Flowers: per"
     );
     println!(
         "plant, poi per point of interest slot. Props: chance of a furniture or leftovers slot."
     );
-    println!("Blocks: per block cell (8x8 lots). Fillers: per free lot.");
+    println!("Blocks: per block cell ({block}x{block} lots). Fillers: per free lot.");
     println!(
         "{:<20} {:>6} {:>6} {:>6} | {:>6} {:>6} {:>8} {:>6} | {:>6} | {:>6} {:>7}",
         "floor",
@@ -153,6 +154,7 @@ pub fn run(seed: u64, radius: i32) {
         "leftovers",
         "poi"
     );
+    let hub_lots = (planner::HUB_CELL * planner::HUB_CELL) as f32;
     for f in (0..n).rev() {
         let per = |x: usize| format!("{:.2}", x as f32 / lots);
         let fl = flowers[f];
@@ -165,7 +167,7 @@ pub fn run(seed: u64, radius: i32) {
             format!("{:.0}", block_lots[f] as f32 * 100.0 / lots),
             format!("{:.0}", filler_lots[f] as f32 * 100.0 / lots),
             format!("{:.0}", hole_lots[f] as f32 * 100.0 / lots),
-            format!("{:.0}", stairs[f] as f32 * 100.0 * 36.0 / lots),
+            format!("{:.0}", stairs[f] as f32 * 100.0 * hub_lots / lots),
             per(fl.iter().sum()),
             per(fl[0]),
             per(fl[1]),

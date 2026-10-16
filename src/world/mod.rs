@@ -11,9 +11,12 @@ pub mod props;
 pub mod tower;
 
 use std::collections::HashMap;
+use std::ops::Range;
 
 use glam::Vec3;
 use sola_raylib::prelude::Color;
+
+use crate::rng;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Aabb {
@@ -46,6 +49,35 @@ impl Aabb {
         p.x > self.min.x && p.x < self.max.x && p.z > self.min.z && p.z < self.max.z
     }
 }
+
+/// Faces of a unit box: outward normal and its four corners, counter-clockwise seen from outside,
+/// as corner selectors (0 = min, 1 = max per axis).
+pub const BOX_FACES: [(Vec3, [[f32; 3]; 4]); 6] = [
+    (
+        Vec3::X,
+        [[1., 0., 1.], [1., 0., 0.], [1., 1., 0.], [1., 1., 1.]],
+    ),
+    (
+        Vec3::NEG_X,
+        [[0., 0., 0.], [0., 0., 1.], [0., 1., 1.], [0., 1., 0.]],
+    ),
+    (
+        Vec3::Y,
+        [[0., 1., 1.], [1., 1., 1.], [1., 1., 0.], [0., 1., 0.]],
+    ),
+    (
+        Vec3::NEG_Y,
+        [[0., 0., 0.], [1., 0., 0.], [1., 0., 1.], [0., 0., 1.]],
+    ),
+    (
+        Vec3::Z,
+        [[0., 0., 1.], [1., 0., 1.], [1., 1., 1.], [0., 1., 1.]],
+    ),
+    (
+        Vec3::NEG_Z,
+        [[1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.]],
+    ),
+];
 
 /// What a block is, which decides how its surfaces are painted.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -81,12 +113,26 @@ pub struct Block {
     pub kind: BlockKind,
 }
 
+impl Block {
+    /// A box of a hand-written chunk, in its material.
+    pub fn built(aabb: Aabb, mat: chunks::Mat) -> Self {
+        Self {
+            aabb,
+            color: mat.color(),
+            kind: BlockKind::Built(mat),
+        }
+    }
+}
+
 /// Lots kept loaded around the player (Chebyshev distance, in lots) and the distance at which
 /// they are dropped; the gap avoids thrashing at the boundary.
 pub const LOAD_RADIUS: i32 = 7;
 const UNLOAD_RADIUS: i32 = 9;
 
 type LotKey = (i32, i32);
+
+/// Salt of the flowers' ranks (`World::settle_flowers`).
+const SALT_FLOWER_RANK: i32 = 31;
 
 /// A vertex of decorative plant geometry (no collision).
 pub struct PlantVert {
@@ -120,21 +166,64 @@ pub struct Light {
 /// Everything generated for one lot.
 pub struct Lot {
     pub blocks: Vec<Block>,
-    pub plants: Vec<PlantVert>,
+    plants: Vec<PlantVert>,
     /// Props standing in the lot (from its chunks); the renderer draws them instanced.
     pub props: Vec<props::Placed>,
-    pub lights: Vec<Light>,
+    lights: Vec<Light>,
+    /// The plant vertices of each light's flower, and whether it went dark
+    /// (`World::settle_flowers`).
+    flowers: Vec<(Range<usize>, bool)>,
+    /// Bumped whenever one of its flowers goes dark, so the renderer draws the lot again.
+    pub version: u32,
     /// Material variant (palette index) of the lot's biome.
     pub variant: u8,
+    /// The boxes of its blocks reaching into the lots around (`overhangs`).
+    overhangs: Vec<Aabb>,
+}
+
+impl Lot {
+    /// Its plant vertices, but those of the flowers gone dark.
+    pub fn plants(&self) -> impl Iterator<Item = &PlantVert> {
+        let dark: Vec<Range<usize>> = self
+            .flowers
+            .iter()
+            .filter(|f| f.1)
+            .map(|f| f.0.clone())
+            .collect();
+        self.plants
+            .iter()
+            .enumerate()
+            .filter(move |(i, _)| !dark.iter().any(|r| r.contains(i)))
+            .map(|(_, v)| v)
+    }
+
+    /// Its flowers' lights, but those gone dark, each with its index: a soul's identity.
+    pub fn lights(&self) -> impl Iterator<Item = (usize, &Light)> {
+        self.lights
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| !self.flowers[i].1)
+    }
+}
+
+/// The boxes of a lot's blocks that reach into the lots around it (a skybridge, a crane's jib),
+/// for the collisions there. Collider copies are left out: the lot they come from has the box.
+fn overhangs((lx, lz): LotKey, blocks: &[Block]) -> Vec<Aabb> {
+    const E: f32 = 0.01;
+    let (lo, hi) = (city::lot_origin(lx, lz), city::lot_origin(lx + 1, lz + 1));
+    blocks
+        .iter()
+        .filter(|b| b.kind != BlockKind::Collider)
+        .map(|b| b.aabb)
+        .filter(|a| {
+            a.min.x < lo.x - E || a.min.z < lo.z - E || a.max.x > hi.x + E || a.max.z > hi.z + E
+        })
+        .collect()
 }
 
 pub struct World {
     pub seed: u64,
     lots: HashMap<LotKey, Lot>,
-}
-
-fn lot_of(v: f32) -> i32 {
-    (v / city::LOT).floor() as i32
 }
 
 impl World {
@@ -147,7 +236,7 @@ impl World {
 
     /// Loads lots around `center` (nearest first, at most `budget` per call) and drops far ones.
     pub fn stream(&mut self, center: Vec3, budget: usize) {
-        let (cx, cz) = (lot_of(center.x), lot_of(center.z));
+        let (cx, cz) = city::lot_of(center);
         self.lots
             .retain(|&(x, z), _| (x - cx).abs().max((z - cz).abs()) <= UNLOAD_RADIUS);
 
@@ -160,22 +249,64 @@ impl World {
             }
         }
         missing.sort_by_key(|&(x, z)| (x - cx).pow(2) + (z - cz).pow(2));
-        for (x, z) in missing.into_iter().take(budget) {
-            let mut blocks = Vec::new();
-            let dressed = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
-            let growth::Growth { plants, lights } =
-                growth::grow_lot(self.seed, x, z, &blocks, &dressed.blooms);
-            let props = dressed.props;
-            self.lots.insert(
-                (x, z),
-                Lot {
-                    blocks,
-                    plants,
-                    props,
-                    lights,
-                    variant: biome::variant_of(biome::biome_at(self.seed, x, z)) as u8,
-                },
-            );
+        for key in missing.into_iter().take(budget) {
+            self.load(key);
+        }
+    }
+
+    /// Generates a lot, grows its plants and settles its flowers with the lots around.
+    fn load(&mut self, (x, z): LotKey) {
+        let mut blocks = Vec::new();
+        let dressed = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
+        let growth = growth::grow_lot(self.seed, x, z, &blocks, &dressed.blooms);
+        let lot = Lot {
+            overhangs: overhangs((x, z), &blocks),
+            blocks,
+            plants: growth.plants,
+            props: dressed.props,
+            lights: growth.lights,
+            flowers: growth.flowers.into_iter().map(|r| (r, false)).collect(),
+            version: 0,
+            variant: biome::variant_of(biome::biome_at(self.seed, x, z)) as u8,
+        };
+        self.lots.insert((x, z), lot);
+        self.settle_flowers((x, z));
+    }
+
+    /// Each lot spaces its own flowers (`design::MIN_FLOWER_GAP`, owner's rule: their glows never
+    /// pile up), not those of its neighbors': of two flowers of neighboring lots closer than that,
+    /// the one ranking lower goes dark, light and petals. Every pair is decided once both lots are
+    /// loaded, on fixed ranks, so what stays lit does not depend on the order lots load in.
+    fn settle_flowers(&mut self, key: LotKey) {
+        let rank = |(x, z): LotKey, i: usize| {
+            let h = rng::hash_coords(self.seed, x, SALT_FLOWER_RANK + i as i32, z);
+            (h, x, z, i)
+        };
+        let lot = &self.lots[&key];
+        let mut dark = Vec::new();
+        let around = (-1..=1).flat_map(|dz| (-1..=1).map(move |dx| (key.0 + dx, key.1 + dz)));
+        for n in around.filter(|&n| n != key) {
+            let Some(other) = self.lots.get(&n) else {
+                continue;
+            };
+            for (i, f) in lot.lights.iter().enumerate() {
+                for (j, g) in other.lights.iter().enumerate() {
+                    if f.pos.distance(g.pos) < design::MIN_FLOWER_GAP {
+                        dark.push(if rank(key, i) < rank(n, j) {
+                            (key, i)
+                        } else {
+                            (n, j)
+                        });
+                    }
+                }
+            }
+        }
+        for (k, i) in dark {
+            let lot = self.lots.get_mut(&k).unwrap();
+            if !lot.flowers[i].1 {
+                lot.flowers[i].1 = true;
+                lot.version += 1;
+            }
         }
     }
 
@@ -183,18 +314,135 @@ impl World {
         self.lots.iter().map(|(&k, v)| (k, v))
     }
 
-    /// Colliders in the lots touched by `b` (a superset of the ones overlapping it).
+    /// Colliders that may overlap `b`: those of the lots it touches, and those reaching into it
+    /// from the lots around (no block reaches further than the next lot).
     pub fn colliders_near<'a>(&'a self, b: &Aabb) -> impl Iterator<Item = &'a Aabb> + 'a {
-        let (x0, x1) = (lot_of(b.min.x), lot_of(b.max.x));
-        let (z0, z1) = (lot_of(b.min.z), lot_of(b.max.z));
-        (x0..=x1)
-            .flat_map(move |x| (z0..=z1).map(move |z| (x, z)))
-            .filter_map(|k| self.lots.get(&k))
-            .flat_map(|l| l.blocks.iter())
-            .map(|blk| &blk.aabb)
+        let ((x0, z0), (x1, z1)) = (city::lot_of(b.min), city::lot_of(b.max));
+        (x0 - 1..=x1 + 1)
+            .flat_map(move |x| (z0 - 1..=z1 + 1).map(move |z| (x, z)))
+            .filter_map(|k| Some((k, self.lots.get(&k)?)))
+            .flat_map(move |((x, z), l)| {
+                let touched = (x0..=x1).contains(&x) && (z0..=z1).contains(&z);
+                let (blocks, reaching): (&[Block], &[Aabb]) = if touched {
+                    (&l.blocks, &[])
+                } else {
+                    (&[], &l.overhangs)
+                };
+                blocks.iter().map(|blk| &blk.aabb).chain(reaching)
+            })
     }
 
     pub fn collides(&self, b: &Aabb) -> bool {
         self.colliders_near(b).any(|c| c.overlaps(b))
+    }
+}
+
+#[cfg(test)]
+impl World {
+    /// A world of these lots' blocks alone (no plants, no props drawn), for collision tests.
+    pub fn of_blocks(seed: u64, lots: impl IntoIterator<Item = (LotKey, Vec<Block>)>) -> World {
+        let lots = lots
+            .into_iter()
+            .map(|(k, blocks)| {
+                let lot = Lot {
+                    overhangs: overhangs(k, &blocks),
+                    blocks,
+                    plants: Vec::new(),
+                    props: Vec::new(),
+                    lights: Vec::new(),
+                    flowers: Vec::new(),
+                    version: 0,
+                    variant: 0,
+                };
+                (k, lot)
+            })
+            .collect();
+        World { seed, lots }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flowers_of_neighboring_lots_keep_apart_whatever_the_load_order() {
+        let seed = 1;
+        let keys: Vec<LotKey> = (-2..3).flat_map(|z| (-2..3).map(move |x| (x, z))).collect();
+        let loaded = |order: Vec<LotKey>| {
+            let mut w = World::new(seed);
+            for k in order {
+                w.load(k);
+            }
+            w
+        };
+        let (a, b) = (
+            loaded(keys.clone()),
+            loaded(keys.iter().rev().copied().collect()),
+        );
+        let lit = |w: &World, k: LotKey| -> Vec<(usize, Vec3)> {
+            w.lots[&k].lights().map(|(i, l)| (i, l.pos)).collect()
+        };
+        let mut dark = 0;
+        for &k in &keys {
+            assert_eq!(
+                lit(&a, k),
+                lit(&b, k),
+                "lot {k:?} depends on the load order"
+            );
+            dark += a.lots[&k].flowers.iter().filter(|f| f.1).count();
+            for &n in keys.iter().filter(|&&n| n != k) {
+                for (_, f) in a.lots[&k].lights() {
+                    for (_, g) in a.lots[&n].lights() {
+                        let d = f.pos.distance(g.pos);
+                        assert!(d >= design::MIN_FLOWER_GAP, "{k:?} and {n:?}: {d} m");
+                    }
+                }
+            }
+        }
+        assert!(dark > 0, "no flower went dark: the test proves nothing");
+    }
+
+    #[test]
+    fn blocks_collide_in_every_lot_they_reach_into() {
+        let seed = 1;
+        let world = World::of_blocks(
+            seed,
+            (-5..5)
+                .flat_map(|z| (-5..5).map(move |x| (x, z)))
+                .map(|(x, z)| {
+                    let mut blocks = Vec::new();
+                    city::generate_lot(seed, x, z, &mut blocks);
+                    ((x, z), blocks)
+                }),
+        );
+        let mut reaching = 0;
+        for (&(lx, lz), lot) in &world.lots {
+            for b in &lot.overhangs {
+                // Its part in each other lot it reaches into: something the player can stand on.
+                let ((x0, z0), (x1, z1)) = (city::lot_of(b.min + 0.01), city::lot_of(b.max - 0.01));
+                for (x, z) in (x0..=x1).flat_map(|x| (z0..=z1).map(move |z| (x, z))) {
+                    if (x, z) == (lx, lz) || !world.lots.contains_key(&(x, z)) {
+                        continue;
+                    }
+                    reaching += 1;
+                    let (lo, hi) = (city::lot_origin(x, z), city::lot_origin(x + 1, z + 1));
+                    let part = Aabb {
+                        min: b.min.max(Vec3::new(lo.x, b.min.y, lo.z)),
+                        max: b.max.min(Vec3::new(hi.x, b.max.y, hi.z)),
+                    };
+                    assert!(
+                        world
+                            .colliders_near(&part)
+                            .any(|c| c.min == b.min && c.max == b.max),
+                        "a box of lot ({lx}, {lz}) does not collide in ({x}, {z}): {b:?}"
+                    );
+                }
+            }
+        }
+        assert!(
+            reaching > 100,
+            "only {reaching} boxes reach into another lot"
+        );
     }
 }

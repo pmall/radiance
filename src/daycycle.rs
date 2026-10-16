@@ -6,13 +6,12 @@ use std::f32::consts::TAU;
 use glam::{Vec3, vec3};
 
 /// Full cycle duration at speed 1, in seconds.
-pub const DEFAULT_DURATION: f32 = 20.0 * 60.0;
+const DURATION: f32 = 20.0 * 60.0;
 
 pub struct DayCycle {
     pub t: f32,
     pub running: bool,
     pub speed: f32,
-    pub duration: f32,
 }
 
 impl DayCycle {
@@ -21,13 +20,12 @@ impl DayCycle {
             t,
             running: true,
             speed: 1.0,
-            duration: DEFAULT_DURATION,
         }
     }
 
     pub fn update(&mut self, dt: f32) {
         if self.running {
-            self.advance(dt * self.speed / self.duration);
+            self.advance(dt * self.speed / DURATION);
         }
     }
 

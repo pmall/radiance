@@ -3,10 +3,10 @@
 
 use std::collections::HashMap;
 
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 use sola_raylib::ffi;
 
-use super::mesh::raylib_copy;
+use super::mesh::MeshData;
 use crate::world::props::{self, Placed, Prop};
 
 /// Which props are drawn: those within `reach` meters, height differences counting `VERTICAL`
@@ -50,7 +50,7 @@ impl PropMeshes {
                     by_prop
                         .entry(p.prop)
                         .or_default()
-                        .push(matrix(p.transform()));
+                        .push(super::matrix(p.transform()));
                 }
             }
         }
@@ -98,61 +98,26 @@ pub fn triangles(batches: &[Batch]) -> i32 {
         .sum()
 }
 
-fn matrix(m: Mat4) -> ffi::Matrix {
-    let c = m.to_cols_array();
-    ffi::Matrix {
-        m0: c[0],
-        m1: c[1],
-        m2: c[2],
-        m3: c[3],
-        m4: c[4],
-        m5: c[5],
-        m6: c[6],
-        m7: c[7],
-        m8: c[8],
-        m9: c[9],
-        m10: c[10],
-        m11: c[11],
-        m12: c[12],
-        m13: c[13],
-        m14: c[14],
-        m15: c[15],
-    }
-}
-
 /// One prop's mesh, in the scene shader's vertex layout: uv.y is the material code (15 for chunk
 /// materials in pixel art, with the material in uv2.x; 14 for plain props; the outline id comes
 /// from the instance).
 fn upload(prop: Prop) -> ffi::Mesh {
-    let verts = &props::mesh(prop).verts;
-    let mut pos = Vec::with_capacity(verts.len() * 3);
-    let mut nrm = Vec::with_capacity(verts.len() * 3);
-    let mut uv = Vec::with_capacity(verts.len() * 2);
-    let mut uv2 = Vec::with_capacity(verts.len() * 2);
-    let mut col = Vec::with_capacity(verts.len() * 4);
-    for v in verts {
-        pos.extend_from_slice(&v.pos.to_array());
-        nrm.extend_from_slice(&v.normal.to_array());
+    let mut m = MeshData::default();
+    for v in &props::mesh(prop).verts {
+        m.pos.extend_from_slice(&v.pos.to_array());
+        m.nrm.extend_from_slice(&v.normal.to_array());
         match v.mat {
-            Some(m) => {
-                uv.extend_from_slice(&[0.0, 15.0]);
-                uv2.extend_from_slice(&[m as f32, 0.0]);
+            Some(mat) => {
+                m.uv.extend_from_slice(&[0.0, 15.0]);
+                m.uv2.extend_from_slice(&[mat as f32, 0.0]);
             }
             None => {
-                uv.extend_from_slice(&[0.0, 14.0]);
-                uv2.extend_from_slice(&[-1.0, -1.0]);
+                m.uv.extend_from_slice(&[0.0, 14.0]);
+                m.uv2.extend_from_slice(&[-1.0, -1.0]);
             }
         }
-        col.extend_from_slice(&[v.color[0], v.color[1], v.color[2], 0]);
+        m.col
+            .extend_from_slice(&[v.color[0], v.color[1], v.color[2], 0]);
     }
-    let mut raw: ffi::Mesh = unsafe { std::mem::zeroed() };
-    raw.vertexCount = verts.len() as i32;
-    raw.triangleCount = (verts.len() / 3) as i32;
-    raw.vertices = raylib_copy(&pos);
-    raw.normals = raylib_copy(&nrm);
-    raw.texcoords = raylib_copy(&uv);
-    raw.texcoords2 = raylib_copy(&uv2);
-    raw.colors = raylib_copy(&col);
-    unsafe { ffi::UploadMesh(&mut raw, false) };
-    raw
+    m.upload()
 }

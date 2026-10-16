@@ -7,7 +7,6 @@
 //! the same elevations; the tiers' parts add what hangs on the walls and stands on the roofs.
 
 use glam::{Vec3, vec3};
-use sola_raylib::prelude::Color;
 
 use super::chunks::{self, Catalog, Part, STORY, Tf, TowerDef};
 use super::floors::{self, START};
@@ -93,24 +92,13 @@ pub fn tiers(def: &TowerDef, p: &Placement) -> Vec<(usize, f32, f32)> {
 
 /// The transform of a placed tower chunk (heights stay absolute).
 fn transform(p: &Placement) -> Tf {
+    // The chunk's own size: the placement's turned back.
+    let size = super::planner::turned(p.size, p.turn);
     Tf::placement(
-        unturned(p),
-        vec3(
-            p.origin.0 as f32 * super::city::LOT,
-            0.0,
-            p.origin.1 as f32 * super::city::LOT,
-        ),
+        size,
+        super::city::lot_origin(p.origin.0, p.origin.1),
         p.turn,
     )
-}
-
-/// The chunk's own size (the placement's is turned).
-fn unturned(p: &Placement) -> (i32, i32) {
-    if p.turn % 2 == 1 {
-        (p.size.1, p.size.0)
-    } else {
-        p.size
-    }
 }
 
 /// The base tier's footprint, from the bottom of the stack to the tower's top: what other rules
@@ -131,14 +119,6 @@ pub fn solid_top(cat: &Catalog, p: &Placement) -> Option<f32> {
     let def = cat.chunks.get(&p.chunk)?.tower.as_ref()?;
     def.tiers.first()?.facade.as_ref()?;
     tiers(def, p).first().map(|t| t.2)
-}
-
-/// A slightly drifting gray, so neighboring towers do not read as one mass.
-fn tint(rng: &mut Rng, lo: i32, hi: i32) -> Color {
-    let s = rng.range_i(lo, hi);
-    let warm = rng.range_i(-8, 9);
-    let c = |v: i32| v.clamp(0, 255) as u8;
-    Color::new(c(s + warm), c(s + 6), c(s + 14 - warm), 255)
 }
 
 /// What a tower is made of, in world coordinates: its bodies and its boxes, each box with its
@@ -163,11 +143,7 @@ impl Built {
     fn add(&mut self, b: chunks::Built, needs: Option<usize>) {
         let base = self.next;
         for ((aabb, mat), g) in b.boxes.into_iter().zip(b.groups) {
-            self.blocks.push(Block {
-                aabb,
-                color: mat.color(),
-                kind: BlockKind::Built(mat),
-            });
+            self.blocks.push(Block::built(aabb, mat));
             self.groups.push(base + g);
             self.next = self.next.max(base + g + 1);
             self.needs.push(needs);
@@ -204,12 +180,6 @@ pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> b
     let mut rng = Rng::new(p.seed);
     let shift = rng.range_i(0, 8) as u8;
     let seed_of = |a: i32, b: i32, c: i32| mix64(hash_coords(p.seed, a, b, c));
-    let lot_of = |v: Vec3| {
-        (
-            (v.x / super::city::LOT).floor() as i32,
-            (v.z / super::city::LOT).floor() as i32,
-        )
-    };
     // Parts on a floor know it (their rates, which lots have a deck).
     let expand = |parts: &[Part], y: f32, seed: u64| {
         let floor = floors::floor_at(y);
@@ -239,7 +209,7 @@ pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> b
             }
             out.add_block(Block {
                 aabb: tf.aabb(min, max),
-                color: tint(&mut rng, 92, 190),
+                color: super::city::tint(&mut rng, 92, 190),
                 kind: BlockKind::Tower(faces),
             });
             push_units(cat, p, &tf, t, f, (base, top), shift, deck, &mut out);
@@ -281,7 +251,7 @@ pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> b
     let groups = out.groups.iter().chain(&out.prop_groups);
     for ((aabb, need), &g) in boxes.chain(props).zip(groups) {
         let c = (aabb.min + aabb.max) * 0.5;
-        let floating = need.is_some_and(|f| !deck(lot_of(c), f));
+        let floating = need.is_some_and(|f| !deck(super::city::lot_of(c), f));
         let inside = bodies
             .iter()
             .any(|b| b.overlaps(&aabb) && (b.min != aabb.min || b.max != aabb.max));
@@ -294,38 +264,20 @@ pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> b
 }
 
 impl Built {
-    /// Keeps the boxes and props of the groups `keep` says.
+    /// Keeps the boxes, props and flowers of the groups `keep` says.
     fn retain(&mut self, keep: impl Fn(u32) -> bool) {
-        let mut i = 0;
-        let groups = &self.groups;
-        self.blocks.retain(|_| {
-            i += 1;
-            keep(groups[i - 1])
-        });
-        let mut i = 0;
-        self.needs.retain(|_| {
-            i += 1;
-            keep(groups[i - 1])
-        });
+        // The items of `v` whose group (same order) is kept.
+        fn by_group<T>(v: &mut Vec<T>, groups: &[u32], keep: &impl Fn(u32) -> bool) {
+            let mut g = groups.iter();
+            v.retain(|_| g.next().is_some_and(|&g| keep(g)));
+        }
+        by_group(&mut self.blocks, &self.groups, &keep);
+        by_group(&mut self.needs, &self.groups, &keep);
         self.groups.retain(|&g| keep(g));
-        let mut i = 0;
-        let groups = &self.prop_groups;
-        self.props.retain(|_| {
-            i += 1;
-            keep(groups[i - 1])
-        });
-        let mut i = 0;
-        self.prop_needs.retain(|_| {
-            i += 1;
-            keep(groups[i - 1])
-        });
+        by_group(&mut self.props, &self.prop_groups, &keep);
+        by_group(&mut self.prop_needs, &self.prop_groups, &keep);
         self.prop_groups.retain(|&g| keep(g));
-        let mut i = 0;
-        let groups = &self.bloom_groups;
-        self.blooms.retain(|_| {
-            i += 1;
-            keep(groups[i - 1])
-        });
+        by_group(&mut self.blooms, &self.bloom_groups, &keep);
         self.bloom_groups.retain(|&g| keep(g));
     }
 }
@@ -359,11 +311,7 @@ fn push_units(
         for c in 0..e.cols {
             let along = -width * 0.5 + u0 + (c as f32 + 0.5) * STORY;
             let bay = center + right * along;
-            let front = tf.point(bay + n * 1.5);
-            let lot = (
-                (front.x / super::city::LOT).floor() as i32,
-                (front.z / super::city::LOT).floor() as i32,
-            );
+            let lot = super::city::lot_of(tf.point(bay + n * 1.5));
             for fl in 0..floors::count() {
                 let y = floors::y(fl);
                 let near = STORY * (NEAR_STORIES + 1) as f32;

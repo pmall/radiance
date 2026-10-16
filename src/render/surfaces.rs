@@ -35,9 +35,6 @@ fn load_png(png: &[u8]) -> ffi::Texture2D {
     }
 }
 
-/// Material slot (sampler `texture5`) of the cover map (`cover.rs`).
-pub const COVER_SLOT: usize = 5;
-
 /// Tells raylib where the scene shader's extra samplers are (detail textures, cover map, tower
 /// elevations, chunk pixel art), so
 /// DrawMesh binds the textures to them. Must be repeated whenever the scene shader is reloaded

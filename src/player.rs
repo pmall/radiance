@@ -279,16 +279,17 @@ impl Player {
         self.pos.y += dy;
         let me = Self::aabb_at(self.pos);
         let impact = -self.vel.y;
-        for c in world.colliders_near(&me) {
-            if !me.overlaps(c) {
-                continue;
-            }
-            if dy <= 0.0 {
-                self.pos.y = c.max.y;
-                self.grounded = true;
-            } else {
-                self.pos.y = c.min.y - HEIGHT - 1e-4;
-            }
+        // A fast step can run into several blocks at once (a curb on a deck): land on the highest
+        // top, or bump the lowest bottom.
+        let hits = world.colliders_near(&me).filter(|c| me.overlaps(c));
+        let stop = if dy <= 0.0 {
+            hits.map(|c| c.max.y).reduce(f32::max)
+        } else {
+            hits.map(|c| c.min.y - HEIGHT - 1e-4).reduce(f32::min)
+        };
+        if let Some(y) = stop {
+            self.pos.y = y;
+            self.grounded = dy <= 0.0;
             self.vel.y = 0.0;
         }
         if self.grounded && !was_grounded && impact > 6.0 {
@@ -396,4 +397,36 @@ impl Player {
 fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
     let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::{Block, BlockKind};
+    use sola_raylib::prelude::Color;
+
+    #[test]
+    fn a_long_fall_lands_on_the_highest_block_hit() {
+        let block = |min: Vec3, max: Vec3| Block {
+            aabb: Aabb { min, max },
+            color: Color::new(0, 0, 0, 255),
+            kind: BlockKind::Course,
+        };
+        // A curb listed before the deck it stands on: falling fast, one step crosses both tops.
+        let world = World::of_blocks(
+            1,
+            [(
+                (0, 0),
+                vec![
+                    block(vec3(1.0, 0.0, 1.0), vec3(3.0, 0.15, 3.0)),
+                    block(vec3(0.0, -1.0, 0.0), vec3(24.0, 0.0, 24.0)),
+                ],
+            )],
+        );
+        let mut p = Player::new(vec3(1.2, 60.0, 2.0));
+        for _ in 0..600 {
+            p.update(1.0 / 120.0, &Input::default(), &world);
+        }
+        assert_eq!(p.pos.y, 0.15);
+    }
 }

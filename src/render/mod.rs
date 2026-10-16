@@ -13,6 +13,7 @@ mod halos;
 mod lights;
 pub mod look;
 mod mesh;
+mod overlay;
 mod particles;
 mod pixels;
 mod props;
@@ -21,17 +22,16 @@ mod shadow;
 mod surfaces;
 mod targets;
 
-use glam::{Vec2, Vec3, vec3};
+use glam::{Mat4, Vec2, Vec3, vec3};
 use sola_raylib::ffi;
 
 use crate::world::Light;
 use crate::world::World;
 use cover::CoverMap;
-use halos::Halos;
 use lights::LightGrid;
 use look::Sky;
 use mesh::WorldMesh;
-use particles::Particles;
+use overlay::Overlay;
 use shader::HotShader;
 use shadow::ShadowMap;
 use std::collections::HashMap;
@@ -79,24 +79,7 @@ const RELOAD_POLL: f32 = 0.5;
 /// Scales how fast fog thins with height, so it spans the whole floor stack.
 const FOG_STACK_SCALE: f32 = 0.4;
 
-const IDENTITY: ffi::Matrix = ffi::Matrix {
-    m0: 1.0,
-    m4: 0.0,
-    m8: 0.0,
-    m12: 0.0,
-    m1: 0.0,
-    m5: 1.0,
-    m9: 0.0,
-    m13: 0.0,
-    m2: 0.0,
-    m6: 0.0,
-    m10: 1.0,
-    m14: 0.0,
-    m3: 0.0,
-    m7: 0.0,
-    m11: 0.0,
-    m15: 1.0,
-};
+const IDENTITY: ffi::Matrix = matrix(Mat4::IDENTITY);
 
 pub struct View {
     pub pos: Vec3,
@@ -120,7 +103,10 @@ pub struct Renderer {
     /// Prop triangles drawn last frame.
     prop_triangles: i32,
     detail_triangles: i32,
-    lots_lights: HashMap<(i32, i32), Vec<Light>>,
+    /// Each lot's lights, with their index in the lot (a soul's identity).
+    lots_lights: HashMap<(i32, i32), Vec<(usize, Light)>>,
+    /// The version of each lot drawn (`world::Lot::version`).
+    versions: HashMap<(i32, i32), u32>,
     /// Souls that are singing: their lights swell and fade back (1 = just started).
     pulses: HashMap<crate::audio::Soul, f32>,
     light_grid: LightGrid,
@@ -128,8 +114,8 @@ pub struct Renderer {
     facades: facades::Facades,
     /// Seed of the synced world, for the cover map.
     seed: u64,
-    particles: Particles,
-    halos: Halos,
+    particles: Overlay,
+    halos: Overlay,
     pub lights_in_use: usize,
     pub effects: i32,
     pub render_scale: f32,
@@ -141,6 +127,29 @@ fn v3(v: Vec3) -> ffi::Vector3 {
         x: v.x,
         y: v.y,
         z: v.z,
+    }
+}
+
+/// raylib's matrix, whose fields are named by column-major index.
+const fn matrix(m: Mat4) -> ffi::Matrix {
+    let c = m.to_cols_array();
+    ffi::Matrix {
+        m0: c[0],
+        m1: c[1],
+        m2: c[2],
+        m3: c[3],
+        m4: c[4],
+        m5: c[5],
+        m6: c[6],
+        m7: c[7],
+        m8: c[8],
+        m9: c[9],
+        m10: c[10],
+        m11: c[11],
+        m12: c[12],
+        m13: c[13],
+        m14: c[14],
+        m15: c[15],
     }
 }
 
@@ -180,13 +189,13 @@ impl Renderer {
             unsafe { (*material.maps.add(slot)).texture = texture };
         }
         let cover = CoverMap::new();
-        unsafe { (*material.maps.add(surfaces::COVER_SLOT)).texture = cover.texture };
+        unsafe { (*material.maps.add(cover::SLOT)).texture = cover.texture };
         let prop_meshes = props::PropMeshes::new();
         unsafe { (*material.maps.add(pixels::SLOT)).texture = pixels::load() };
         let facades = facades::Facades::new();
         unsafe { (*material.maps.add(facades::SLOT)).texture = facades.texture };
         surfaces::bind_samplers(&mut material);
-        let halos = Halos::new(light_grid.texture);
+        let halos = halos::new(light_grid.texture);
         Self {
             scene,
             post,
@@ -200,12 +209,13 @@ impl Renderer {
             prop_triangles: 0,
             detail_triangles: 0,
             lots_lights: HashMap::new(),
+            versions: HashMap::new(),
             pulses: HashMap::new(),
             light_grid,
             cover,
             facades,
             seed: 0,
-            particles: Particles::new(),
+            particles: particles::new(),
             halos,
             lights_in_use: 0,
             effects: FX_ALL,
@@ -227,6 +237,7 @@ impl Renderer {
         self.details.clear();
         self.lots_props.clear();
         self.lots_lights.clear();
+        self.versions.clear();
     }
 
     /// Brings the per-lot meshes in line with the lots the world currently has loaded.
@@ -240,19 +251,27 @@ impl Renderer {
         self.details.retain(|k, _| live.contains(k));
         self.lots_props.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
+        self.versions.retain(|k, _| live.contains(k));
         for (k, lot) in world.lots() {
-            if self.lots_props.contains_key(&k) {
+            let fresh = !self.versions.contains_key(&k);
+            if !fresh && self.versions[&k] == lot.version {
                 continue;
             }
-            self.lots_props.insert(k, lot.props.clone());
-            self.lots_lights.insert(k, lot.lights.clone());
             let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
-            if let Some(m) = WorldMesh::build(lot, key, false) {
-                self.meshes.insert(k, m);
+            if fresh {
+                self.lots_props.insert(k, lot.props.clone());
+                if let Some(m) = WorldMesh::build(lot, key, true) {
+                    self.details.insert(k, m);
+                }
             }
-            if let Some(m) = WorldMesh::build(lot, key, true) {
-                self.details.insert(k, m);
-            }
+            // New, or one of its flowers went dark: its plants and lights again.
+            self.versions.insert(k, lot.version);
+            self.lots_lights
+                .insert(k, lot.lights().map(|(i, l)| (i, *l)).collect());
+            match WorldMesh::build(lot, key, false) {
+                Some(m) => self.meshes.insert(k, m),
+                None => self.meshes.remove(&k),
+            };
         }
     }
 
@@ -385,7 +404,7 @@ impl Renderer {
         // A singing soul's light swells and fades over a few seconds.
         let pulses = &self.pulses;
         let lights = self.lots_lights.iter().flat_map(|(key, ls)| {
-            ls.iter().enumerate().map(move |(index, l)| {
+            ls.iter().map(move |&(index, ref l)| {
                 let b = pulses
                     .get(&crate::audio::Soul { lot: *key, index })
                     .copied()
@@ -498,82 +517,27 @@ impl Renderer {
             ffi::EndShaderMode();
         }
 
+        // Particles, then the halos at the lights.
         if self.effects & FX_PARTICLES != 0 {
-            let depth = targets.depth;
-            self.draw_particles(view, sky, &camera, depth, (rw, rh), (right, cam_up));
-            self.draw_halos(view, sky, &camera, depth, (rw, rh), (right, cam_up));
-        }
-    }
-
-    /// Additive particles over the finished frame, hidden by scene depth.
-    fn draw_particles(
-        &mut self,
-        view: &View,
-        sky: &Sky,
-        camera: &ffi::Camera3D,
-        depth: ffi::Texture2D,
-        screen: (i32, i32),
-        (right, cam_up): (Vec3, Vec3),
-    ) {
-        let look = &sky.look;
-        // Spores rather than pollen where no sky is overhead.
-        let depth_k = 1.0 - self.cover.sky_view(view.pos);
-        // Pollen is warm; it picks up a little of the sun or moon color.
-        let disk = look
-            .disk
-            .clamp(Vec3::ZERO, Vec3::ONE)
-            .powf(1.0 / 2.2)
-            .lerp(vec3(1.0, 0.78, 0.4), 0.6);
-        let time = unsafe { ffi::GetTime() } as f32;
-        let p = &mut self.particles.shader;
-        p.set_vec3("uCamPos", view.pos);
-        p.set_vec3("uCamFwd", view.dir);
-        p.set_vec3("uCamRight", right);
-        p.set_vec3("uCamUp", cam_up);
-        p.set_f32("uTime", time);
-        p.set_vec2("uScreen", Vec2::new(screen.0 as f32, screen.1 as f32));
-        p.set_f32("uNear", NEAR);
-        p.set_f32("uFar", FAR);
-        p.set_f32("uGlow", look.plant_glow);
-        p.set_f32("uDepthK", depth_k);
-        p.set_vec3("uMote", disk);
-        self.particles.material.shader = self.particles.shader.raw;
-        unsafe {
-            (*self.particles.material.maps.add(1)).texture = depth;
-            ffi::rlSetClipPlanes(NEAR as f64, FAR as f64);
-            ffi::BeginMode3D(*camera);
-            self.particles.draw();
-            ffi::EndMode3D();
-        }
-    }
-
-    /// Halos at the lights, additive over the finished frame, hidden by scene depth.
-    fn draw_halos(
-        &mut self,
-        view: &View,
-        sky: &Sky,
-        camera: &ffi::Camera3D,
-        depth: ffi::Texture2D,
-        screen: (i32, i32),
-        (right, cam_up): (Vec3, Vec3),
-    ) {
-        let p = &mut self.halos.shader;
-        p.set_vec3("uCamPos", view.pos);
-        p.set_vec3("uCamFwd", view.dir);
-        p.set_vec3("uCamRight", right);
-        p.set_vec3("uCamUp", cam_up);
-        p.set_vec2("uScreen", Vec2::new(screen.0 as f32, screen.1 as f32));
-        p.set_f32("uNear", NEAR);
-        p.set_f32("uFar", FAR);
-        p.set_f32("uGlow", sky.look.plant_glow);
-        p.set_i32("uCount", self.lights_in_use as i32);
-        self.halos.material.shader = self.halos.shader.raw;
-        unsafe {
-            (*self.halos.material.maps.add(1)).texture = depth;
-            ffi::rlSetClipPlanes(NEAR as f64, FAR as f64);
-            ffi::BeginMode3D(*camera);
-            self.halos.draw();
-            ffi::EndMode3D();
+            // Spores rather than pollen where no sky is overhead.
+            let depth_k = 1.0 - self.cover.sky_view(view.pos);
+            // Pollen is warm; it picks up a little of the sun or moon color.
+            let mote = look
+                .disk
+                .clamp(Vec3::ZERO, Vec3::ONE)
+                .powf(1.0 / 2.2)
+                .lerp(vec3(1.0, 0.78, 0.4), 0.6);
+            let p = &mut self.particles.shader;
+            p.set_f32("uTime", time);
+            p.set_f32("uDepthK", depth_k);
+            p.set_vec3("uMote", mote);
+            self.halos
+                .shader
+                .set_i32("uCount", self.lights_in_use as i32);
+            let (cam, glow) = ((right, cam_up), look.plant_glow);
+            for layer in [&mut self.particles, &mut self.halos] {
+                layer.draw(view, cam, &camera, (rw, rh), targets.depth, glow);
+            }
         }
     }
 }

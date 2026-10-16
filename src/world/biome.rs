@@ -129,11 +129,12 @@ pub const DEFAULT: Biome = Biome {
 /// Every biome the map can hold. Only the default exists for now.
 pub const BIOMES: &[&Biome] = &[&DEFAULT];
 
-/// Index of `biome` in `BIOMES`: the material variant its lots are drawn with.
+/// Index of `biome` in `BIOMES`: the material variant its lots are drawn with. By name: two
+/// references to one `const` biome need not share an address.
 pub fn variant_of(biome: &Biome) -> usize {
     BIOMES
         .iter()
-        .position(|b| std::ptr::eq(*b, biome))
+        .position(|b| b.name == biome.name)
         .unwrap_or(0)
 }
 
@@ -217,6 +218,32 @@ mod tests {
         size: 1.4,
         ..DEFAULT
     };
+
+    /// What a new biome must respect: the shader's palette slots, the site search's size range, a
+    /// unique name, flowers to pick from.
+    #[test]
+    fn biomes_fit_the_renderer_and_the_zones() {
+        assert!(
+            BIOMES.len() <= MAX_BIOMES,
+            "the palette holds {MAX_BIOMES} biomes"
+        );
+        assert!(BIOMES.iter().any(|b| b.name == DEFAULT.name));
+        for (i, b) in BIOMES.iter().enumerate() {
+            assert!(
+                BIOMES[..i].iter().all(|o| o.name != b.name),
+                "two {}",
+                b.name
+            );
+            assert_eq!(variant_of(b), i);
+            assert!((0.6..=1.5).contains(&b.size), "{}: size {}", b.name, b.size);
+            assert!(b.frequency > 0.0, "{} is never picked", b.name);
+            assert!(
+                b.flowers.iter().any(|f| f.0 > 0),
+                "{} has no flower colors",
+                b.name
+            );
+        }
+    }
 
     #[test]
     fn default_is_the_only_biome_for_now() {

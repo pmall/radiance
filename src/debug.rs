@@ -20,10 +20,11 @@ pub struct Debug {
 /// closer, so they are marked as such.
 const FIND_RADIUS: i32 = 40;
 
-/// Nearest stairs and crater from the player's lot and floor, recomputed when either changes.
+/// Nearest stairs and crater from the player's lot and floor, recomputed when either changes (or
+/// the seed, or the chunk files).
 #[derive(Default)]
 struct Finder {
-    key: Option<(u64, i32, i32, usize)>,
+    key: Option<(u64, u64, i32, i32, usize)>,
     /// (label, target point on the player's floor).
     found: Vec<(String, glam::Vec3)>,
 }
@@ -31,15 +32,13 @@ struct Finder {
 impl Finder {
     fn update(&mut self, seed: u64, pos: glam::Vec3) {
         use crate::world::{city, floors};
-        let (lx, lz) = (
-            (pos.x / city::LOT).floor() as i32,
-            (pos.z / city::LOT).floor() as i32,
-        );
+        let (lx, lz) = city::lot_of(pos);
         let floor = floors::floor_at(pos.y);
-        if self.key == Some((seed, lx, lz, floor)) {
+        let key = (seed, crate::world::chunks::generation(), lx, lz, floor);
+        if self.key == Some(key) {
             return;
         }
-        self.key = Some((seed, lx, lz, floor));
+        self.key = Some(key);
         let center = |x: i32, z: i32| {
             glam::vec3(
                 (x as f32 + 0.5) * city::LOT,
@@ -86,10 +85,7 @@ impl Finder {
         }
         // Beyond the loaded area: real, but not drawn yet.
         let loaded = |p: glam::Vec3| {
-            let (x, z) = (
-                (p.x / city::LOT).floor() as i32,
-                (p.z / city::LOT).floor() as i32,
-            );
+            let (x, z) = city::lot_of(p);
             (x - lx).abs().max((z - lz).abs()) <= crate::world::LOAD_RADIUS
         };
         for best in [&mut up, &mut down, &mut crater].into_iter().flatten() {
@@ -166,6 +162,7 @@ impl Debug {
         let p = player.pos;
         let floor = floors::floor_at(p.y);
         let full = floors::name(floor);
+        let (lx, lz) = city::lot_of(p);
         let (code, name) = full.split_once(' ').unwrap_or((&full, ""));
 
         // (text, color); the title is drawn on its own above.
@@ -199,12 +196,7 @@ impl Debug {
                     String::new()
                 },
                 world.seed,
-                crate::world::biome::biome_at(
-                    world.seed,
-                    (p.x / city::LOT).floor() as i32,
-                    (p.z / city::LOT).floor() as i32
-                )
-                .name
+                crate::world::biome::biome_at(world.seed, lx, lz).name
             ),
             Color::RAYWHITE,
         );
@@ -285,6 +277,21 @@ impl Debug {
     }
 }
 
+/// Writes the screen as drawn so far to an image file. Returns whether it was written.
+pub fn export_screen(path: &std::path::Path) -> bool {
+    let Ok(c) = std::ffi::CString::new(path.to_string_lossy().as_bytes()) else {
+        return false;
+    };
+    unsafe {
+        // Draws still queued in raylib's batch must reach the screen first.
+        sola_raylib::ffi::rlDrawRenderBatchActive();
+        let img = sola_raylib::ffi::LoadImageFromScreen();
+        let ok = sola_raylib::ffi::ExportImage(img, c.as_ptr());
+        sola_raylib::ffi::UnloadImage(img);
+        ok
+    }
+}
+
 /// Folder of the P screenshots (gitignored).
 const SCREENSHOT_DIR: &str = "screenshots";
 
@@ -304,17 +311,7 @@ pub fn save_screenshot(
         .find(|p| !p.with_extension("png").exists())
         .expect("a free screenshot name");
     let png = base.with_extension("png");
-    let c = std::ffi::CString::new(png.to_string_lossy().as_bytes())
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-    let ok = unsafe {
-        // Draws still queued in raylib's batch must reach the screen first.
-        sola_raylib::ffi::rlDrawRenderBatchActive();
-        let img = sola_raylib::ffi::LoadImageFromScreen();
-        let ok = sola_raylib::ffi::ExportImage(img, c.as_ptr());
-        sola_raylib::ffi::UnloadImage(img);
-        ok
-    };
-    if !ok {
+    if !export_screen(&png) {
         return Err(std::io::Error::other("could not write the image"));
     }
     let p = player.pos;

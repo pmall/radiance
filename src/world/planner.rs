@@ -27,7 +27,7 @@
 //!   other lots a one-lot tower unless the biome leaves them empty; never in an area, a crater, the
 //!   start's plaza or its stair lot. Each gets a height (`design::TOWER_HEIGHTS`).
 //!
-//! What no chunk covers is still the lot generator of `city.rs` (streets, props).
+//! The rest of a lot (its ground, decks, stair and bridges) is built by `city.rs`.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -110,6 +110,14 @@ impl Placement {
         )
     }
 
+    /// The middle lot of the footprint: where a hub's stair stands.
+    fn middle(&self) -> (i32, i32) {
+        (
+            self.origin.0 + self.size.0 / 2,
+            self.origin.1 + self.size.1 / 2,
+        )
+    }
+
     fn lots(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
         let (x0, z0) = self.origin;
         (z0..z0 + self.size.1).flat_map(move |z| (x0..x0 + self.size.0).map(move |x| (x, z)))
@@ -184,7 +192,7 @@ fn pick<'a>(pool: &[&'a Chunk], rng: &mut Rng) -> Option<&'a Chunk> {
 }
 
 /// A chunk's footprint once turned.
-fn turned(size: (i32, i32), turn: u8) -> (i32, i32) {
+pub fn turned(size: (i32, i32), turn: u8) -> (i32, i32) {
     if turn % 2 == 1 {
         (size.1, size.0)
     } else {
@@ -206,6 +214,9 @@ fn near_start_or_hub(lx: i32, lz: i32) -> bool {
 /// asked about the same cells over and over (every deck and stair query).
 type Cache = Mutex<HashMap<(u64, u64, u8, i32, i32, usize), Vec<Placement>>>;
 
+/// Cell answers the cache keeps before starting over (exploring keeps adding cells).
+const CACHED_CELLS: usize = 50_000;
+
 fn cached(
     key: (u8, i32, i32, usize),
     seed: u64,
@@ -218,7 +229,11 @@ fn cached(
         return p.clone();
     }
     let p = compute();
-    cache.lock().unwrap().insert(full, p.clone());
+    let mut c = cache.lock().unwrap();
+    if c.len() >= CACHED_CELLS {
+        c.clear();
+    }
+    c.insert(full, p.clone());
     p
 }
 
@@ -228,12 +243,11 @@ fn cached(
 fn area_candidate(seed: u64, cx: i32, cz: i32) -> Option<(Placement, f32)> {
     let biome = biome_of_cell(seed, cx, cz, AREA_CELL);
     let cat = chunks::catalog(biome);
-    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_AREA, cz));
     if !rng.chance(AREA_CHANCE) {
         return None;
     }
-    let pool = pool(cat, |c| {
+    let pool = pool(&cat, |c| {
         c.role() == Role::Area && c.size.0.max(c.size.1) <= AREA_CELL
     });
     let chunk = pick(&pool, &mut rng)?;
@@ -326,55 +340,49 @@ fn subs_of_area(seed: u64, area: &Placement) -> Vec<Placement> {
 /// `subs_of_area`, uncached: for any placement (the `--chunk` preview fills its openings too).
 /// Sub-areas come from the area's biome.
 pub fn subs_of(area: &Placement) -> Vec<Placement> {
-    {
-        let cat = chunks::catalog(area.biome);
-        let cat = &*cat;
-        let Some(chunk) = cat.chunks.get(&area.chunk) else {
-            return Vec::new();
+    let cat = chunks::catalog(area.biome);
+    let Some(chunk) = cat.chunks.get(&area.chunk) else {
+        return Vec::new();
+    };
+    let origin =
+        city::lot_origin(area.origin.0, area.origin.1) + glam::Vec3::Y * floors::y(area.floor);
+    let built = chunks::build(chunk, &cat, origin, area.turn, area.seed);
+    let mut out = Vec::new();
+    for (i, (rect, labels)) in built.subs.iter().enumerate() {
+        let lot = |v: f32| (v / city::LOT + 0.01).floor() as i32;
+        let (x0, z0) = (lot(rect.min.x), lot(rect.min.z));
+        let (x1, z1) = (lot(rect.max.x), lot(rect.max.z));
+        let (w, d) = (x1 - x0, z1 - z0);
+        let mut rng = Rng::new(hash_coords(area.seed, i as i32, SALT_SUB, 0));
+        let pool = pool(&cat, |c| {
+            c.labels.iter().any(|l| labels.contains(l))
+                && zone_fits(c, area.floor)
+                && ((c.size.0 <= w && c.size.1 <= d) || (c.size.1 <= w && c.size.0 <= d))
+        });
+        let Some(sub) = pick(&pool, &mut rng) else {
+            continue;
         };
-        let origin = glam::vec3(
-            area.origin.0 as f32 * city::LOT,
-            floors::y(area.floor),
-            area.origin.1 as f32 * city::LOT,
-        );
-        let built = chunks::build(chunk, cat, origin, area.turn, area.seed);
-        let mut out = Vec::new();
-        for (i, (rect, labels)) in built.subs.iter().enumerate() {
-            let lot = |v: f32| (v / city::LOT + 0.01).floor() as i32;
-            let (x0, z0) = (lot(rect.min.x), lot(rect.min.z));
-            let (x1, z1) = (lot(rect.max.x), lot(rect.max.z));
-            let (w, d) = (x1 - x0, z1 - z0);
-            let mut rng = Rng::new(hash_coords(area.seed, i as i32, SALT_SUB, 0));
-            let pool = pool(cat, |c| {
-                c.labels.iter().any(|l| labels.contains(l))
-                    && zone_fits(c, area.floor)
-                    && ((c.size.0 <= w && c.size.1 <= d) || (c.size.1 <= w && c.size.0 <= d))
-            });
-            let Some(sub) = pick(&pool, &mut rng) else {
-                continue;
-            };
-            let turns: Vec<u8> = (0..4)
-                .filter(|&t| {
-                    let s = turned(sub.size, t);
-                    s.0 <= w && s.1 <= d
-                })
-                .collect();
-            let turn = turns[rng.range_i(0, turns.len() as i32) as usize];
-            let size = turned(sub.size, turn);
-            out.push(Placement {
-                chunk: sub.name.clone(),
-                biome: area.biome,
-                role: Role::Sub,
-                origin: (x0 + (w - size.0) / 2, z0 + (d - size.1) / 2),
-                size,
-                floor: area.floor,
-                turn,
-                seed: rng.next_u64(),
-                stories: 0,
-            });
-        }
-        out
+        let turns: Vec<u8> = (0..4)
+            .filter(|&t| {
+                let s = turned(sub.size, t);
+                s.0 <= w && s.1 <= d
+            })
+            .collect();
+        let turn = turns[rng.range_i(0, turns.len() as i32) as usize];
+        let size = turned(sub.size, turn);
+        out.push(Placement {
+            chunk: sub.name.clone(),
+            biome: area.biome,
+            role: Role::Sub,
+            origin: (x0 + (w - size.0) / 2, z0 + (d - size.1) / 2),
+            size,
+            floor: area.floor,
+            turn,
+            seed: rng.next_u64(),
+            stories: 0,
+        });
     }
+    out
 }
 
 // Blocks.
@@ -395,12 +403,11 @@ fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<P
     }
     let biome = biome_of_cell(seed, cx, cz, BLOCK_CELL);
     let cat = chunks::catalog(biome);
-    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_BLOCK + 64 * floor as i32, cz));
     if !rng.chance(design::profile(floor).blocks) {
         return None;
     }
-    let pool = pool(cat, |c| {
+    let pool = pool(&cat, |c| {
         c.role() == Role::Block && zone_fits(c, floor) && c.size.0.max(c.size.1) <= BLOCK_CELL
     });
     let chunk = pick(&pool, &mut rng)?;
@@ -468,12 +475,11 @@ fn hole_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Pl
     }
     let biome = biome_of_cell(seed, cx, cz, HOLE_CELL);
     let cat = chunks::catalog(biome);
-    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_HOLE + 64 * floor as i32, cz));
     if !rng.chance(design::profile(floor).holes) {
         return None;
     }
-    let pool = pool(cat, |c| {
+    let pool = pool(&cat, |c| {
         c.role() == Role::Hole && zone_fits(c, floor) && c.size.0.max(c.size.1) <= HOLE_CELL
     });
     let chunk = pick(&pool, &mut rng)?;
@@ -586,12 +592,11 @@ fn crater_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Option<Placement> {
     }
     let biome = biome_of_cell(seed, cx, cz, CRATER_CELL);
     let cat = chunks::catalog(biome);
-    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_CRATER, cz));
     if !rng.chance(design::CRATER_CHANCE) {
         return None;
     }
-    let pool = pool(cat, |c| {
+    let pool = pool(&cat, |c| {
         c.role() == Role::Crater && c.size.0.max(c.size.1) <= CRATER_CELL
     });
     let chunk = pick(&pool, &mut rng)?;
@@ -655,14 +660,13 @@ fn hub_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Pla
     }
     let biome = biome_of_cell(seed, cx, cz, HUB_CELL);
     let cat = chunks::catalog(biome);
-    let cat = &*cat;
     let mut rng = Rng::new(hash_coords(seed, cx, SALT_HUB + 64 * floor as i32, cz));
     // The start always has a way up close by: the cell just beside the spawn plaza.
     let forced = floor == START && (cx, cz) == (0, 0);
     if !forced && !rng.chance(design::profile(floor).stair) {
         return None;
     }
-    let pool = pool(cat, |c| c.role() == Role::Hub && zone_fits(c, floor));
+    let pool = pool(&cat, |c| c.role() == Role::Hub && zone_fits(c, floor));
     // Without hub chunks in the catalog, a bare stair still stands (a one-lot hub with nothing).
     let (name, base) = match pick(&pool, &mut rng) {
         Some(c) => (c.name.clone(), c.size),
@@ -681,7 +685,7 @@ fn hub_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Pla
         // Lots already holding the stair of a lower floor's hub in this cell.
         let taken: Vec<(i32, i32)> = (0..floor)
             .filter_map(|f| hub_of_cell(seed, cx, cz, f))
-            .map(|p| (p.origin.0 + p.size.0 / 2, p.origin.1 + p.size.1 / 2))
+            .map(|p| p.middle())
             .collect();
         let free: Vec<(i32, i32)> = (0..HUB_CELL * HUB_CELL)
             .map(|i| (cx * HUB_CELL + i % HUB_CELL, cz * HUB_CELL + i / HUB_CELL))
@@ -725,7 +729,7 @@ pub fn stair_hub(seed: u64, lx: i32, lz: i32) -> Option<Placement> {
     let (cx, cz) = (lx.div_euclid(HUB_CELL), lz.div_euclid(HUB_CELL));
     (0..floors::count() - 1)
         .filter_map(|f| hub_of_cell(seed, cx, cz, f))
-        .find(|p| (p.origin.0 + p.size.0 / 2, p.origin.1 + p.size.1 / 2) == (lx, lz))
+        .find(|p| p.middle() == (lx, lz))
 }
 
 /// The stair hubs whose surroundings cover a lot, on every floor.
@@ -738,7 +742,7 @@ fn hubs_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
             let mut taken: Vec<(i32, i32)> = Vec::new();
             for f in 0..floors::count() - 1 {
                 if let Some(p) = hub_of_cell(seed, nx, nz, f) {
-                    let stair = (p.origin.0 + p.size.0 / 2, p.origin.1 + p.size.1 / 2);
+                    let stair = p.middle();
                     // Same rule as `stair_hub`: a lot's stair belongs to the lowest floor.
                     if taken.contains(&stair) {
                         continue;
@@ -808,8 +812,7 @@ fn towers_of_cell(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
 fn towers_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
     let biome = biome_of_cell(seed, cx, cz, TOWER_CELL);
     let cat = chunks::catalog(biome);
-    let cat = &*cat;
-    let pool = pool(cat, |c| c.role() == Role::Tower && c.tower.is_some());
+    let pool = pool(&cat, |c| c.role() == Role::Tower && c.tower.is_some());
     let small: Vec<&Chunk> = pool.iter().copied().filter(|c| c.size == (1, 1)).collect();
     let (x0, z0) = (cx * TOWER_CELL, cz * TOWER_CELL);
     let lots: Vec<(i32, i32)> = (0..TOWER_CELL * TOWER_CELL)

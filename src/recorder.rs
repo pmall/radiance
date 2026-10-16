@@ -1,8 +1,8 @@
 //! Records a run to an MP4 with the screen and the sound.
 //!
 //! Frames are read from the screen after the world is drawn (before the debug overlay) and piped
-//! to an `ffmpeg` process on a worker thread, at a constant 60 fps by wall-clock time (a slow frame
-//! is repeated, never skipped). The sound is a copy of the final mix, taken from the audio thread
+//! to an `ffmpeg` process on a worker thread, at a constant 60 fps by wall-clock time: a slow frame
+//! is repeated for as long as it lasted, so the video keeps time with the sound. The sound is a copy of the final mix, taken from the audio thread
 //! and written to a raw file. When recording stops, the video and the sound are muxed into
 //! `recordings/radiance-<seed>-<time>.mp4` on another thread, so the game does not freeze.
 //! Needs `ffmpeg` on the PATH (NVENC is used when it works, x264 otherwise).
@@ -19,13 +19,15 @@ use sola_raylib::ffi;
 
 const FPS: u64 = 60;
 const OUT_DIR: &str = "recordings";
-/// Frames waiting for the encoder; beyond this the game drops frames instead of stalling.
+/// Frames waiting for the encoder; beyond this the game skips frames instead of stalling (the next
+/// one sent is repeated over their time).
 const BACKLOG: usize = 6;
 
 enum Msg {
     /// Raw RGBA pixels, and how many times to write them.
     Frame(Vec<u8>, u32),
-    Stop,
+    /// The end, after writing the last frame this many more times.
+    Stop(u32),
 }
 
 pub struct Recorder {
@@ -38,7 +40,6 @@ pub struct Recorder {
     audio_path: PathBuf,
     video_path: PathBuf,
     out_path: PathBuf,
-    pub dropped: u64,
 }
 
 /// A recording being finished in the background.
@@ -149,16 +150,22 @@ impl Recorder {
 
         let (tx, rx) = sync_channel::<Msg>(BACKLOG);
         let worker = std::thread::spawn(move || {
+            let mut last = Vec::new();
             for msg in rx {
-                match msg {
+                let (repeat, stop) = match msg {
                     Msg::Frame(pixels, repeat) => {
-                        for _ in 0..repeat {
-                            stdin
-                                .write_all(&pixels)
-                                .map_err(|e| format!("ffmpeg pipe: {e}"))?;
-                        }
+                        last = pixels;
+                        (repeat, false)
                     }
-                    Msg::Stop => break,
+                    Msg::Stop(pad) => (pad, true),
+                };
+                for _ in 0..repeat {
+                    stdin
+                        .write_all(&last)
+                        .map_err(|e| format!("ffmpeg pipe: {e}"))?;
+                }
+                if stop {
+                    break;
                 }
             }
             drop(stdin);
@@ -170,11 +177,11 @@ impl Recorder {
             }
         });
 
+        // The file first: a capture started then left running would grow without end.
         let audio = if with_sound {
+            let file = File::create(&audio_path).map_err(|e| e.to_string())?;
             crate::audio::start_capture();
-            Some(BufWriter::new(
-                File::create(&audio_path).map_err(|e| e.to_string())?,
-            ))
+            Some(BufWriter::new(file))
         } else {
             None
         };
@@ -188,12 +195,16 @@ impl Recorder {
             audio_path,
             video_path,
             out_path,
-            dropped: 0,
         })
     }
 
     pub fn seconds(&self) -> f32 {
         self.started.elapsed().as_secs_f32()
+    }
+
+    /// Video frames the wall clock says are due by now.
+    fn due(&self) -> u64 {
+        (self.started.elapsed().as_secs_f64() * FPS as f64) as u64 + 1
     }
 
     /// Call once per frame after the world is drawn: sends the screen to the encoder and moves the
@@ -204,20 +215,19 @@ impl Recorder {
             let bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
             let _ = audio.write_all(&bytes);
         }
-        // Constant frame rate: how many video frames the wall clock says are due.
-        let due = (self.started.elapsed().as_secs_f64() * FPS as f64) as u64 + 1;
+        // Constant frame rate: this frame stands for every video frame due since the last one.
+        let due = self.due();
         if due <= self.written {
             return;
         }
-        let repeat = (due - self.written).min(8) as u32;
+        let repeat = (due - self.written) as u32;
         let (mut pixels, w, h) = grab_screen();
         if (w, h) != self.size {
             // The window was resized: keep the first size.
             pixels = fit(pixels, (w, h), self.size);
         }
-        match self.tx.try_send(Msg::Frame(pixels, repeat)) {
-            Ok(()) => self.written += repeat as u64,
-            Err(_) => self.dropped += 1,
+        if self.tx.try_send(Msg::Frame(pixels, repeat)).is_ok() {
+            self.written += repeat as u64;
         }
     }
 
@@ -233,6 +243,8 @@ impl Recorder {
             let _ = a.flush();
         }
         let sound = self.audio.is_some();
+        // The last frame lasts until now, so the video is as long as the recording.
+        let pad = self.due().saturating_sub(self.written) as u32;
         let Recorder {
             tx,
             worker,
@@ -241,7 +253,7 @@ impl Recorder {
             out_path,
             ..
         } = self;
-        let _ = tx.send(Msg::Stop);
+        let _ = tx.send(Msg::Stop(pad));
         let handle = std::thread::spawn(move || {
             worker
                 .join()

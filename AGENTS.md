@@ -49,8 +49,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
   post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `facades.rs` the towers' written elevations as a texture, `particles.rs` drifting motes and spores; `props.rs` draws the props instanced; `pixels.rs` draws the chunk materials' pixel-art tiles; `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors). `look.rs` holds the per-time-of-day palettes.
 - `assets/textures/`: CC0 photo textures and the packed `detail.png` (see its README); `tools/pack_textures.py` rebuilds it.
-- `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback).
-- `src/audio/`: sound. `piano.rs` (sampled upright piano, one note per soul/flower), `ambient.rs` (synthesized hum, wind, creaks), `reverb.rs` (Freeverb on the master bus). Samples in `assets/audio/`.
+- `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback);
+  `#include "file"` pulls in a shared file such as `cover.glsl` (`src/render/shader.rs`, `INCLUDES`).
+- `src/audio/`: sound. `piano.rs` (sampled upright piano, one note per soul/flower), `ambient.rs` (synthesized machinery hum), `reverb.rs` (Freeverb on the master bus). Samples in `assets/audio/`.
 - `src/daycycle.rs`: time-of-day clock and sun direction.
 - `src/rng.rs`: seeded RNG and coordinate hashing.
 - `src/debug.rs`: overlay and debug key help.
