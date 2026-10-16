@@ -11,7 +11,8 @@ pub struct SceneTargets {
     pub height: i32,
 }
 
-fn texture(id: u32, width: i32, height: i32, format: i32) -> ffi::Texture2D {
+/// raylib's handle of a GL texture.
+pub(super) fn texture(id: u32, width: i32, height: i32, format: i32) -> ffi::Texture2D {
     ffi::Texture2D {
         id,
         width,

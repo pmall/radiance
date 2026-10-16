@@ -8,24 +8,21 @@
 //! flowers are densest in the sunlit canopy.
 
 use std::collections::HashMap;
+use std::ops::Range;
 
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::{Biome, biome_at, pick_color};
+use super::design::{MAX_FLOWERS_PER_LOT, MIN_FLOWER_GAP};
 use super::floors;
 use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert};
 use crate::rng::{Rng, hash_coords, mix64};
 
 const SALT_GROWTH: i32 = 3;
 
-/// Flowers (light sources) kept per lot and floor; the renderer picks the nearest ones overall.
-/// Per floor, so the floors grown first (the lower ones) don't use up a lot's whole budget.
-const MAX_LIGHTS: usize = super::design::MAX_FLOWERS_PER_LOT;
 /// Emission of flowers, out of 255. Foliage never glows: only flowers are light sources.
 const FLOWER_GLOW: u8 = 235;
-/// Minimum distance between two flowers of a lot, so their glows never pile up.
-const MIN_FLOWER_GAP: f32 = super::design::MIN_FLOWER_GAP;
 
 /// Blocks smaller than this on both horizontal axes (stair steps, parapets) stay bare.
 const MIN_HOST: f32 = 3.5;
@@ -33,17 +30,6 @@ const MIN_HOST: f32 = 3.5;
 const MIN_WALL: f32 = 6.0;
 /// Slabs thinner than this count as decks and bridges, which vines hang from.
 const MAX_SLAB: f32 = 3.0;
-
-fn leaf_color(rng: &mut Rng) -> Color {
-    let c = |r: i32, g: i32, b: i32| Color::new(r as u8, g as u8, b as u8, 255);
-    let j = rng.range_i(-14, 15);
-    match rng.range_i(0, 6) {
-        0 | 1 => c(52 + j, 130 + j, 84 + j),
-        2 | 3 => c(34 + j, 112 + j, 104 + j),
-        4 => c(96 + j, 150 + j, 70 + j),
-        _ => c(70 + j, 100 + j, 60 + j),
-    }
-}
 
 fn shade(c: Color, k: f32) -> Color {
     let f = |v: u8| (v as f32 * k).clamp(0.0, 255.0) as u8;
@@ -54,7 +40,10 @@ struct Builder<'a> {
     rng: &'a mut Rng,
     out: Vec<PlantVert>,
     lights: Vec<Light>,
-    /// Flowers planted on each floor so far (see `MAX_LIGHTS`).
+    /// The vertices of each light's flower in `out`.
+    flower_verts: Vec<Range<usize>>,
+    /// Flowers (light sources) planted on each floor so far: the budget (`MAX_FLOWERS_PER_LOT`) is
+    /// per floor, so the floors grown first (the lower ones) do not use up a lot's whole budget.
     per_floor: [usize; floors::MAX],
     id: u8,
     /// Growth density of the block being planted.
@@ -87,7 +76,14 @@ impl Builder<'_> {
 
     /// Leaf or stem color of the current plant.
     fn foliage(&mut self) -> Color {
-        leaf_color(self.rng)
+        let c = |r: i32, g: i32, b: i32| Color::new(r as u8, g as u8, b as u8, 255);
+        let j = self.rng.range_i(-14, 15);
+        match self.rng.range_i(0, 6) {
+            0 | 1 => c(52 + j, 130 + j, 84 + j),
+            2 | 3 => c(34 + j, 112 + j, 104 + j),
+            4 => c(96 + j, 150 + j, 70 + j),
+            _ => c(70 + j, 100 + j, 60 + j),
+        }
     }
 
     /// Whether `p` lies strictly inside a block grown by `margin` (a point on a block's own
@@ -108,7 +104,7 @@ impl Builder<'_> {
     /// color. `axis` is the way the flower faces. Skipped once the lot's light budget is spent.
     fn flower(&mut self, center: Vec3, radius: f32, color: Color, axis: Vec3) {
         let at = center + axis * radius * 0.4;
-        if self.per_floor[floors::floor_at(at.y)] >= MAX_LIGHTS
+        if self.per_floor[floors::floor_at(at.y)] >= MAX_FLOWERS_PER_LOT
             || self.buried(center)
             || self
                 .lights
@@ -139,6 +135,7 @@ impl Builder<'_> {
         }) {
             return;
         }
+        let start = self.out.len();
         let saved = std::mem::replace(&mut self.glow, FLOWER_GLOW);
         for q in &quads {
             self.quad2(q[0], q[1], q[2], q[3], color);
@@ -178,6 +175,7 @@ impl Builder<'_> {
             radius: 4.0 + 5.0 * radius,
             color: vec3(lin(color.r), lin(color.g), lin(color.b)) * 2.2,
         });
+        self.flower_verts.push(start..self.out.len());
     }
 
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color) {
@@ -559,14 +557,9 @@ impl Builder<'_> {
                     stack.push((u, y, heading + side, w * 0.7, steps / 2, depth + 1));
                 }
             }
-            self.ribbon_flat(&pts, along, normal, w, color);
+            // Lying on the wall, double-sided like every ribbon.
+            self.ribbon(&pts, along, w, w * 0.6, color);
         }
-    }
-
-    /// A ribbon lying on a wall: width along `side`, facing `normal`, one-sided is enough
-    /// but double-sided keeps it simple and cheap.
-    fn ribbon_flat(&mut self, pts: &[Vec3], side: Vec3, _normal: Vec3, w: f32, color: Color) {
-        self.ribbon(pts, side, w, w * 0.6, color);
     }
 }
 
@@ -626,6 +619,8 @@ fn inside(a: &Aabb, p: Vec3, margin: f32) -> bool {
 pub struct Growth {
     pub plants: Vec<PlantVert>,
     pub lights: Vec<Light>,
+    /// The vertices of each light's flower in `plants`.
+    pub flowers: Vec<Range<usize>>,
 }
 
 /// Grows a lot's plants over its blocks; `blooms` are the flowers of its points of interest
@@ -685,6 +680,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         rng: &mut rng,
         out: Vec::new(),
         lights: Vec::new(),
+        flower_verts: Vec::new(),
         per_floor: [0; floors::MAX],
         id: 1,
         dens: 1.0,
@@ -863,6 +859,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
     Growth {
         plants: b.out,
         lights: b.lights,
+        flowers: b.flower_verts,
     }
 }
 
@@ -905,7 +902,7 @@ fn segment_crosses(a: Vec3, b: Vec3, bx: &Aabb, eps: f32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::city::generate_lot;
+    use crate::world::city::{self, generate_lot};
 
     fn around(seed: u64, lx: i32, lz: i32) -> Vec<Block> {
         let mut v = Vec::new();
@@ -928,8 +925,7 @@ mod tests {
             for lx in -3..3 {
                 for lz in -3..3 {
                     let mut own = Vec::new();
-                    let blooms =
-                        crate::world::city::generate_lot_dressed(seed, lx, lz, &mut own).blooms;
+                    let blooms = city::generate_lot_dressed(seed, lx, lz, &mut own).blooms;
                     let g = grow_lot(seed, lx, lz, &own, &blooms);
                     let all = around(seed, lx, lz);
                     let index = Solids::new(&all);
@@ -944,7 +940,7 @@ mod tests {
                     for l in &g.lights {
                         per_floor[floors::floor_at(l.pos.y)] += 1;
                     }
-                    assert!(per_floor.iter().all(|&n| n <= MAX_LIGHTS));
+                    assert!(per_floor.iter().all(|&n| n <= MAX_FLOWERS_PER_LOT));
                     // Flowers of points of interest grow in props and may stand close together.
                     let poi = |p: Vec3| blooms.iter().any(|b| b.distance(p) < 1.0);
                     for (i, l) in g.lights.iter().enumerate() {
@@ -994,11 +990,6 @@ mod tests {
         }
         assert_eq!(crossing, 0);
     }
-}
-
-#[cfg(test)]
-mod stair_tests {
-    use crate::world::{BlockKind, city};
 
     #[test]
     fn stairs_grow_plants_like_the_rest() {
@@ -1011,8 +1002,8 @@ mod stair_tests {
                 stairs += 1;
                 let mut blocks = Vec::new();
                 let blooms = city::generate_lot_dressed(1, lx, lz, &mut blocks).blooms;
-                let g = super::grow_lot(1, lx, lz, &blocks, &blooms);
-                let on_stairs = |p: glam::Vec3| {
+                let g = grow_lot(1, lx, lz, &blocks, &blooms);
+                let on_stairs = |p: Vec3| {
                     blocks.iter().any(|b| {
                         b.kind == BlockKind::Stair
                             && b.aabb.contains_xz(p)

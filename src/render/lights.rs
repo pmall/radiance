@@ -36,13 +36,7 @@ impl LightGrid {
             unsafe { ffi::rlLoadTexture(std::ptr::null(), WIDTH as i32, HEIGHT as i32, format, 1) };
         super::targets::set_params(id, ffi::RL_TEXTURE_FILTER_NEAREST);
         Self {
-            texture: ffi::Texture2D {
-                id,
-                width: WIDTH as i32,
-                height: HEIGHT as i32,
-                mipmaps: 1,
-                format,
-            },
+            texture: super::targets::texture(id, WIDTH as i32, HEIGHT as i32, format),
             pixels: vec![0.0; WIDTH * HEIGHT * 4],
             counts: vec![0; GRID_CELLS],
             origin: Vec3::ZERO,

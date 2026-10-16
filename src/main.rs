@@ -27,6 +27,8 @@ const SPAWN: Vec3 = vec3(0.0, 0.5, 0.0);
 const START_TIME: f32 = 0.66;
 /// Time scrub speed with the arrow keys, in days per second.
 const SCRUB_SPEED: f32 = 0.08;
+/// Seconds between two checks of the chunk files for edits (a scan of their folders).
+const CHUNK_POLL: f32 = 0.5;
 
 /// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay] [--floors N] [--no-props] [--no-pois] [--report [radius]] [--chunk NAME] [--catalog]`.
 /// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
@@ -253,6 +255,7 @@ fn main() {
     let mut cycle = DayCycle::new(args.time.unwrap_or(START_TIME));
     let mut debug = Debug::new();
     let mut accumulator = 0.0;
+    let mut chunk_poll = 0.0;
     let mut frame = 0u32;
     // Recording (V): `start_recording` is picked up after the next draw, when the screen size is
     // known; finished files are written in the background.
@@ -329,7 +332,12 @@ fn main() {
         }
         // O / I: props / points of interest on or off; the city is generated again.
         // Chunk files edited on disk: the city is generated again.
-        let mut regenerate = world::chunks::poll();
+        let mut regenerate = false;
+        chunk_poll -= dt;
+        if chunk_poll <= 0.0 {
+            chunk_poll = CHUNK_POLL;
+            regenerate = world::chunks::poll();
+        }
         if rl.is_key_pressed(KEY_O) {
             world::design::set_props(!world::design::props_on());
             regenerate = true;
@@ -491,14 +499,7 @@ fn main() {
         if let Some(path) = &args.shot
             && frame == 5
         {
-            let c = std::ffi::CString::new(path.as_str()).unwrap();
-            unsafe {
-                // Flush queued 2D draws (the overlay) before reading the screen back.
-                sola_raylib::ffi::rlDrawRenderBatchActive();
-                let img = sola_raylib::ffi::LoadImageFromScreen();
-                sola_raylib::ffi::ExportImage(img, c.as_ptr());
-                sola_raylib::ffi::UnloadImage(img);
-            }
+            debug::export_screen(std::path::Path::new(path));
             break;
         }
 

@@ -123,34 +123,6 @@ pub struct PropVert {
     pub mat: Option<u8>,
 }
 
-/// Faces of a unit box: outward normal and four corners (0 = min, 1 = max per axis).
-const FACES: [(Vec3, [[f32; 3]; 4]); 6] = [
-    (
-        Vec3::X,
-        [[1., 0., 1.], [1., 0., 0.], [1., 1., 0.], [1., 1., 1.]],
-    ),
-    (
-        Vec3::NEG_X,
-        [[0., 0., 0.], [0., 0., 1.], [0., 1., 1.], [0., 1., 0.]],
-    ),
-    (
-        Vec3::Y,
-        [[0., 1., 1.], [1., 1., 1.], [1., 1., 0.], [0., 1., 0.]],
-    ),
-    (
-        Vec3::NEG_Y,
-        [[0., 0., 0.], [1., 0., 0.], [1., 0., 1.], [0., 0., 1.]],
-    ),
-    (
-        Vec3::Z,
-        [[0., 0., 1.], [1., 0., 1.], [1., 1., 1.], [0., 1., 1.]],
-    ),
-    (
-        Vec3::NEG_Z,
-        [[1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.]],
-    ),
-];
-
 /// A module's boxes as triangles.
 fn module_verts(name: &str) -> Vec<PropVert> {
     let cat = chunks::shared();
@@ -162,7 +134,7 @@ fn module_verts(name: &str) -> Vec<PropVert> {
     for (aabb, mat) in &built.boxes {
         let size = aabb.max - aabb.min;
         let c = mat.color();
-        for (n, corners) in FACES {
+        for (n, corners) in super::BOX_FACES {
             for k in [0, 1, 2, 0, 2, 3] {
                 verts.push(PropVert {
                     pos: aabb.min + Vec3::from(corners[k]) * size,

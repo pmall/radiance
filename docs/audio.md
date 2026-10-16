@@ -15,9 +15,10 @@ silent; `--no-audio` mutes a run, `M` toggles mute in game).
   playback speed. Credits in `assets/audio/README.md`.
 - **Ambience: only the machinery hum plays** (the owner likes it). It is synthesized in code at
   startup (no samples): detuned bass partials and a low rumble, loud in the depths and quieter up
-  high. Two more layers exist in `ambient.rs` but are off (`WIND`, `GROANS`): breathing wind (a
-  swell every 8 s that can sound like pumping) and distant metal groans (the first version, a pulse
-  train through resonances, sounded like an animal growling and was rebuilt, but both were disliked).
+  high. Two more layers were tried and removed, both disliked: breathing wind (a swell every 8 s
+  that can sound like pumping) and distant metal groans (the first version, a pulse train through
+  resonances, sounded like an animal growling and was rebuilt). Their code is in `ambient.rs` at
+  commit 5be17dc.
 - **Reverb** (Freeverb, about a 3 s tail) on the whole mix, so every note rings into the empty city.
 - Tests check the synthesis (no NaN, no clipping, seamless loops), that the reverb decays, and that
   notes stay in the scale and follow height.

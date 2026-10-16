@@ -11,16 +11,18 @@
 //! Room for `floors::MAX` floors, whatever the run's count.
 //!
 //! Rebuilt when the camera changes lot; each lot's data is cached, so a move only computes the
-//! new edge. `SIZE` and the layout are mirrored in `shaders/scene.fs` and `shaders/post.fs`.
+//! new edge. `SIZE` and the layout are mirrored in `shaders/cover.glsl`.
 
 use std::collections::HashMap;
 
 use glam::{Vec2, Vec3, vec3};
 use sola_raylib::ffi;
 
-use crate::world::{city, floors};
+use crate::world::{chunks, city, floors};
 
 pub const SIZE: i32 = 64;
+/// Material slot (sampler `texture5`) of the cover map.
+pub const SLOT: usize = 5;
 const TILES: i32 = 1 + floors::MAX as i32 / 4;
 /// Directions traced per lot and floor to estimate its sky view.
 const VIEW_RAYS: usize = 24;
@@ -29,7 +31,8 @@ pub struct CoverMap {
     pub texture: ffi::Texture2D,
     /// Lot coordinates of texel (0, 0) of each tile.
     pub origin: (i32, i32),
-    seed: Option<u64>,
+    /// Seed and catalog generation the cached lots were computed for.
+    key: Option<(u64, u64)>,
     bits: HashMap<(i32, i32), u16>,
     views: HashMap<(i32, i32), [u8; floors::MAX]>,
     rays: [Vec3; VIEW_RAYS],
@@ -46,13 +49,6 @@ fn view_rays() -> [Vec3; VIEW_RAYS] {
     })
 }
 
-fn lot_of(p: Vec2) -> (i32, i32) {
-    (
-        (p.x / city::LOT).floor() as i32,
-        (p.y / city::LOT).floor() as i32,
-    )
-}
-
 fn bits_of(cache: &mut HashMap<(i32, i32), u16>, seed: u64, lot: (i32, i32)) -> u16 {
     *cache
         .entry(lot)
@@ -67,7 +63,7 @@ fn clears(cache: &mut HashMap<(i32, i32), u16>, seed: u64, p: Vec3, dir: Vec3) -
             return true;
         }
         let q = p + dir * ((y - p.y) / dir.y);
-        bits_of(cache, seed, lot_of(Vec2::new(q.x, q.z))) & 1 << (g - 1) == 0
+        bits_of(cache, seed, city::lot_of(q)) & 1 << (g - 1) == 0
     })
 }
 
@@ -78,15 +74,9 @@ impl CoverMap {
         let id = unsafe { ffi::rlLoadTexture(std::ptr::null(), w, h, format, 1) };
         super::targets::set_params(id, ffi::RL_TEXTURE_FILTER_LINEAR);
         Self {
-            texture: ffi::Texture2D {
-                id,
-                width: w,
-                height: h,
-                mipmaps: 1,
-                format,
-            },
+            texture: super::targets::texture(id, w, h, format),
             origin: (i32::MIN, i32::MIN),
-            seed: None,
+            key: None,
             bits: HashMap::new(),
             views: HashMap::new(),
             rays: view_rays(),
@@ -118,13 +108,15 @@ impl CoverMap {
 
     /// Recenters the map on the camera's lot if needed, and uploads it.
     pub fn update(&mut self, seed: u64, cam: Vec3) {
-        if self.seed != Some(seed) {
-            self.seed = Some(seed);
+        // A new seed, or chunk files reloaded: the decks may have changed.
+        let key = (seed, chunks::generation());
+        if self.key != Some(key) {
+            self.key = Some(key);
             self.bits.clear();
             self.views.clear();
             self.origin = (i32::MIN, i32::MIN);
         }
-        let (cx, cz) = lot_of(Vec2::new(cam.x, cam.z));
+        let (cx, cz) = city::lot_of(cam);
         let origin = (cx - SIZE / 2, cz - SIZE / 2);
         if origin == self.origin {
             return;
@@ -170,10 +162,10 @@ impl CoverMap {
 
     /// Sky view at `p`, 0..1 (CPU twin of the shaders' `skyView`, without the blending).
     pub fn sky_view(&mut self, p: Vec3) -> f32 {
-        let Some(seed) = self.seed else {
+        let Some((seed, _)) = self.key else {
             return 1.0;
         };
-        let v = self.view(seed, lot_of(Vec2::new(p.x, p.z)));
+        let v = self.view(seed, city::lot_of(p));
         v[floors::floor_at(p.y)] as f32 / 255.0
     }
 }

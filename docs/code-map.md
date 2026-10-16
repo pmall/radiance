@@ -11,11 +11,10 @@ this says where each rule is. Keep it current when a rule moves or a new one app
 1. Ground, then deck slabs per floor (`deck`; `push_ring_deck` around a stairwell).
 2. Movement course near the spawn (`push_movement_course`).
 3. The lot's stair (`stair`, `push_switchback_stair`).
-4. Its tower (`push_tower` → `tower::build`).
-5. Skybridges to the +x / +z towers (`push_bridges` → `push_bridge`), footbridges
+4. Its tower (`push_tower` → `tower::build`); wall and roof pieces piercing a deck give way.
+5. Skybridges to the +x / +z towers (`skybridges` → `push_bridge`), footbridges
    (`push_footbridges`).
-6. Wall and roof pieces piercing a deck are dropped.
-7. The chunks covering the lot (`push_chunks`), greater ranks first (`Placement::rank`).
+6. The chunks covering the lot (`push_chunks`), greater ranks first (`Placement::rank`).
 
 Plants come after, from the finished blocks (`growth::grow_lot`).
 
@@ -37,7 +36,8 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Towers: tiers, setbacks, body, walls a bridge can use   | `tower::tiers`, `tower::body`, `tower::solid_top`, `city::tower`          |
 | Towers: units near decks, street parts                  | `tower::build`, `push_units`                                              |
 | Stairs (one per hub)                                    | `planner::stair_hub`, `hub_of_cell`; `city::stair`                        |
-| Skybridges between towers                               | `city::push_bridges`, `push_bridge` (module `skybridge_segment`)          |
+| Skybridges between towers, decided once per pair        | `city::skybridges`, `push_bridge` (module `skybridge_segment`),           |
+|                                                         | `skybridges_through`                                                      |
 | Footbridges over gaps of 1–2 lots, landings kept clear  | `city::bridges_through`, `landing`, `footbridge_room`, `push_footbridges` |
 |                                                         | (module `footbridge_span`)                                                |
 | Per-floor numbers (holes, stairs, fillers, props, POIs) | `design::profile`, `FloorProfile`                                         |
@@ -46,6 +46,8 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Chunk text format, modules, slots, `If`                 | `chunks::Part`, `chunks::expand_in`, `Env`                                |
 | Props drawn instanced                                   | `props::by_module`, `props::Placed`                                       |
 | Plants and flowers                                      | `growth::grow_lot`                                                        |
+| Flowers of neighboring lots kept apart                  | `World::settle_flowers` (`world/mod.rs`)                                  |
+| Collisions with what reaches in from the next lot       | `World::colliders_near`, `overhangs` (`world/mod.rs`)                     |
 
 ## Things to know
 

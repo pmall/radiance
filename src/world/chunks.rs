@@ -11,6 +11,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::SystemTime;
 
@@ -849,15 +850,15 @@ pub fn poll() -> bool {
     }
     *last = now;
     *store().write().unwrap() = Arc::new(Catalogs::load());
-    GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    GENERATION.fetch_add(1, Ordering::Relaxed);
     true
 }
 
-static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Bumped on every reload, so caches built from the catalog know when to start over.
 pub fn generation() -> u64 {
-    GENERATION.load(std::sync::atomic::Ordering::Relaxed)
+    GENERATION.load(Ordering::Relaxed)
 }
 
 /// A placement transform: quarter turns and mirrors in the horizontal plane, then a shift.
@@ -1039,8 +1040,7 @@ impl<'a> Expander<'a> {
         };
         let lot = super::city::LOT;
         let (x, z) = at.unwrap_or((lot * 0.5, lot * 0.5));
-        let c = tf.point(vec3(x, 0.0, z));
-        let here = ((c.x / lot).floor() as i32, (c.z / lot).floor() as i32);
+        let here = super::city::lot_of(tf.point(vec3(x, 0.0, z)));
         let across = |s: Side| {
             let d = tf.dir(s.dir());
             (here.0 + d.x.round() as i32, here.1 + d.z.round() as i32)
@@ -1239,13 +1239,8 @@ pub fn expand_in(
 /// A module alone, at the origin, unturned (props are built this way, `props.rs`). `None` if the
 /// catalog has no such module.
 pub fn build_module(catalog: &Catalog, name: &str) -> Option<Built> {
-    build_module_seeded(catalog, name, 0)
-}
-
-/// `build_module`, its slots picked by `seed`.
-pub fn build_module_seeded(catalog: &Catalog, name: &str, seed: u64) -> Option<Built> {
     catalog.modules.get(name)?;
-    let mut e = Expander::new(catalog, seed);
+    let mut e = Expander::new(catalog, 0);
     e.instance = false;
     e.module(name, &Tf::ID, 0, None);
     Some(e.out)
