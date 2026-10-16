@@ -19,6 +19,8 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   city (story and dialogue, mechanics, points of interest), and what the prototype can take from it now. Inspiration,
   not scope: this file and `docs/feedback.md` win when they disagree.
 - `docs/feedback.md`: owner feedback and decisions so far; read it before visual or control changes.
+- `docs/code-map.md`: where each generation rule lives (rule → function) and how a lot is built;
+  read it before touching `src/world/`, and update it when a rule moves.
 
 ## Hard constraints
 
