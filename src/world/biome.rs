@@ -100,7 +100,7 @@ pub const DEFAULT: Biome = Biome {
     vine_rate: 1.0,
     climber_rate: 1.0,
     tower_empty: 0.18,
-    bridge_chance: 0.35,
+    bridge_chance: 0.6,
     palette: Palette {
         neon: [[0.1, 0.9, 1.0], [1.0, 0.2, 0.75], [1.0, 0.65, 0.2]],
         windows: [

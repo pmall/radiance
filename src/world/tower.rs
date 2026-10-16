@@ -125,6 +125,14 @@ pub fn body(cat: &Catalog, p: &Placement) -> Option<Aabb> {
     ))
 }
 
+/// The top of the base tier's walls, under any setback or frame going up: the highest a bridge
+/// may land on the tower (`None` when the base tier is a bare frame).
+pub fn solid_top(cat: &Catalog, p: &Placement) -> Option<f32> {
+    let def = cat.chunks.get(&p.chunk)?.tower.as_ref()?;
+    def.tiers.first()?.facade.as_ref()?;
+    tiers(def, p).first().map(|t| t.2)
+}
+
 /// A slightly drifting gray, so neighboring towers do not read as one mass.
 fn tint(rng: &mut Rng, lo: i32, hi: i32) -> Color {
     let s = rng.range_i(lo, hi);

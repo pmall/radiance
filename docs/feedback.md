@@ -111,10 +111,13 @@ What the project owner has said so far. Treat as requirements.
   judged by the owner.
 - Tests: running in seconds is fine; don't over-polish (owner, while the pass ran long).
 - After everything-is-a-chunk: "phenomenal", close to the wanted feel and look. Vines hanging from
-  crane jibs are liked. Known bug (screenshot 004, seed 7, D7): crane jibs floating without their
-  mast. A module's boxes give way together, but the decision is made per lot with that lot's
-  obstacles, so a big module spanning lots (a crane) can lose its mast in one lot and keep its jib
-  in another. Fix: decide what gives way once per chunk placement, not per lot.
+  crane jibs are liked. Bug (screenshot 004, seed 7, D7): crane jibs floating without their mast
+  (fixed, see below).
+- After the crane bug: bridges must land on both ends; more bridges are welcome ("very cool to
+  move the map"); decks touching by a corner alone feel unnatural: rather more space and more
+  bridges. Done: crane fix (a module gives way once per placement), skybridges land on solid
+  walls only and are more common, footbridges over every gap of one or two lots, corner contacts
+  opened (`docs/world.md`).
 - Ideas on how to harness the player's progression: `docs/game-ideas.md`, "Progression shapes the
   city" (ideas, not decisions).
 
