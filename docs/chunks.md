@@ -345,8 +345,14 @@ the `default` biome:
   deck shares stay close to the old ones (`--report 12`: about 98 % on D2, 75 % on D5, 35 % on D8).
 - **Craters** (role `Crater`): `crater_small`, `crater`, and `crater_start` always in front of the
   spawn; their `holes` (the round shape) open every floor above their own, which is a sunlit
-  garden of rubble. Footbridges are part of `deck_gap`; skybridges between towers stay a rule
-  (`city::push_bridge`) built from the `skybridge_segment` module.
+  garden of rubble. Footbridges over every gap of one or two lots (`deck_gap` included) and skybridges
+  between towers stay rules (`city::bridges_through`, `city::push_bridge`) built from the
+  `footbridge_span` and `skybridge_segment` modules.
+- **Giving way, once per placement:** a module whose boxes reach over several lots (a crane, a long
+  railing) stands or gives way as a whole, decided the same in every lot from the plan alone
+  (decks, towers, stairs, footbridges of each lot it touches: `Pieces::spanning_blocked`); a piece
+  reaching out of the placement is built by the nearest lot it covers. Before, each lot decided
+  with its own obstacles, which left crane jibs floating without their mast.
 
 **New vocabulary:** `If(street: [..], edge: [..], parts)` (by which sides of the lot have a deck on
 this floor), `Bloom(at)` (a point of interest's flower), slot `rate: Props | Poi` (the floor

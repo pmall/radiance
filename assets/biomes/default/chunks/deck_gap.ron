@@ -1,6 +1,6 @@
-// Hole: a gap one lot wide and two long, where a slab was never laid. Railings along its rims; a
-// footbridge across the middle (or railings where it would have landed), lamps at its ends, a
-// bench facing the void. Below, the floor beneath catches the light.
+// Hole: a gap one lot wide and two long, where a slab was never laid. Railings along its rims
+// (the footbridges across it, `city::bridges_through`, land through them), lamps, a bench facing
+// the void. Below, the floor beneath catches the light.
 Chunk(
     name: "deck_gap",
     size: (3, 4),
@@ -10,12 +10,9 @@ Chunk(
     holes: [((1, 1), (2, 3))],
     towers_rise: true,
     parts: [
-        // The long rims (x = 24 and, mirrored, x = 48), open from z = 44 to 52 for the bridge.
+        // The long rims (x = 24 and, mirrored, x = 48).
         Mirror2(axis: X, at: 36.0, parts: [
-            Repeat(from: (24.0, 0.0, 28.0), step: (0.0, 0.0, 4.0), count: 5, parts: [
-                Module(name: "railing", turn: 1),
-            ]),
-            Repeat(from: (24.0, 0.0, 56.0), step: (0.0, 0.0, 4.0), count: 5, parts: [
+            Repeat(from: (24.0, 0.0, 28.0), step: (0.0, 0.0, 4.0), count: 12, parts: [
                 Module(name: "railing", turn: 1),
             ]),
             Slot(at: (21.5, 0.0, 43.0), pick: [Some("lamp"), None]),
@@ -28,7 +25,5 @@ Chunk(
             ]),
             Slot(at: (36.0, 0.0, 21.5), pick: [Some("sign_danger"), None, None]),
         ]),
-        Slot(at: (24.0, 0.0, 48.0), pick: [Some("footbridge_span"), Some("footbridge_span"),
-            Some("gap_closed")]),
     ],
 )

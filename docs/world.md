@@ -73,11 +73,18 @@ city. Values are tuned with the report, then checked in game.
   shrinking to fit between the rails and the next flight.
   How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).
 - **Footbridges:** a gap of one or two lots between two decks of a floor (24 or 48 m; wider would
-  be physically unlikely) gets a footbridge 60 % of the time, along the lots' middle line, unless
-  a tower stands in the way (`city::bridges_through`): a metal walkway with railings, rusted
-  girders and crossbeams underneath (vines hang from them). Gaps line up from floor to floor, so
-  bridges often stack across the same shaft. They add ways across a floor, which matters now
-  that stairs are rare.
+  be physically unlikely), over any hole or crater, gets a footbridge 70 % of the time, along the
+  lots' middle line, unless a tower stands in the way or on a landing (`city::bridges_through`,
+  `footbridge_span` modules): a metal walkway with railings, rusted girders and crossbeams
+  underneath (vines hang from them). It always lands on a deck at both ends; what stands on a
+  landing (a rim's railings, a house) gives way. Gaps line up from floor to floor, so bridges often
+  stack across the same shaft. They add ways across a floor, which matters now that stairs are
+  rare.
+- **No corner contacts:** two decks never meet by a corner alone (owner: unnatural); one of them
+  is left open, the seed picking which, unless the plan needs it (a square's, a block's, a stair's
+  or a crater's floor). The gap this leaves is often crossed by a footbridge.
+- **Skybridges** between neighboring towers (60 % per pair, sometimes a second one at another
+  height) land only on the base tier's walls, under any setback or frame going up.
 - **Growth by floor:** plants and flowers rise with the light and culminate on the canopy's first
   floor (D6 with 9 floors), then thin out on the floors above, too new for much to have grown
   (owner's direction).

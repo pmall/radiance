@@ -15,6 +15,9 @@
 //!   up, only where the section is built up to the stair's top.
 //! - The construction front: the tallest towers rise past the top deck, some still unfinished.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
@@ -37,6 +40,8 @@ const SALT_BRIDGE: i32 = 5;
 const SALT_STAIR: i32 = 7;
 const SALT_DECK_TINT: i32 = 11;
 const SALT_CHUNK: i32 = 13;
+const SALT_PINCH: i32 = 17;
+const SALT_FOOTBRIDGE: i32 = 19;
 
 /// Side, in lots, of the squares whose slabs share a tint on a floor (poured together).
 const POUR: i32 = 3;
@@ -45,6 +50,8 @@ const POUR: i32 = 3;
 pub struct Tower {
     pub center: Vec3,
     pub size: Vec3,
+    /// The top of the base tier's walls (`tower::solid_top`), under its setbacks and frames.
+    pub walls_top: f32,
 }
 
 impl Tower {
@@ -100,22 +107,117 @@ pub fn stair(seed: u64, lx: i32, lz: i32) -> Option<(usize, usize)> {
 }
 
 /// What covers a lot on a floor. Pure, so the renderer can map the decks around the camera.
+/// Two decks never meet by a corner alone: where they would, one of them is left open (`pinched`).
 pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
+    static DECKS: Memo<Vec<Deck>> = OnceLock::new();
+    memo(&DECKS, seed, lx, lz, || {
+        opened_corners(seed, lx, lz, |x, z, f| unpinched(seed, x, z, f))
+    })
+    .get(floor)
+    .copied()
+    .unwrap_or(Deck::None)
+}
+
+/// The decks once the corners of the plan are opened, a first time (opening one may leave two
+/// others meeting by a corner, which `deck` opens in turn).
+fn unpinched(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
+    static DECKS: Memo<Vec<Deck>> = OnceLock::new();
+    memo(&DECKS, seed, lx, lz, || {
+        opened_corners(seed, lx, lz, |x, z, f| laid(seed, x, z, f).0)
+    })
+    .get(floor)
+    .copied()
+    .unwrap_or(Deck::None)
+}
+
+/// A lot's decks on every floor, open where `pinched` over the decks `before`.
+fn opened_corners(
+    seed: u64,
+    lx: i32,
+    lz: i32,
+    before: impl Fn(i32, i32, usize) -> Deck,
+) -> Vec<Deck> {
+    (0..floors::count())
+        .map(|f| {
+            let kind = before(lx, lz, f);
+            let has = |x: i32, z: i32| before(x, z, f) != Deck::None;
+            if kind != Deck::None && pinched(seed, lx, lz, f, has) {
+                Deck::None
+            } else {
+                kind
+            }
+        })
+        .collect()
+}
+
+/// Whether a lot's deck gives way to leave a corner open: it meets a diagonal neighbor's deck by
+/// the corner alone (no deck on the two lots between, as `has` says), and of the two it is the one
+/// the seed picks. A deck the plan keeps (`laid`) never gives way, so the other one does.
+fn pinched(seed: u64, lx: i32, lz: i32, floor: usize, has: impl Fn(i32, i32) -> bool) -> bool {
+    let kept = |x: i32, z: i32| laid(seed, x, z, floor).1;
+    if kept(lx, lz) {
+        return false;
+    }
+    let roll = |x: i32, z: i32| hash_coords(seed, x, SALT_PINCH + 64 * floor as i32, z);
+    [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+        .into_iter()
+        .any(|(dx, dz)| {
+            let (x, z) = (lx + dx, lz + dz);
+            has(x, z) && !has(x, lz) && !has(lx, z) && (kept(x, z) || roll(lx, lz) < roll(x, z))
+        })
+}
+
+/// Per-lot answers of the plan, asked for again and again by the rules of the lots around.
+type Memo<V> = OnceLock<Mutex<HashMap<(u64, u64, i32, i32), V>>>;
+
+/// Lots a memo keeps before starting over.
+const MEMO_LOTS: usize = 50_000;
+
+/// The memoized answer for a lot (keyed by seed, lot and catalog generation), else `compute`d.
+fn memo<V: Clone>(store: &Memo<V>, seed: u64, lx: i32, lz: i32, compute: impl FnOnce() -> V) -> V {
+    let store = store.get_or_init(Default::default);
+    let key = (chunks::generation(), seed, lx, lz);
+    if let Some(v) = store.lock().unwrap().get(&key) {
+        return v.clone();
+    }
+    let v = compute();
+    let mut m = store.lock().unwrap();
+    if m.len() >= MEMO_LOTS {
+        m.clear();
+    }
+    m.insert(key, v.clone());
+    v
+}
+
+/// What the plan lays on a lot on a floor, before corners are opened (`deck`), and whether that
+/// deck must stay: the ground, the start, a chunk's or a stair's floor.
+fn laid(seed: u64, lx: i32, lz: i32, floor: usize) -> (Deck, bool) {
+    static LAID: Memo<Vec<(Deck, bool)>> = OnceLock::new();
+    let laid = memo(&LAID, seed, lx, lz, || {
+        (0..floors::count())
+            .map(|f| laid_uncached(seed, lx, lz, f))
+            .collect()
+    });
+    laid.get(floor).copied().unwrap_or((Deck::None, true))
+}
+
+fn laid_uncached(seed: u64, lx: i32, lz: i32, floor: usize) -> (Deck, bool) {
     // A previewed chunk stands on a bare deck at the start floor, open where it has holes.
     if chunks::preview().is_some() {
         let open = floor == START && preview_opens(lx, lz);
-        return if (floor == 0 || floor == START) && !open {
+        let kind = if (floor == 0 || floor == START) && !open {
             Deck::Full
         } else {
             Deck::None
         };
+        return (kind, true);
     }
     if floor == 0 || (floor == START && is_plaza(lx, lz)) {
-        return Deck::Full;
+        return (Deck::Full, true);
     }
     // A hole chunk (a light well, a gap, the unbuilt edge) opens its floor and every floor above.
     if planner::hole_at(seed, lx, lz).is_some_and(|f| floor >= f) {
-        return Deck::None;
+        return (Deck::None, true);
     }
     // An area's or a block's floor is a full deck under it.
     if planner::area_at(seed, lx, lz).is_some_and(|a| a.floor == floor)
@@ -123,25 +225,25 @@ pub fn deck(seed: u64, lx: i32, lz: i32, floor: usize) -> Deck {
             .iter()
             .any(|b| b.floor == floor)
     {
-        return Deck::Full;
+        return (Deck::Full, true);
     }
     if let Some(f) = crater_at(seed, lx, lz) {
         if floor > f {
-            return Deck::None;
+            return (Deck::None, true);
         }
         if floor == f {
-            return Deck::Full;
+            return (Deck::Full, true);
         }
     }
     if let Some((lo, hi)) = stair(seed, lx, lz) {
         if floor == lo {
-            return Deck::Full;
+            return (Deck::Full, true);
         }
         if floor > lo && floor <= hi {
-            return Deck::Ring;
+            return (Deck::Ring, true);
         }
     }
-    Deck::Full
+    (Deck::Full, false)
 }
 
 /// Whether the previewed chunk (`--chunk`) has a hole at this lot.
@@ -173,10 +275,12 @@ pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u16 {
 /// bottom of the stack to its top. Pure, so neighbors can query it for bridges.
 pub fn tower(seed: u64, lx: i32, lz: i32) -> Option<Tower> {
     let p = planner::tower_at(seed, lx, lz)?;
-    let b = super::tower::body(&chunks::catalog(p.biome), &p)?;
+    let cat = chunks::catalog(p.biome);
+    let b = super::tower::body(&cat, &p)?;
     Some(Tower {
         center: (b.min + b.max) * 0.5,
         size: b.size(),
+        walls_top: super::tower::solid_top(&cat, &p).unwrap_or(f32::MIN),
     })
 }
 
@@ -318,6 +422,9 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>, dressed
     push_tower(seed, lx, lz, first, out, dressed);
 
     push_bridges(seed, lx, lz, out);
+    if chunks::preview().is_none() {
+        push_footbridges(seed, lx, lz, out);
+    }
 
     // Roofs and wall props of towers ending just under a deck would pierce it: drop them.
     let decks: Vec<Aabb> = out[first..]
@@ -339,6 +446,82 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>, dressed
     push_chunks(seed, lx, lz, first, out, dressed);
 }
 
+/// The lots a placement covers: corner lot and size.
+#[derive(Clone, Copy)]
+struct Footprint {
+    origin: (i32, i32),
+    size: (i32, i32),
+}
+
+impl Footprint {
+    fn of(p: &Placement) -> Footprint {
+        Footprint {
+            origin: p.origin,
+            size: p.size,
+        }
+    }
+
+    /// The lot that builds a piece centered on `c`: the one holding it, or the nearest the
+    /// placement covers (a crane's jib reaching out of its tower's lot), so every piece is built.
+    fn owner(&self, c: Vec3) -> (i32, i32) {
+        let clamp = |v: f32, o: i32, n: i32| ((v / LOT).floor() as i32).clamp(o, o + n - 1);
+        (
+            clamp(c.x, self.origin.0, self.size.0),
+            clamp(c.z, self.origin.1, self.size.1),
+        )
+    }
+}
+
+/// The lots a box reaches into (touching a border is not reaching in).
+fn lots_touched(a: &Aabb) -> impl Iterator<Item = (i32, i32)> {
+    const E: f32 = 0.01;
+    let lo = |v: f32| ((v + E) / LOT).floor() as i32;
+    let hi = |v: f32| ((v - E) / LOT).floor() as i32;
+    let (x0, x1, z0, z1) = (lo(a.min.x), hi(a.max.x), lo(a.min.z), hi(a.max.z));
+    (z0..=z1.max(z0)).flat_map(move |z| (x0..=x1.max(x0)).map(move |x| (x, z)))
+}
+
+/// The deck slabs of a lot (a stair's ring counted whole), from the plan alone.
+fn deck_slabs(seed: u64, lx: i32, lz: i32) -> Vec<Aabb> {
+    let o = lot_origin(lx, lz);
+    (1..floors::count())
+        .filter(|&f| deck(seed, lx, lz, f) != Deck::None)
+        .map(|f| {
+            // Built as `generate_structure` builds them, to the last bit.
+            Aabb::from_center(
+                vec3(
+                    o.x + LOT * 0.5,
+                    floors::y(f) - DECK_THICKNESS * 0.5,
+                    o.z + LOT * 0.5,
+                ),
+                vec3(LOT, DECK_THICKNESS, LOT),
+            )
+        })
+        .collect()
+}
+
+/// What a lot keeps clear for the chunks of the lots around it, from the plan alone: its tower
+/// (with room for what hangs on its walls), its stair and its footbridges.
+fn room(seed: u64, lx: i32, lz: i32) -> Vec<Aabb> {
+    let mut out = footbridge_room(seed, lx, lz);
+    if let Some(t) = tower(seed, lx, lz) {
+        out.push(Aabb::from_center(t.center, t.size + vec3(3.0, 0.0, 3.0)));
+    }
+    if let Some((lo, hi)) = stair(seed, lx, lz) {
+        let w = if stair_along_x(seed, lx, lz) {
+            WELL
+        } else {
+            (WELL.1, WELL.0)
+        };
+        let mid = lot_origin(lx, lz) + vec3(LOT * 0.5, 0.0, LOT * 0.5);
+        out.push(Aabb {
+            min: vec3(mid.x - w.0, floors::y(lo), mid.z - w.1),
+            max: vec3(mid.x + w.0, floors::y(hi) + RAIL_HEIGHT, mid.z + w.1),
+        });
+    }
+    out
+}
+
 /// Pieces of a chunk or a tower in world coordinates: boxes, props and flowers, each in a group (a
 /// module and its boxes stand or give way together).
 struct Pieces {
@@ -348,8 +531,15 @@ struct Pieces {
 }
 
 impl Pieces {
-    /// The groups with a piece overlapping one of `obstacles`.
-    fn blocked(&self, obstacles: &[Aabb], test: impl Fn(&Block) -> bool) -> Vec<u32> {
+    /// The groups touching a single lot with a piece overlapping one of `obstacles` (those
+    /// spanning several lots are decided once for all of them: `spanning_blocked`).
+    fn blocked(
+        &self,
+        obstacles: &[Aabb],
+        foot: Footprint,
+        test: impl Fn(&Block) -> bool,
+    ) -> Vec<u32> {
+        let spanning = self.spans(foot, &test);
         let boxes = self
             .blocks
             .iter()
@@ -358,16 +548,83 @@ impl Pieces {
         let props = self.props.iter().map(|(p, g)| (p.aabb(), *g));
         boxes
             .chain(props)
-            .filter(|(a, _)| obstacles.iter().any(|o| o.overlaps(a)))
+            .filter(|(a, g)| !spanning.contains_key(g) && obstacles.iter().any(|o| o.overlaps(a)))
             .map(|(_, g)| g)
             .collect()
     }
 
-    /// Adds this lot's share: the pieces of the groups not `dropped` whose center falls in the
-    /// lot, and collision for those reaching in from the lots that own them.
+    /// The groups spanning several lots, with every lot each one touches (or is owned by); only
+    /// the blocks passing `test` count.
+    fn spans(
+        &self,
+        foot: Footprint,
+        test: impl Fn(&Block) -> bool,
+    ) -> std::collections::HashMap<u32, Vec<(i32, i32)>> {
+        let mut lots: std::collections::HashMap<u32, Vec<(i32, i32)>> = Default::default();
+        let mut add = |g: u32, a: &Aabb| {
+            let v = lots.entry(g).or_default();
+            for l in lots_touched(a).chain([foot.owner((a.min + a.max) * 0.5)]) {
+                if !v.contains(&l) {
+                    v.push(l);
+                }
+            }
+        };
+        for (b, g) in self.blocks.iter().filter(|(b, _)| test(b)) {
+            add(*g, &b.aabb);
+        }
+        for (p, g) in &self.props {
+            add(*g, &p.aabb());
+        }
+        lots.retain(|_, v| v.len() > 1);
+        lots
+    }
+
+    /// The groups spanning several lots that cannot stand in one of them: where `stands` says the
+    /// pieces have nothing to stand on, or one overlaps what that lot's `room` keeps clear. Every
+    /// lot the placement covers decides the same, so a crane never keeps its jib without its mast.
+    fn spanning_blocked(
+        &self,
+        foot: Footprint,
+        test: impl Fn(&Block) -> bool,
+        stands: impl Fn((i32, i32)) -> bool,
+        room: impl Fn((i32, i32)) -> Vec<Aabb>,
+    ) -> Vec<u32> {
+        let mut rooms: std::collections::HashMap<(i32, i32), Vec<Aabb>> = Default::default();
+        let mut out = Vec::new();
+        for (g, lots) in self.spans(foot, &test) {
+            let boxes: Vec<Aabb> = self
+                .blocks
+                .iter()
+                .filter(|(b, h)| *h == g && test(b))
+                .map(|(b, _)| b.aabb)
+                .chain(
+                    self.props
+                        .iter()
+                        .filter(|(_, h)| *h == g)
+                        .map(|(p, _)| p.aabb()),
+                )
+                .collect();
+            let blocked = lots.iter().any(|&l| {
+                !stands(l)
+                    || rooms
+                        .entry(l)
+                        .or_insert_with(|| room(l))
+                        .iter()
+                        .any(|o| boxes.iter().any(|b| o.overlaps(b)))
+            });
+            if blocked {
+                out.push(g);
+            }
+        }
+        out
+    }
+
+    /// Adds this lot's share: the pieces of the groups not `dropped` it owns (`Footprint::owner`),
+    /// and collision for those reaching in from the lots that own them.
     fn place(
         self,
         (lx, lz): (i32, i32),
+        foot: Footprint,
         dropped: &[u32],
         out: &mut Vec<Block>,
         dressed: &mut Dressed,
@@ -377,7 +634,7 @@ impl Pieces {
             min: vec3(o.x, f32::MIN, o.z),
             max: vec3(o.x + LOT, f32::MAX, o.z + LOT),
         };
-        let owns = |c: Vec3| (c.x / LOT).floor() as i32 == lx && (c.z / LOT).floor() as i32 == lz;
+        let owns = |c: Vec3| foot.owner(c) == (lx, lz);
         for (b, g) in self.blocks {
             if dropped.contains(&g) || !b.aabb.overlaps(&lot) {
                 continue;
@@ -439,8 +696,11 @@ fn push_tower(
         .filter(|b| b.kind == BlockKind::Deck)
         .map(|b| b.aabb)
         .collect();
-    let dropped = pieces.blocked(&decks, |b| !matches!(b.kind, BlockKind::Tower(_)));
-    pieces.place((lx, lz), &dropped, out, dressed);
+    let foot = Footprint::of(&p);
+    let test = |b: &Block| !matches!(b.kind, BlockKind::Tower(_));
+    let mut dropped = pieces.blocked(&decks, foot, test);
+    dropped.extend(pieces.spanning_blocked(foot, test, |_| true, |(x, z)| deck_slabs(seed, x, z)));
+    pieces.place((lx, lz), foot, &dropped, out, dressed);
 }
 
 /// The chunks covering a lot: the previewed one (`--chunk`), or the planner's (`planner.rs`).
@@ -491,8 +751,24 @@ pub fn growth_hints(seed: u64, lx: i32, lz: i32) -> Vec<(Aabb, chunks::GrowthKin
         .collect()
 }
 
+/// Whether a placed chunk's pieces have something to stand on in a lot. Where two chunks cover
+/// the lot on one floor, the lesser gives way (`outranks`); every chunk needs a deck to stand on,
+/// but an area, and a hole over its own void (a footbridge across it, girders sticking out). A
+/// hole's rim where a hole below left no deck has nothing.
+fn stands_on(seed: u64, p: &Placement, (lx, lz): (i32, i32)) -> bool {
+    let open = p.role == Role::Area || (p.role == Role::Hole && p.opens(lx, lz));
+    if !open && deck(seed, lx, lz, p.floor) == Deck::None {
+        return false;
+    }
+    !p.covers(lx, lz)
+        || !placements(seed, lx, lz)
+            .iter()
+            .any(|q| q.floor == p.floor && q.outranks(p))
+}
+
 /// This lot's part of the chunks covering it (`Pieces::place`). A chunk's pieces give way, a
-/// module at a time, to the lot's own architecture (a tower, a stair) and to the towers next door.
+/// module at a time, to the lot's own architecture (a tower, a stair, a footbridge) and to the
+/// towers next door; a module reaching over several lots, to what any of them holds (`room`).
 fn push_chunks(
     seed: u64,
     lx: i32,
@@ -507,6 +783,7 @@ fn push_chunks(
         .map(|b| b.aabb)
         .collect();
     obstacles.extend(dressed.props.iter().map(|p| p.aabb()));
+    obstacles.extend(footbridge_room(seed, lx, lz));
     for (nx, nz) in [(lx - 1, lz), (lx + 1, lz), (lx, lz - 1), (lx, lz + 1)] {
         if let Some(t) = tower(seed, nx, nz) {
             obstacles.push(Aabb::from_center(t.center, t.size));
@@ -516,14 +793,7 @@ fn push_chunks(
     let mut all = placements(seed, lx, lz);
     all.sort_by_key(|p| p.rank());
     for p in &all {
-        // Where two chunks cover the lot on one floor, the lesser gives way (`outranks`); every
-        // chunk needs a deck to stand on, but an area, and a hole over its own void (a footbridge
-        // across it, girders sticking out). A hole's rim where a hole below left no deck has
-        // nothing.
-        let open = p.role == Role::Area || (p.role == Role::Hole && p.opens(lx, lz));
-        if all.iter().any(|q| q.floor == p.floor && q.outranks(p))
-            || (!open && deck(seed, lx, lz, p.floor) == Deck::None)
-        {
+        if !stands_on(seed, p, (lx, lz)) {
             continue;
         }
         let Some((chunk, built)) = build_placement(seed, p) else {
@@ -568,7 +838,14 @@ fn push_chunks(
             props: built.props.into_iter().zip(built.prop_groups).collect(),
             blooms: built.blooms.into_iter().zip(built.bloom_groups).collect(),
         };
-        let dropped = pieces.blocked(&obstacles, |_| true);
+        let foot = Footprint::of(p);
+        let mut dropped = pieces.blocked(&obstacles, foot, |_| true);
+        dropped.extend(pieces.spanning_blocked(
+            foot,
+            |_| true,
+            |l| stands_on(seed, p, l),
+            |(x, z)| room(seed, x, z),
+        ));
         obstacles.extend(
             pieces
                 .blocks
@@ -583,7 +860,7 @@ fn push_chunks(
                 .filter(|(_, g)| !dropped.contains(g))
                 .map(|(p, _)| p.aabb()),
         );
-        pieces.place((lx, lz), &dropped, out, dressed);
+        pieces.place((lx, lz), foot, &dropped, out, dressed);
     }
 }
 
@@ -596,10 +873,158 @@ fn push_bridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
     let chance = biome_at(seed, lx, lz).bridge_chance;
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_BRIDGE, lz));
     for (nx, nz) in [(lx + 1, lz), (lx, lz + 1)] {
-        if let Some(b) = tower(seed, nx, nz)
-            && rng.chance(chance)
-        {
-            push_bridge(&mut rng, &a, &b, nx != lx, out);
+        let Some(b) = tower(seed, nx, nz) else {
+            continue;
+        };
+        // Now and then a second one, at another height.
+        let mut heights = Vec::new();
+        for chance in [chance, chance * 0.5] {
+            if rng.chance(chance) {
+                push_bridge(&mut rng, &a, &b, nx != lx, &mut heights, out);
+            }
+        }
+    }
+}
+
+/// Widest gap a footbridge spans, in lots (48 m; wider would be physically unlikely).
+const FOOTBRIDGE_MAX: i32 = 2;
+/// Chance that a gap of a footbridge's size gets one, per axis.
+const FOOTBRIDGE_CHANCE: f32 = 0.7;
+/// Half the width of a footbridge (`footbridge_span`), and the clearance kept around it.
+const FOOTBRIDGE_HALF: f32 = 2.0;
+/// How far a footbridge's landing reaches into the deck at each end, kept clear of what stands
+/// there (railings, a house, a tower's wall).
+const BRIDGE_LANDING: f32 = 3.0;
+
+/// The footbridges crossing this lot on a floor, by axis (true: along x). A floor's gaps of one
+/// or two lots between two decks get one now and then, along the lots' middle line, unless a
+/// tower stands in the way or a wall at either end; each axis is decided for the whole gap, so
+/// two bridges may cross. Pure, like the decks.
+pub fn bridges_through(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
+    static BRIDGES: Memo<Vec<Vec<bool>>> = OnceLock::new();
+    memo(&BRIDGES, seed, lx, lz, || {
+        (0..floors::count())
+            .map(|f| bridges_through_uncached(seed, lx, lz, f))
+            .collect()
+    })
+    .get(floor)
+    .cloned()
+    .unwrap_or_default()
+}
+
+fn bridges_through_uncached(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
+    if floor == 0 || deck(seed, lx, lz, floor) != Deck::None {
+        return Vec::new();
+    }
+    let crosses = |along_x: bool| {
+        let lot = |i: i32| if along_x { (lx + i, lz) } else { (lx, lz + i) };
+        let hole = |i: i32| {
+            let (x, z) = lot(i);
+            deck(seed, x, z, floor) == Deck::None
+        };
+        // The gap's ends: the first decks on each side, within reach.
+        let back = (1..=FOOTBRIDGE_MAX).find(|&i| !hole(-i))?;
+        let ahead = (1..=FOOTBRIDGE_MAX).find(|&i| !hole(i))?;
+        if back + ahead - 1 > FOOTBRIDGE_MAX {
+            return None;
+        }
+        let y = floors::y(floor);
+        // No tower through the gap, and none on the landings.
+        let free = (1 - back..ahead).all(|i| {
+            let (x, z) = lot(i);
+            tower(seed, x, z).is_none_or(|t| t.top() < y - 2.0)
+        });
+        let start = lot(1 - back);
+        let landings = [
+            (lot(-back), landing(start, along_x, false, y)),
+            (lot(ahead), landing(lot(ahead - 1), along_x, true, y)),
+        ];
+        let clear = landings.iter().all(|&((x, z), area)| {
+            tower(seed, x, z).is_none_or(|t| {
+                t.top() < y - 2.0 || !Aabb::from_center(t.center, t.size).overlaps(&area)
+            })
+        });
+        let salt = SALT_FOOTBRIDGE + 64 * floor as i32 + along_x as i32;
+        let mut rng = Rng::new(hash_coords(seed, start.0, salt, start.1));
+        (free && clear && rng.chance(FOOTBRIDGE_CHANCE)).then_some(along_x)
+    };
+    [true, false].into_iter().filter_map(crosses).collect()
+}
+
+/// The deck a footbridge leaving gap lot `(lx, lz)` lands on: `BRIDGE_LANDING` deep into the next lot,
+/// ahead (toward +x or +z) or behind, from the walkway up to head height.
+fn landing((lx, lz): (i32, i32), along_x: bool, ahead: bool, y: f32) -> Aabb {
+    let o = lot_origin(lx, lz);
+    let (u0, u1) = if ahead {
+        (LOT, LOT + BRIDGE_LANDING)
+    } else {
+        (-BRIDGE_LANDING, 0.0)
+    };
+    let (v0, v1) = (
+        LOT * 0.5 - FOOTBRIDGE_HALF - 0.5,
+        LOT * 0.5 + FOOTBRIDGE_HALF + 0.5,
+    );
+    let (x, z) = if along_x {
+        ((u0, u1), (v0, v1))
+    } else {
+        ((v0, v1), (u0, u1))
+    };
+    Aabb {
+        min: vec3(o.x + x.0, y - 1.5, o.z + z.0),
+        max: vec3(o.x + x.1, y + 2.5, o.z + z.1),
+    }
+}
+
+/// What the footbridges around a lot keep clear in it, on every floor: their spans through it
+/// and their landings on its decks.
+fn footbridge_room(seed: u64, lx: i32, lz: i32) -> Vec<Aabb> {
+    let mut out = Vec::new();
+    for f in 1..floors::count() {
+        let y = floors::y(f);
+        for along_x in bridges_through(seed, lx, lz, f) {
+            out.push(Aabb::from_center(
+                lot_origin(lx, lz) + vec3(LOT * 0.5, y + 0.5, LOT * 0.5),
+                if along_x {
+                    vec3(LOT, 3.0, FOOTBRIDGE_HALF * 2.0)
+                } else {
+                    vec3(FOOTBRIDGE_HALF * 2.0, 3.0, LOT)
+                },
+            ));
+        }
+        for (dx, dz) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+            let (nx, nz) = (lx + dx, lz + dz);
+            if bridges_through(seed, nx, nz, f).contains(&(dx != 0)) {
+                // This lot is ahead of the gap lot when the gap lot is behind it.
+                out.push(landing((nx, nz), dx != 0, dx + dz < 0, y));
+            }
+        }
+    }
+    out
+}
+
+/// This lot's span of its footbridges (`footbridge_span` modules, one per lot crossed).
+fn push_footbridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
+    for f in 1..floors::count() {
+        for along_x in bridges_through(seed, lx, lz, f) {
+            let o = lot_origin(lx, lz) + Vec3::Y * floors::y(f);
+            // The module runs along +x from its origin, centered across: turned to run along +z.
+            let tf = if along_x {
+                chunks::Tf::shift(o + vec3(0.0, 0.0, LOT * 0.5))
+            } else {
+                chunks::Tf::shift(o + vec3(LOT * 0.5, 0.0, 0.0)).then(&chunks::Tf::turn(3))
+            };
+            let parts = [chunks::Part::Module {
+                name: "footbridge_span".to_string(),
+                at: (0.0, 0.0, 0.0),
+                turn: 0,
+                accent: None,
+            }];
+            let built = chunks::expand(&chunks::shared(), &parts, &tf, 0);
+            out.extend(built.boxes.into_iter().map(|(aabb, mat)| Block {
+                kind: BlockKind::Built(mat),
+                aabb,
+                color: mat.color(),
+            }));
         }
     }
 }
@@ -758,8 +1183,16 @@ fn push_switchback_stair(mid: Vec3, along_x: bool, bottom: f32, top: f32, out: &
 const SKYBRIDGE_STEP: f32 = 2.0;
 
 /// A walkway with low parapets between two towers (`skybridge_segment` modules from wall to wall),
-/// at a height the seed picks between their tops. `along_x` is the direction from `a` to `b`.
-fn push_bridge(rng: &mut Rng, a: &Tower, b: &Tower, along_x: bool, out: &mut Vec<Block>) {
+/// at a height the seed picks between their tops, away from the `heights` of the pair's other
+/// bridges. `along_x` is the direction from `a` to `b`.
+fn push_bridge(
+    rng: &mut Rng,
+    a: &Tower,
+    b: &Tower,
+    along_x: bool,
+    heights: &mut Vec<f32>,
+    out: &mut Vec<Block>,
+) {
     let (ax, cross) = if along_x { (0, 2) } else { (2, 0) };
     // Span between the facing walls, sunk slightly into both towers.
     let from = a.center[ax] + a.size[ax] * 0.5 - 0.3;
@@ -773,18 +1206,21 @@ fn push_bridge(rng: &mut Rng, a: &Tower, b: &Tower, along_x: bool, out: &mut Vec
     if hi - lo < BRIDGE_WIDTH + 1.0 {
         return;
     }
-    let min_top = a.top().min(b.top());
+    // Both ends on solid walls: under the setbacks and frames going up, which are narrower.
     let y_lo = floors::y(1) + 6.0;
-    let y_hi = min_top - 3.0;
+    let y_hi = a.walls_top.min(b.walls_top) - 3.0;
     if y_hi <= y_lo {
         return;
     }
     let y = (rng.range(y_lo, y_hi) / 6.0).round() * 6.0;
     let y = y.clamp(y_lo, y_hi);
     // Not level with a floor, where it would run through the decks.
-    if (0..floors::count()).any(|f| (y - floors::y(f)).abs() < 4.0) {
+    if (0..floors::count()).any(|f| (y - floors::y(f)).abs() < 4.0)
+        || heights.iter().any(|h| (y - h).abs() < 6.0)
+    {
         return;
     }
+    heights.push(y);
     let c = rng.range(lo + BRIDGE_WIDTH * 0.5, hi - BRIDGE_WIDTH * 0.5);
     // Segments of the walkway module from wall to wall (the last one sinks into the far wall).
     let n = ((to - from) / SKYBRIDGE_STEP).ceil() as u32;
@@ -914,5 +1350,58 @@ mod tests {
             }
         }
         assert!(n >= 16 * 8, "only {n} props on the depths of 16 lots");
+    }
+
+    #[test]
+    fn decks_never_meet_by_a_corner_alone() {
+        let seed = 3;
+        for f in 1..floors::count() {
+            for lz in -12..12 {
+                for lx in -12..12 {
+                    let has = |x, z| deck(seed, x, z, f) != Deck::None;
+                    for dx in [-1, 1] {
+                        let corner = has(lx, lz)
+                            && has(lx + dx, lz + 1)
+                            && !has(lx + dx, lz)
+                            && !has(lx, lz + 1);
+                        // Unless both must stay (a stair's floor against a square's).
+                        let kept = laid(seed, lx, lz, f).1 && laid(seed, lx + dx, lz + 1, f).1;
+                        assert!(
+                            !corner || kept,
+                            "floor {f}: ({lx}, {lz}) meets ({}, {}) by a corner",
+                            lx + dx,
+                            lz + 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn footbridges_land_on_decks_at_both_ends() {
+        let seed = 7;
+        let mut n = 0;
+        for f in 1..floors::count() {
+            for lz in -12..12 {
+                for lx in -12..12 {
+                    for along_x in bridges_through(seed, lx, lz, f) {
+                        n += 1;
+                        let lot = |i: i32| if along_x { (lx + i, lz) } else { (lx, lz + i) };
+                        let lands = |dir: i32| {
+                            (1..=FOOTBRIDGE_MAX).any(|i| {
+                                let (x, z) = lot(dir * i);
+                                deck(seed, x, z, f) != Deck::None
+                            })
+                        };
+                        assert!(
+                            lands(-1) && lands(1),
+                            "floor {f}: the footbridge over ({lx}, {lz}) has a loose end"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(n > 0, "no footbridge at all");
     }
 }

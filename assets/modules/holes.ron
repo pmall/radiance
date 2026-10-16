@@ -3,7 +3,7 @@
 [
     // A footbridge across one lot's span (24 m along +x from its origin), its walkway level with
     // the floor (y = 0) and centered on z = 0: a metal deck, rusted girders and crossbeams under
-    // it, railings with posts every 2 m.
+    // it, railings with posts every 2 m. `city::push_footbridges` lays one per lot of a gap.
     Module(
         name: "footbridge_span",
         parts: [
@@ -19,17 +19,6 @@
             Repeat(from: (1.85, -1.1, -1.6), step: (4.0, 0.0, 0.0), count: 6, parts: [
                 Box(at: (0.0, 0.0, 0.0), size: (0.3, 0.8, 3.2), mat: Rust),
             ]),
-        ],
-    ),
-    // Where no footbridge was built: railings across the 8 m left open for it on both rims of a
-    // one-lot gap (the rims at x = 0 and x = 24, the opening from z = -4 to 4).
-    Module(
-        name: "gap_closed",
-        parts: [
-            Module(name: "railing", at: (0.0, 0.0, 0.0), turn: 1),
-            Module(name: "railing", at: (0.0, 0.0, 4.0), turn: 1),
-            Module(name: "railing", at: (24.0, 0.0, -4.0), turn: 3),
-            Module(name: "railing", at: (24.0, 0.0, 0.0), turn: 3),
         ],
     ),
     // A steel girder sticking out over the void from the edge of a deck (the edge at z = 0, the
