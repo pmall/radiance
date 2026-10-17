@@ -169,9 +169,11 @@ impl Built {
     }
 }
 
-/// Builds a placed tower. `deck(lot, floor)` says whether a lot has a deck on a floor, for the
-/// units and street parts that need one.
-pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> bool) -> Built {
+/// Builds a placed tower in the city of `seed` (its decks and roads, for the units and street
+/// parts that need them).
+pub fn build(cat: &Catalog, p: &Placement, seed: u64) -> Built {
+    let deck =
+        |(x, z): (i32, i32), f: usize| super::city::deck(seed, x, z, f) != super::city::Deck::None;
     let mut out = Built::default();
     let Some(def) = cat.chunks.get(&p.chunk).and_then(|c| c.tower.as_ref()) else {
         return out;
@@ -181,15 +183,13 @@ pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> b
     let shift = rng.range_i(0, 8) as u8;
     let seed_of = |a: i32, b: i32, c: i32| mix64(hash_coords(p.seed, a, b, c));
     // Parts on a floor know it (their rates, which lots have a deck).
-    let expand = |parts: &[Part], y: f32, seed: u64| {
-        let floor = floors::floor_at(y);
-        let has_deck = |lot: (i32, i32)| deck(lot, floor);
+    let expand = |parts: &[Part], y: f32, slots: u64| {
         let env = chunks::Env {
-            floor,
-            deck: &has_deck,
+            seed,
+            floor: floors::floor_at(y),
         };
         let tf = tf.then(&Tf::shift(Vec3::Y * y));
-        chunks::expand_in(cat, parts, &tf, seed, Some(&env))
+        chunks::expand_in(cat, parts, &tf, slots, Some(&env))
     };
 
     for (k, (i, base, top)) in tiers(def, p).into_iter().enumerate() {
@@ -212,7 +212,7 @@ pub fn build(cat: &Catalog, p: &Placement, deck: &dyn Fn((i32, i32), usize) -> b
                 color: super::city::tint(&mut rng, 92, 190),
                 kind: BlockKind::Tower(faces),
             });
-            push_units(cat, p, &tf, t, f, (base, top), shift, deck, &mut out);
+            push_units(cat, p, &tf, t, f, (base, top), shift, &deck, &mut out);
         }
         let stories = ((top - base) / STORY).round() as i32;
         if !t.each_story.is_empty() {

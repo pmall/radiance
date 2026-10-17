@@ -173,13 +173,19 @@ fn pinched(seed: u64, lx: i32, lz: i32, floor: usize, has: impl Fn(i32, i32) -> 
 }
 
 /// Per-lot answers of the plan, asked for again and again by the rules of the lots around.
-type Memo<V> = OnceLock<Mutex<HashMap<(u64, u64, i32, i32), V>>>;
+pub(super) type Memo<V> = OnceLock<Mutex<HashMap<(u64, u64, i32, i32), V>>>;
 
 /// Lots a memo keeps before starting over.
 const MEMO_LOTS: usize = 50_000;
 
 /// The memoized answer for a lot (keyed by seed, lot and catalog generation), else `compute`d.
-fn memo<V: Clone>(store: &Memo<V>, seed: u64, lx: i32, lz: i32, compute: impl FnOnce() -> V) -> V {
+pub(super) fn memo<V: Clone>(
+    store: &Memo<V>,
+    seed: u64,
+    lx: i32,
+    lz: i32,
+    compute: impl FnOnce() -> V,
+) -> V {
     let store = store.get_or_init(Default::default);
     let key = (chunks::generation(), seed, lx, lz);
     if let Some(v) = store.lock().unwrap().get(&key) {
@@ -274,6 +280,27 @@ pub fn cover_bits(seed: u64, lx: i32, lz: i32) -> u16 {
     (1..floors::count())
         .filter(|&f| deck(seed, lx, lz, f) != Deck::None)
         .fold(0, |bits, f| bits | 1 << (f - 1))
+}
+
+/// One bit per floor (bit `f` for floor `f`), set where a chunk standing on the lot paves its deck
+/// over with its own ground (`Chunk::ground`: a square, a market, a yard). No road runs there
+/// (`roads.rs`).
+pub fn paved(seed: u64, lx: i32, lz: i32) -> u16 {
+    static PAVED: Memo<u16> = OnceLock::new();
+    memo(&PAVED, seed, lx, lz, || {
+        placements(seed, lx, lz)
+            .iter()
+            .filter(|p| p.covers(lx, lz) && paves(p) && stands_on(seed, p, (lx, lz)))
+            .fold(0, |bits, p| bits | 1 << p.floor)
+    })
+}
+
+/// Whether a placed chunk paves its floor over (`Chunk::ground`).
+fn paves(p: &Placement) -> bool {
+    chunks::catalog(p.biome)
+        .chunks
+        .get(&p.chunk)
+        .is_some_and(|c| c.ground.is_some())
 }
 
 /// The tower standing on a lot, if any (`planner::tower_at`): its base tier's footprint from the
@@ -664,8 +691,7 @@ fn push_tower(
         return;
     };
     let cat = chunks::catalog(p.biome);
-    let has_deck = |(x, z): (i32, i32), f: usize| deck(seed, x, z, f) != Deck::None;
-    let built = super::tower::build(&cat, &p, &has_deck);
+    let built = super::tower::build(&cat, &p, seed);
     let pieces = Pieces {
         blocks: built.blocks.into_iter().zip(built.groups).collect(),
         props: built.props.into_iter().zip(built.prop_groups).collect(),
@@ -723,10 +749,9 @@ fn build_placement(seed: u64, p: &Placement) -> Option<(chunks::Chunk, chunks::B
     let cat = chunks::catalog(p.biome);
     let chunk = cat.chunks.get(&p.chunk)?.clone();
     let origin = lot_origin(p.origin.0, p.origin.1) + Vec3::Y * floors::y(p.floor);
-    let has_deck = |(x, z): (i32, i32)| deck(seed, x, z, p.floor) != Deck::None;
     let env = chunks::Env {
+        seed,
         floor: p.floor,
-        deck: &has_deck,
     };
     let built = chunks::build_in(&chunk, &cat, origin, p.turn, p.seed, Some(&env));
     Some((chunk, built))
@@ -1346,6 +1371,14 @@ mod tests {
                     assert!(
                         near(pole.x) && near(pole.z),
                         "lot {lx},{lz}: pole at {pole}"
+                    );
+                    // A crossing of roads (`roads::crossing`), not a road going on or a sidewalk.
+                    let corner = |v: f32, o: i32| o + (v > LOT * 0.5) as i32;
+                    let c = (corner(pole.x, lx), corner(pole.z, lz));
+                    let floor = floors::floor_at(p.pos.y);
+                    assert!(
+                        super::super::roads::crossing(1, c, floor),
+                        "lot {lx},{lz}: a street light off the crossings, at corner {c:?}, floor {floor}"
                     );
                 }
             }

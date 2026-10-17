@@ -24,6 +24,10 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | ------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Does a lot have a deck on a floor                       | `city::deck` (final) ← `unpinched` ← `laid` (the plan)                    |
 | Decks never touch by a corner alone                     | `city::pinched`, `opened_corners` (two passes)                            |
+| Which lot borders are roads (network, dead ends cut)    | `roads::network` (per tile, cached `roads::roads`), `roads::ground`       |
+| Where a chunk paves its floor over (no road there)      | `city::paved`                                                             |
+| Street lights at crossings, curb furniture along roads  | `roads::crossing`, `roads::along`; `If` in `chunks::streets_fit`          |
+| Roads, curbs and markings painted                       | `pavement` (`shaders/scene.fs`) from `roads::bits` (`render/cover.rs`)    |
 | Holes and craters opening floors                        | `planner::hole_at`, `holes_at`, `crater_placement`; `city::opened`        |
 | Which chunk stands where                                | `planner::covering` (areas, subs, blocks, holes, craters, hubs, fillers,  |
 |                                                         | streets); `city::placements` (adds `--chunk` preview)                     |

@@ -165,27 +165,36 @@ vec3 pal(int slot)
 // Whether the lot holding xz has a deck on the floor whose walking surface is at height y.
 float deckAt(vec2 xz, float y)
 {
-    int f = 0;
-    for (int k = 1; k < FLOORS; k++) if (k < uFloorCount && uFloorY[k] <= y + 0.5) f = k;
+    int f = floorAt(y);
     if (f == 0) return 1.0;
     return float((coverBits(xz) >> (f - 1)) & 1);
 }
 
-// Paved street or deck. Streets run along the lot borders (towers keep 3 m from them): asphalt
-// with lane markings between curbs, concrete slabs with joints on the sides. Cracks, dust and
-// oil stains over both; the photo detail gives the grain. A border with no deck across it (the
-// edge of a section, `city::built`) is no street: the sidewalk runs to the edge, so a road is
-// never cut in half along its length.
+// Paved street or deck. Roads run along the lot borders where src/world/roads.rs lays them, 3 m
+// on each side: asphalt with lane markings between curbs; the rest is sidewalk, concrete slabs
+// with joints. Cracks, dust and oil stains over both; the photo detail gives the grain. All is
+// worked out at the lot corner nearest the point, from the roads leaving it: the strip of a road
+// beside the point, and the crossing square, road where two roads or more meet (a turn, a T, a
+// crossroads, a road going on). A road with no other at its end stops short of it, at a curb.
 vec3 pavement(vec3 base, vec3 p, float px)
 {
     vec2 uv = p.xz;
-    vec2 axis = round(uv / 24.0) * 24.0;
-    vec2 off = uv - axis;  // from the nearest street axes
+    vec2 corner = round(uv / LOT);
+    vec2 off = uv - corner * LOT;  // from the nearest corner
     vec2 ad = abs(off);
-    // Streets along z (at the x axis) and along x (at the z axis), if the deck goes on across.
-    float hasV = deckAt(vec2(2.0 * axis.x - uv.x, uv.y), p.y);
-    float hasH = deckAt(vec2(uv.x, 2.0 * axis.y - uv.y), p.y);
-    float street = max(step(ad.x, 3.0) * hasV, step(ad.y, 3.0) * hasH);
+    int fl = floorAt(p.y);
+    ivec2 c = ivec2(corner);
+    ivec2 here = roadsOf(c, fl);
+    // The roads leaving the corner: along z toward +z and -z, along x toward +x and -x.
+    float zUp = float(here.x), zDown = float(roadsOf(c - ivec2(0, 1), fl).x);
+    float xUp = float(here.y), xDown = float(roadsOf(c - ivec2(1, 0), fl).y);
+    // The roads beside the point: along z on its side of the corner, along x on its side.
+    float sv = off.y >= 0.0 ? zUp : zDown;
+    float sh = off.x >= 0.0 ? xUp : xDown;
+    float meet = step(1.5, zUp + zDown + xUp + xDown);  // the crossing square is road
+    float across = max(zUp, zDown) * max(xUp, xDown);   // roads both ways: markings stop
+    float inV = step(ad.x, 3.0), inH = step(ad.y, 3.0);
+    float street = inV * inH * meet + inV * (1.0 - inH) * sv + inH * (1.0 - inV) * sh;
 
     // Sidewalk: 4 m slabs with joints and a tone per slab.
     vec2 g = uv / 4.0;
@@ -199,10 +208,15 @@ vec3 pavement(vec3 base, vec3 p, float px)
     vec3 road = base * 0.5 * (0.85 + 0.3 * fbm(uv * 0.12)) * mix(1.0, grit(uv / 1.7).g, 0.9);
     vec3 col = mix(walk, road, street);
 
-    // Curbs between road and sidewalk (not across intersections).
-    float curbZ = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.x - 3.0))) * hasV * max(step(3.0, ad.y), 1.0 - hasH);
-    float curbX = (1.0 - smoothstep(0.1, 0.1 + px, abs(ad.y - 3.0))) * hasH * max(step(3.0, ad.x), 1.0 - hasV);
-    col = mix(col, base * 1.15, max(curbX, curbZ) * 0.9);
+    // Curbs where road meets sidewalk, all on the lines 3 m off the corner's borders: along a
+    // road's strip, and on the sides of the crossing square that differ from the strip next to it.
+    float d = 1e3;
+    if (sv > 0.5) d = min(d, length(vec2(ad.x - 3.0, max(3.0 - ad.y, 0.0))));
+    if (sh > 0.5) d = min(d, length(vec2(max(3.0 - ad.x, 0.0), ad.y - 3.0)));
+    if (meet != sh) d = min(d, length(vec2(ad.x - 3.0, max(ad.y - 3.0, 0.0))));
+    if (meet != sv) d = min(d, length(vec2(max(ad.x - 3.0, 0.0), ad.y - 3.0)));
+    float curb = 1.0 - smoothstep(0.1, 0.1 + px, d);
+    col = mix(col, base * 1.15, curb * 0.9);
 
     // Cracks: thin contour lines of a noise field, only in patches.
     float cn = fbm(uv * 0.9 + sid * 1.7);
@@ -214,10 +228,11 @@ vec3 pavement(vec3 base, vec3 p, float px)
     col = mix(col, col * vec3(1.35, 1.2, 0.95) + 0.015, dust * 0.5);
     col *= 1.0 - 0.55 * joint;
 
-    // Lane markings: dashed yellow center lines, white edge lines, outside the intersections.
+    // Lane markings: dashed yellow center lines, white edge lines, outside the crossings (on
+    // through where a road just goes on).
     float wear = (0.45 + 0.55 * vnoise(uv * 3.5)) * grit(uv / 0.9).g;
-    float ix = max(step(3.4, ad.y), 1.0 - hasH) * hasV;
-    float iz = max(step(3.4, ad.x), 1.0 - hasV) * hasH;
+    float ix = sv * max(step(3.4, ad.y), meet * (1.0 - across));
+    float iz = sh * max(step(3.4, ad.x), meet * (1.0 - across));
     float dashZ = step(0.5, fract(uv.y / 3.0)) * (1.0 - smoothstep(0.07, 0.07 + px, ad.x)) * ix;
     float dashX = step(0.5, fract(uv.x / 3.0)) * (1.0 - smoothstep(0.07, 0.07 + px, ad.y)) * iz;
     float edgeZ = (1.0 - smoothstep(0.06, 0.06 + px, abs(ad.x - 2.7))) * ix;

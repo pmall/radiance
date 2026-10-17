@@ -6,7 +6,9 @@
 //! - tile 0, red and green: the lot's `city::cover_bits` (bit `f - 1` for a deck on floor `f`,
 //!   low byte in red), read exactly (`texelFetch`) to trace the sun through the floors;
 //! - tiles 1..: the sky view of the lot on floor `f` in tile `1 + f / 4`, channel `f % 4`
-//!   (0 = no sky, 1 = open sky), read with linear filtering so it blends between lots.
+//!   (0 = no sky, 1 = open sky), read with linear filtering so it blends between lots;
+//! - the last tile: the lot's roads (`roads::bits`, floor `f` in channel `f / 4`, bits
+//!   `2 (f % 4)` for its -x border and `2 (f % 4) + 1` for its -z border), read exactly.
 //!
 //! Room for `floors::MAX` floors, whatever the run's count.
 //!
@@ -18,12 +20,14 @@ use std::collections::HashMap;
 use glam::{Vec2, Vec3, vec3};
 use sola_raylib::ffi;
 
-use crate::world::{chunks, city, floors};
+use crate::world::{chunks, city, floors, roads};
 
 pub const SIZE: i32 = 64;
 /// Material slot (sampler `texture5`) of the cover map.
 pub const SLOT: usize = 5;
-const TILES: i32 = 1 + floors::MAX as i32 / 4;
+/// The tile of the roads, after the deck bits and the sky views.
+const ROADS_TILE: usize = 1 + floors::MAX / 4;
+const TILES: i32 = ROADS_TILE as i32 + 1;
 /// Directions traced per lot and floor to estimate its sky view.
 const VIEW_RAYS: usize = 24;
 
@@ -140,6 +144,9 @@ impl CoverMap {
                     let tile = 1 + f / 4;
                     self.pixels[base + tile * SIZE as usize * 4 + f % 4] = v;
                 }
+                let at = base + ROADS_TILE * SIZE as usize * 4;
+                self.pixels[at..at + 4]
+                    .copy_from_slice(&roads::bits(seed, lot.0, lot.1).to_le_bytes());
             }
         }
         unsafe {

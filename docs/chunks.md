@@ -191,9 +191,10 @@ deterministic:
 **Streaming.** The world still loads lot by lot around the player. A lot asks the planner which
 chunk covers it (cheap: the cell's choice), and builds only its own slice of that chunk: the boxes
 whose center falls in the lot, so big chunks cost nothing until the player comes near.
-6. **Edges.** Every chunk border is, by default, the standard street: half a road and a curb, as
-today, so any chunk fits next to any other. A border with no deck across it becomes a sidewalk
-edge with a railing (already the rule for roads). A chunk may pave over its own inner roads.
+6. **Edges.** Every chunk border is, by default, the standard street: half a road and a curb, so
+any chunk fits next to any other, wherever the road network has a road there (`roads.rs`: both
+sides decks, both ends full crossings, no dead end); elsewhere the sidewalk runs to the border. A
+chunk may pave over its own inner roads (`ground`), and no road borders it then.
 
 ## Towers
 
@@ -332,8 +333,9 @@ the `default` biome:
   planner gives each tower a height (`design::TOWER_HEIGHTS`) and, in cells of 2x2 lots, sometimes
   a big tower.
 - **Streets** (role `Street`, never turned): `street_plain` on every lot and floor no area, block,
-  hub or hole designs, around its tower or filler: a street light at the crossing of the lot's
-  -x/-z corner (one per crossing), curb furniture at the floor's `props` chance, a point of
+  hub or hole designs, around its tower or filler: a street light at the lot's -x/-z corner where
+  roads cross or turn (one per crossing), curb furniture along its roads at the floor's `props`
+  chance, a point of
   interest at its `poi` chance; `street_canopy` (lamps only) in the canopy. Free lots get a filler:
   housing at the floor's `fillers` chance, else a `vacant_lot`. The spawn's plaza is
   `start_plaza`, with the armchair and its flower. `dressing.rs` is gone.
@@ -354,8 +356,9 @@ the `default` biome:
   reaching out of the placement is built by the nearest lot it covers. Before, each lot decided
   with its own obstacles, which left crane jibs floating without their mast.
 
-**New vocabulary:** `If(street: [..], edge: [..], parts)` (by which sides of the lot have a deck on
-this floor), `Bloom(at)` (a point of interest's flower), slot `rate: Props | Poi` (the floor
+**New vocabulary:** `If(street: [..], edge: [..], crossing: [..], parts)` (by which sides of the
+lot have a road on this floor (`roads.rs`), which have no deck across, and whether roads cross or
+turn at the corner between the two `crossing` sides), `Bloom(at)` (a point of interest's flower), slot `rate: Props | Poi` (the floor
 profile's chances and the O / I switches). Modules that are props (`props::by_module`, including
 `street_light`) are placed instanced, drawn within 110 m. A module or slot's boxes stand or give
 way together (groups).
