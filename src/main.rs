@@ -14,7 +14,7 @@ use sola_raylib::prelude::*;
 use daycycle::DayCycle;
 use debug::Debug;
 use player::{Input, Player};
-use render::look::{PRESET_TIMES, Sky};
+use render::look::{Blend, PRESET_TIMES, Sky};
 use render::{EFFECTS, Renderer, View};
 use world::World;
 
@@ -160,6 +160,12 @@ fn spawn_player(view: Option<[f32; 5]>) -> Player {
     }
 }
 
+/// The biome around a point, as its index in `BIOMES` (what the sky is drawn in).
+fn biome_variant(seed: u64, at: Vec3) -> usize {
+    let (lx, lz) = world::city::lot_of(at);
+    world::biome::variant_of(world::biome::biome_at(seed, lx, lz))
+}
+
 /// `--catalog`: every biome's chunks and modules, and the files that failed to load.
 fn print_catalog() {
     let all = world::chunks::catalogs();
@@ -253,6 +259,7 @@ fn main() {
         None
     };
     let mut cycle = DayCycle::new(args.time.unwrap_or(START_TIME));
+    let mut blend = Blend::new(biome_variant(world.seed, player.pos));
     let mut debug = Debug::new();
     let mut accumulator = 0.0;
     let mut chunk_poll = 0.0;
@@ -366,6 +373,7 @@ fn main() {
             if !player.is_flying() {
                 player = Player::new(SPAWN);
             }
+            blend = Blend::new(biome_variant(s, player.pos));
             world.stream(player.pos, usize::MAX);
         }
 
@@ -417,7 +425,8 @@ fn main() {
         world.stream(player.pos, STREAM_BUDGET);
         renderer.sync_world(&world);
 
-        let sky = Sky::from_cycle(&cycle);
+        blend.update(biome_variant(world.seed, player.pos), dt);
+        let sky = Sky::from_cycle(&cycle, &blend);
         if let Some(a) = audio.as_mut() {
             let day = ((cycle.sun_dir().y + 0.1) / 0.4).clamp(0.0, 1.0);
             let souls = a.update(dt, player.eye(), player.right(), day, &world);

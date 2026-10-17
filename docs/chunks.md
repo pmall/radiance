@@ -141,16 +141,19 @@ assets/biomes/default/modules/  modules only this biome uses (win over shared on
 assets/biomes/<name>/biome.ron  optional: Biome(include: ["default"]) also draws from those
 ```
 
-The map's zones come from `src/world/biome.rs` (where each biome's flowers, densities and palette
+The map's zones come from `src/world/biome.rs` (where each biome's plants, atmosphere and palette
 live, under the same name as its folder). The planner makes every choice from the collection of the
 biome where it happens: an area or a block from the biome of its cell's middle lot, a filler from
 its lot's, a sub-area from its area's; facade units from the tower's lot. A biome without a folder
 draws from `default`, so a new biome can start with only its parameters, and `include` lets it
-reuse the default fillers while adding its own places. `--chunk BIOME/NAME` previews a biome's
-chunk; `--catalog` lists every biome's collection.
+reuse the default fillers while adding its own places. Props come from the biome's collection too:
+a module of a prop's name in its folder (`bench`, `street_light`) replaces that prop in its zones
+(`world/props.rs`). `--chunk BIOME/NAME` previews a biome's chunk in that biome's whole look
+(plants, props, sky); `--catalog` lists every biome's collection.
 
 Still to do when a second biome arrives: biome parameters as text next to the chunks (now Rust
 constants in `biome.rs`), and borders between biomes (today a chunk simply belongs to one side).
+What a biome can set: `docs/world.md`, "Biomes".
 
 ## Modules
 

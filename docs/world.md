@@ -135,19 +135,61 @@ unless marked):
 
 ## Biomes
 
-The map is split into large zones (typically 8 to 12 lots across), each with a biome. A biome is a
-`Biome` value in `src/world/biome.rs`: flower palette, an architecture `Palette` (neon, lit-window light,
-facade accent panels, billboard colors, wall tint; uploaded as a uniform array and picked per lot by the
-biome's index in `BIOMES`, so a new biome re-colors all the procedural materials with no shader work),
-bush/vine/climber rates, and city parameters (empty-lot and bridge chances). What depends on the
-floor (decks, plant density, flower chances, stairs) is in the floor profiles, not the biome.
+The map is split into large zones (typically 8 to 12 lots across), each with a biome. The owner's
+rule: a biome is fully configurable, not only colors and rates (`docs/feedback.md`).
 `biome_at(seed, lot)` is pure, so zones stay deterministic and infinite. Zone sites come from a
-jittered grid and a lot joins the nearest site (distance divided by the biome's `size`), so each biome
-type has its own typical zone size. The spawn plaza is always the default biome.
+jittered grid and a lot joins the nearest site (distance divided by the biome's `size`), so each
+biome type has its own typical zone size. The spawn plaza is always the default biome.
 
-Status: the machinery is in place with a single biome, `default` (the original look). Still to do:
-more biomes (including a rare "rainbow" one with every flower color), blending across zone borders,
-per-biome fog and sky tint, and per-biome plant species and tower styles.
+A biome is a `Biome` const in `src/world/biome.rs` (start from `..DEFAULT`), listed in `BIOMES`,
+and a folder `assets/biomes/<name>/`. Between them, a biome sets:
+
+- **Its places:** its chunks and modules (`docs/chunks.md`; `biome.ron` can `include: ["default"]`
+  to draw from the default collection too, and a biome without a folder draws from the default
+  one). Towers are chunks, so their shapes and elevations come with it; footbridges and
+  skybridges are built from its modules too (`footbridge_span`, `skybridge_segment`).
+- **Its props:** a module in its folder named like a prop (`bench`, `bin`, `sofa`...) replaces that
+  prop in its zones; `street_light` replaces the street light built in code (`world/props.rs`).
+  Props it does not write stay as the shared ones; identical versions share one mesh.
+- **Its plants** (`Plants`): flower and foliage colors, how many bushes, vines and climbers, and
+  their shapes: each kind is a weighted list of species (`Bush`, `Vine`, `Climber`: sizes, blade
+  counts and widths, droop, sway, leaves, branching), plus the flowers' shape and light
+  (`Flower`). What depends on the floor (plant density, flower chances) stays in the floor
+  profiles.
+- **Its air** (`Atmosphere`): sky, fog, key light, ambient light, ink and grading at night, dawn,
+  day and dusk (`Looks`, in `render/look.rs`), and the colors of pollen and spores. The sky is
+  drawn in the atmosphere of the player's biome and fades into the next one's over 4 seconds
+  when they cross a border (`look::Blend`).
+- **Its colors** (`Palette`): neon, lit-window light, facade accent panels, billboard colors, wall
+  tint; uploaded as a uniform array and picked per lot by the biome's index in `BIOMES`.
+- **Its city numbers:** how often a lot has no tower, how often towers get a bridge.
+
+Biomes now: `default` (the original city, Neon Garden in `docs/biome-ideas.md`) and `grotto` (Cyan
+Grotto, about a third of the zones: its own plants, atmosphere, palette and street furniture in
+`assets/biomes/grotto/modules/props.ron`, the default chunks for its places; seed 1 has a zone two
+lots behind the spawn).
+
+**Adding one** (only when the owner asks, `docs/chunks.md`, "Catalog rule"): its `Biome` const and
+its entry in `BIOMES`, its folder; then `cargo test --release` (`biomes_fit_the_renderer_and_the_zones`
+checks the limits below and sane plant ranges, `every_biome_has_zones_and_the_spawn_is_default`
+the zones), `--catalog` (load errors), `--report` (where its chunks land), and shots: `--chunk
+BIOME/NAME` shows a chunk in its biome's whole look; look at its zones and a border at several
+`--time`s, with the overlay (it names the biome under the player).
+
+**Not yet:**
+
+- New kinds of plants: species vary bushes, vines and climbers widely, but a mushroom or a tree is
+  new code in `world/growth.rs`, written with the biome that needs it.
+- Textures *(planned, owner; `docs/roadmap.md`)*: the pixel art of the materials and facade units
+  (`render/pixels.rs`) is the same in every biome; only the colors change.
+- Tower heights come from the floor (`design::TOWER_HEIGHTS`), not the biome.
+- Biome settings are Rust constants: editing one takes a rebuild (chunks and modules hot-reload).
+- Borders *(can wait, owner)*: palette, plants and density flip at the zone line, and the far side
+  of a border is drawn in the player's own atmosphere; an area, block or hub picked in one biome
+  is colored lot by lot, so it can change colors at the border.
+- At most 8 biomes: the shader's palette (`MAX_BIOMES`, `uPalette` in `shaders/scene.fs`); the
+  mesh's material code has room for 16.
+- More biomes, including a rare "rainbow" one with every flower color, and the grotto's own chunks.
 
 ## Set dressing (history: replaced by street, filler and tower chunks, `docs/chunks.md`)
 

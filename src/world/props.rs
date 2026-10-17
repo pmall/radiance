@@ -3,10 +3,14 @@
 //! `street.ron`), drawn in the same pixel-art materials as the hand-written chunks; the street
 //! light (`street_light`) is built here, as a smooth mesh, since a box pole and arm read poorly.
 //!
+//! Each biome builds its props from its own catalog: a biome whose folder has a module of a
+//! prop's name (`bench`, or `street_light`, which then replaces the built one) gets its own
+//! version of that prop, the other biomes keep theirs. Identical versions share one mesh.
+//!
 //! The seed decides what goes where; the renderer draws every prop of a kind in one instanced call
-//! from a single mesh (`src/render/props.rs`), and they get the same shading, outlines, fog,
-//! shadows and flower light as everything else. Props are built once, when first used: editing
-//! their modules takes a restart (chunks hot-reload, props do not).
+//! per mesh (`src/render/props.rs`), and they get the same shading, outlines, fog, shadows and
+//! flower light as everything else. Props are built once, when first used: editing their modules
+//! takes a restart (chunks hot-reload, props do not).
 
 use std::collections::HashMap;
 use std::f32::consts::FRAC_PI_2;
@@ -14,7 +18,8 @@ use std::sync::OnceLock;
 
 use glam::{Mat4, Quat, Vec3, vec3};
 
-use super::chunks;
+use super::biome::BIOMES;
+use super::chunks::{self, Catalog};
 
 /// Every prop the city can place.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -39,20 +44,13 @@ pub enum Prop {
     ClayPot,
 }
 
-/// Where a prop's shape comes from.
-enum Source {
-    /// A module of the catalog (`assets/modules/`).
-    Module(&'static str),
-    /// Built here.
-    Built(fn() -> Vec<PropVert>),
-}
-
 /// How a prop is loaded.
 struct Def {
     prop: Prop,
-    /// The module name chunks place it by (the module itself, for those built from one).
+    /// The module chunks place it by, and build it from (`assets/modules/`, or a biome's own).
     name: &'static str,
-    source: Source,
+    /// Built here instead where the catalog has no module of that name.
+    built: Option<fn() -> Vec<PropVert>>,
     /// Collision only around a pole of this half width (a street light's arm overhangs the road).
     pole: Option<f32>,
 }
@@ -61,7 +59,7 @@ const fn module(prop: Prop, name: &'static str) -> Def {
     Def {
         prop,
         name,
-        source: Source::Module(name),
+        built: None,
         pole: None,
     }
 }
@@ -70,7 +68,7 @@ const DEFS: &[Def] = &[
     Def {
         prop: Prop::StreetLight,
         name: "street_light",
-        source: Source::Built(street_light),
+        built: Some(street_light),
         pole: Some(0.18),
     },
     module(Prop::Bench, "bench"),
@@ -96,11 +94,6 @@ pub fn by_module(name: &str) -> Option<Prop> {
     DEFS.iter().find(|d| d.name == name).map(|d| d.prop)
 }
 
-/// Every prop, in a stable order (the renderer keeps one mesh per prop).
-pub fn all() -> impl Iterator<Item = Prop> {
-    DEFS.iter().map(|d| d.prop)
-}
-
 /// A prop's triangles, standing at the origin (base at y = 0, centered in x and z), facing +z.
 pub struct PropMesh {
     /// Three vertices per triangle.
@@ -113,7 +106,7 @@ pub struct PropMesh {
     pub base: Vec3,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct PropVert {
     pub pos: Vec3,
     pub normal: Vec3,
@@ -123,13 +116,9 @@ pub struct PropVert {
     pub mat: Option<u8>,
 }
 
-/// A module's boxes as triangles.
-fn module_verts(name: &str) -> Vec<PropVert> {
-    let cat = chunks::shared();
-    let Some(built) = chunks::build_module(&cat, name) else {
-        eprintln!("props: no module {name:?} in assets/modules/");
-        return Vec::new();
-    };
+/// A module's boxes as triangles, from `cat`. `None` if it has no such module.
+fn module_verts(cat: &Catalog, name: &str) -> Option<Vec<PropVert>> {
+    let built = chunks::build_module(cat, name)?;
     let mut verts = Vec::new();
     for (aabb, mat) in &built.boxes {
         let size = aabb.max - aabb.min;
@@ -145,54 +134,107 @@ fn module_verts(name: &str) -> Vec<PropVert> {
             }
         }
     }
-    verts
+    Some(verts)
 }
 
-fn load() -> HashMap<Prop, PropMesh> {
-    DEFS.iter()
-        .map(|d| {
-            let raw = match d.source {
-                Source::Module(name) => module_verts(name),
-                Source::Built(build) => build(),
-            };
-            let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
-            for v in &raw {
-                lo = lo.min(v.pos);
-                hi = hi.max(v.pos);
-            }
-            if raw.is_empty() {
-                (lo, hi) = (Vec3::ZERO, Vec3::splat(0.1));
-            }
-            let base = vec3((lo.x + hi.x) * 0.5, lo.y, (lo.z + hi.z) * 0.5);
-            let verts = raw
-                .into_iter()
-                .map(|v| PropVert {
-                    pos: v.pos - base,
-                    ..v
-                })
-                .collect();
-            let size = hi - lo;
-            let mesh = PropMesh {
-                verts,
-                half: vec3(size.x * 0.5, size.y, size.z * 0.5),
-                pole: d.pole,
-                base,
-            };
-            (d.prop, mesh)
+/// A prop's mesh as a catalog builds it: from its module there, else (for the props built here)
+/// from code, else empty.
+fn build(d: &Def, cat: &Catalog) -> PropMesh {
+    let raw = module_verts(cat, d.name)
+        .or_else(|| d.built.map(|build| build()))
+        .unwrap_or_else(|| {
+            eprintln!("props: no module {:?} for the {} biome", d.name, cat.biome);
+            Vec::new()
+        });
+    let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+    for v in &raw {
+        lo = lo.min(v.pos);
+        hi = hi.max(v.pos);
+    }
+    if raw.is_empty() {
+        (lo, hi) = (Vec3::ZERO, Vec3::splat(0.1));
+    }
+    let base = vec3((lo.x + hi.x) * 0.5, lo.y, (lo.z + hi.z) * 0.5);
+    let verts = raw
+        .into_iter()
+        .map(|v| PropVert {
+            pos: v.pos - base,
+            ..v
         })
-        .collect()
+        .collect();
+    let size = hi - lo;
+    PropMesh {
+        verts,
+        half: vec3(size.x * 0.5, size.y, size.z * 0.5),
+        pole: d.pole,
+        base,
+    }
 }
 
-/// The loaded mesh of a prop (all props load on first use).
-pub fn mesh(prop: Prop) -> &'static PropMesh {
-    static MESHES: OnceLock<HashMap<Prop, PropMesh>> = OnceLock::new();
-    &MESHES.get_or_init(load)[&prop]
+/// Every biome's props: the distinct meshes, and which one each (prop, biome) uses.
+pub struct Meshes {
+    pub list: Vec<PropMesh>,
+    of: HashMap<(Prop, u8), usize>,
+}
+
+impl Meshes {
+    /// From each biome's catalog (`catalog(i)` for the biome of index `i`, `count` of them).
+    fn load(count: usize, catalog: impl Fn(usize) -> std::sync::Arc<Catalog>) -> Meshes {
+        let mut m = Meshes {
+            list: Vec::new(),
+            of: HashMap::new(),
+        };
+        for i in 0..count {
+            let cat = catalog(i);
+            for d in DEFS {
+                let mesh = build(d, &cat);
+                let same = m
+                    .list
+                    .iter()
+                    .position(|o| o.verts == mesh.verts && o.pole == mesh.pole);
+                let index = same.unwrap_or_else(|| {
+                    m.list.push(mesh);
+                    m.list.len() - 1
+                });
+                m.of.insert((d.prop, i as u8), index);
+            }
+        }
+        m
+    }
+
+    /// Index in `list` of a prop's mesh in a biome (the default biome's for an unknown one).
+    pub fn index(&self, prop: Prop, biome: u8) -> usize {
+        self.of
+            .get(&(prop, biome))
+            .or_else(|| self.of.get(&(prop, 0)))
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
+/// Every biome's prop meshes (all load on first use).
+pub fn meshes() -> &'static Meshes {
+    static MESHES: OnceLock<Meshes> = OnceLock::new();
+    MESHES.get_or_init(|| Meshes::load(BIOMES.len(), |i| chunks::catalog(BIOMES[i].name)))
+}
+
+/// The mesh of a prop in a biome (`biome::variant_of`).
+pub fn mesh(prop: Prop, biome: u8) -> &'static PropMesh {
+    let m = meshes();
+    &m.list[m.index(prop, biome)]
+}
+
+/// The biome a catalog's props are drawn in: the biome of that name, or the default one.
+pub fn biome_of(cat: &Catalog) -> u8 {
+    BIOMES.iter().position(|b| b.name == cat.biome).unwrap_or(0) as u8
 }
 
 /// A prop placed in the world.
 #[derive(Clone, Copy, Debug)]
 pub struct Placed {
     pub prop: Prop,
+    /// The biome whose version of the prop this is (`biome::variant_of`).
+    pub biome: u8,
     /// Center of the footprint, on the floor.
     pub pos: Vec3,
     /// Rotation about the vertical (radians).
@@ -200,9 +242,14 @@ pub struct Placed {
 }
 
 impl Placed {
+    /// Its mesh's index in `meshes().list`.
+    pub fn mesh_index(&self) -> usize {
+        meshes().index(self.prop, self.biome)
+    }
+
     /// The axis-aligned box the prop occupies (its collision).
     pub fn aabb(&self) -> super::Aabb {
-        let m = mesh(self.prop);
+        let m = mesh(self.prop, self.biome);
         if let Some(r) = m.pole {
             // The pole stands at the module's origin, off the footprint's center.
             let pole = self.pos - Quat::from_rotation_y(self.yaw) * vec3(m.base.x, 0.0, m.base.z);
@@ -357,8 +404,11 @@ mod tests {
 
     #[test]
     fn every_prop_loads_standing_at_the_origin() {
-        for d in DEFS {
-            let m = mesh(d.prop);
+        for (d, b) in DEFS
+            .iter()
+            .flat_map(|d| (0..BIOMES.len()).map(move |b| (d, b)))
+        {
+            let m = mesh(d.prop, b as u8);
             assert!(!m.verts.is_empty(), "{:?} has no triangles", d.prop);
             assert!(m.half.x > 0.05 && m.half.z > 0.05, "{:?} is flat", d.prop);
             assert!(
@@ -368,5 +418,35 @@ mod tests {
                 m.half.y
             );
         }
+    }
+
+    #[test]
+    fn a_biome_restyles_the_props_it_has_modules_for() {
+        let default = chunks::catalog(chunks::DEFAULT_BIOME);
+        let mut own = Catalog {
+            biome: "other".into(),
+            modules: default.modules.clone(),
+            ..Catalog::default()
+        };
+        // A bench of its own, and a street light replacing the one built in code.
+        for name in ["bench", "street_light"] {
+            let parts = vec![chunks::Part::Box {
+                at: (-1.0, 0.0, -0.5),
+                size: (2.0, 1.0, 1.0),
+                mat: chunks::Mat::Rust,
+            }];
+            let name = name.to_string();
+            own.modules
+                .insert(name.clone(), chunks::Module { name, parts });
+        }
+        let own = std::sync::Arc::new(own);
+        let m = Meshes::load(2, |i| if i == 0 { default.clone() } else { own.clone() });
+        for d in DEFS {
+            let restyled = matches!(d.prop, Prop::Bench | Prop::StreetLight);
+            let (a, b) = (m.index(d.prop, 0), m.index(d.prop, 1));
+            assert_eq!(a != b, restyled, "{:?}", d.prop);
+        }
+        assert_eq!(m.list.len(), DEFS.len() + 2, "the other props share a mesh");
+        assert_eq!(m.list[m.index(Prop::Bench, 1)].half, vec3(1.0, 1.0, 0.5));
     }
 }

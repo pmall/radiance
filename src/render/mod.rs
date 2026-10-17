@@ -510,16 +510,18 @@ impl Renderer {
         if self.effects & FX_PARTICLES != 0 {
             // Spores rather than pollen where no sky is overhead.
             let depth_k = 1.0 - self.cover.sky_view(view.pos);
-            // Pollen is warm; it picks up a little of the sun or moon color.
+            // Pollen takes the biome's tint and a little of the sun or moon color.
             let mote = look
                 .disk
                 .clamp(Vec3::ZERO, Vec3::ONE)
                 .powf(1.0 / 2.2)
-                .lerp(vec3(1.0, 0.78, 0.4), 0.6);
+                .lerp(sky.pollen, 0.6);
+            let spores: Vec<f32> = sky.spores.iter().flat_map(|c| c.to_array()).collect();
             let p = &mut self.particles.shader;
             p.set_f32("uTime", time);
             p.set_f32("uDepthK", depth_k);
             p.set_vec3("uMote", mote);
+            p.set_vec3_array("uSpores", &spores);
             self.halos
                 .shader
                 .set_i32("uCount", self.lights_in_use as i32);

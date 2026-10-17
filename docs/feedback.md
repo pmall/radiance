@@ -128,6 +128,15 @@ What the project owner has said so far. Treat as requirements.
   back), dead ends cut back, tiny isolated networks removed; street lights at real crossings.
 - Ideas on how to harness the player's progression: `docs/game-ideas.md`, "Progression shapes the
   city" (ideas, not decisions).
+- Biomes must be fully configurable: their own props, their own plant shapes, their own sky, fog
+  and light, not only colors and rates (`docs/world.md`, "Biomes"). Blending across biome borders
+  can wait. Done: a biome's modules restyle the props of their names, its plants are species
+  lists (bushes, vines, climbers, flower shape), and its atmosphere (sky, fog, light, grading,
+  pollen, spores) follows the player, fading over a few seconds at a border.
+- Per-biome textures go on the roadmap, not done now (`docs/roadmap.md`).
+- "Show me another biome than the default one": Cyan Grotto added from `docs/biome-ideas.md`
+  (cyan flowers, ferns and vine curtains, teal sky and fog, tiled props); its places are still the
+  default chunks. To be judged by the owner (seed 1: two lots behind the spawn).
 
 ## How to work on generation (owner's direction)
 

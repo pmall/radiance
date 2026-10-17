@@ -1,12 +1,12 @@
 # Biome ideas
 
-Inspiration only, nothing here is implemented. The machinery is in `src/world/biome.rs` (see the
-Biomes section of `docs/world.md`). Each idea is described by what it changes there: flower palette,
+Inspiration only, except Cyan Grotto (implemented, see below). The machinery is in
+`src/world/biome.rs` (see the Biomes section of `docs/world.md`: what a biome can set). Each idea is described by what it changes there: flower palette,
 plant and flower density, bush/vine/climber rates, and city parameters. Size is the typical zone
 size relative to the others.
 
-Palettes, plant mix and city parameters are cheap. New plant shapes and per-biome fog or sky tint
-are the expensive part.
+Palettes, plant mix, city parameters, plant species, props and per-biome sky and fog are all
+settings now; new kinds of plants and per-biome textures are the expensive part.
 
 From the brainstorm (`docs/game-ideas.md`): the height band should set the broad ecology (sparse
 and fungal deep, dense and flowering near the sun), with some biomes only above or below a given
@@ -26,6 +26,11 @@ bridges. Most common and mid-sized, the baseline the others contrast with.
 - **Plants:** dense hanging vines and low ferns, few tall plants.
 - **City:** more empty lots, fewer bridges.
 - **Mood:** cold, calm, aquatic. Pairs well with a teal fog tint.
+- **Implemented** (October 2026, `GROTTO` in `biome.rs`, `assets/biomes/grotto/`): cyan, teal and
+  white flowers; low ferns and moss tufts, curtains of leafy vines three times as common, few
+  climbers; a teal fog and sky at every hour (`look::GROTTO_LOOKS`, a cold teal sunset); tiled
+  benches, bins, planters and street lights; a third of the zones, more empty lots, fewer
+  bridges. Its places are still the default chunks (`include: ["default"]`).
 
 ### 3. Magenta Bloom
 
