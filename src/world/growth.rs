@@ -8,7 +8,6 @@
 //! flowers are densest in the sunlit canopy.
 
 use std::collections::HashMap;
-use std::ops::Range;
 
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
@@ -40,8 +39,6 @@ struct Builder<'a> {
     rng: &'a mut Rng,
     out: Vec<PlantVert>,
     lights: Vec<Light>,
-    /// The vertices of each light's flower in `out`.
-    flower_verts: Vec<Range<usize>>,
     /// Flowers (light sources) planted on each floor so far: the budget (`MAX_FLOWERS_PER_LOT`) is
     /// per floor, so the floors grown first (the lower ones) do not use up a lot's whole budget.
     per_floor: [usize; floors::MAX],
@@ -56,9 +53,9 @@ struct Builder<'a> {
     solids: &'a Solids<'a>,
     /// Least distance between two flowers (`MIN_FLOWER_GAP`, except in points of interest).
     min_gap: f32,
-    /// Bushes shrink to fit between nearby blocks instead of giving up (on stairs, between the
-    /// rails and the next flight).
-    squeeze: bool,
+    /// Bushes leave out the fronds that would run into a block instead of keeping clear of every
+    /// block (on stairs: they spill down the flight, between the rails and the wall).
+    trim: bool,
 }
 
 impl Builder<'_> {
@@ -102,7 +99,8 @@ impl Builder<'_> {
 
     /// A flower: petals around a bright core, plus the point light that sits at it and takes its
     /// color. `axis` is the way the flower faces. Skipped once the lot's light budget is spent.
-    fn flower(&mut self, center: Vec3, radius: f32, color: Color, axis: Vec3) {
+    /// Whether it grew.
+    fn flower(&mut self, center: Vec3, radius: f32, color: Color, axis: Vec3) -> bool {
         let at = center + axis * radius * 0.4;
         if self.per_floor[floors::floor_at(at.y)] >= MAX_FLOWERS_PER_LOT
             || self.buried(center)
@@ -111,7 +109,7 @@ impl Builder<'_> {
                 .iter()
                 .any(|l| l.pos.distance(at) < self.min_gap)
         {
-            return;
+            return false;
         }
         let (u, v) = axis.any_orthonormal_pair();
         let petals = self.rng.range_i(5, 8);
@@ -133,9 +131,8 @@ impl Builder<'_> {
                 || !self.clear(q[1], q[3])
                 || (0..4).any(|e| !self.clear(q[e], q[(e + 1) % 4]))
         }) {
-            return;
+            return false;
         }
-        let start = self.out.len();
         let saved = std::mem::replace(&mut self.glow, FLOWER_GLOW);
         for q in &quads {
             self.quad2(q[0], q[1], q[2], q[3], color);
@@ -175,7 +172,7 @@ impl Builder<'_> {
             radius: 4.0 + 5.0 * radius,
             color: vec3(lin(color.r), lin(color.g), lin(color.b)) * 2.2,
         });
-        self.flower_verts.push(start..self.out.len());
+        true
     }
 
     fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color) {
@@ -337,8 +334,17 @@ impl Builder<'_> {
     }
 
     /// An arching blade from `base`, folded along its midrib, pointed at the tip and darker toward
-    /// the root. `el` is its initial elevation. Returns the tip.
-    fn frond(&mut self, base: Vec3, yaw: f32, el: f32, len: f32, w: f32, color: Color) -> Vec3 {
+    /// the root. `el` is its initial elevation. Returns the tip, or nothing if the bush is trimmed
+    /// (`trim`) and the blade would run into a block.
+    fn frond(
+        &mut self,
+        base: Vec3,
+        yaw: f32,
+        el: f32,
+        len: f32,
+        w: f32,
+        color: Color,
+    ) -> Option<Vec3> {
         const SEGS: usize = 3;
         let h = vec3(yaw.cos(), 0.0, yaw.sin());
         let side = vec3(-h.z, 0.0, h.x);
@@ -352,6 +358,21 @@ impl Builder<'_> {
             let t = i as f32 / SEGS as f32;
             w * (0.9 * (std::f32::consts::PI * t.powf(0.65)).sin().max(0.0) + 0.1 * (1.0 - t))
         };
+        if self.trim {
+            // The edges of its triangles, as drawn below.
+            for i in 0..SEGS {
+                let (w0, w1) = (width(i), width(i + 1));
+                let m0 = pts[i] + Vec3::Y * w0 * 0.15;
+                let m1 = pts[i + 1] + Vec3::Y * w1 * 0.15;
+                for s in [-0.5, 0.5] {
+                    let (e0, e1) = (pts[i] + side * w0 * s, pts[i + 1] + side * w1 * s);
+                    let edges = [(e0, m0), (m0, m1), (e0, m1), (m1, e1), (e0, e1)];
+                    if !edges.iter().all(|&(a, b)| self.clear(a, b)) {
+                        return None;
+                    }
+                }
+            }
+        }
         for i in 0..SEGS {
             let (w0, w1) = (width(i), width(i + 1));
             let (m0, m1) = (
@@ -367,7 +388,7 @@ impl Builder<'_> {
                 self.tri2_uv(e0, m1, e1, c, [[u, t0], [0.5, t1], [u, t1]]);
             }
         }
-        pts[SEGS]
+        Some(pts[SEGS])
     }
 
     /// A rosette of arching fronds (or a tuft of narrow blades) sitting on a surface at `base`.
@@ -375,14 +396,12 @@ impl Builder<'_> {
         let tuft = self.rng.chance(0.3);
         let mut scale = self.rng.range(1.0, 2.0);
         // Next to props (a bench, a bin), the bush grows smaller instead of not at all: its
-        // fronds, reaching about 1.8 * scale, stay clear of them. Squeezed (on stairs), every
-        // block around counts that way.
-        let squeeze = self.squeeze;
+        // fronds, reaching about 1.8 * scale, stay clear of them.
         // Only blocks within the largest reach can shrink it.
         let around = Vec3::new(4.0, 0.0, 4.0);
         let mut room = f32::MAX;
         self.solids.any(base - around, base + around, |b| {
-            if (squeeze || b.kind == BlockKind::Prop)
+            if b.kind == BlockKind::Prop
                 && b.aabb.max.y > base.y + 0.05
                 && b.aabb.min.y < base.y + 2.5 * scale
             {
@@ -393,14 +412,15 @@ impl Builder<'_> {
             false
         });
         scale = scale.min(room / 1.9);
-        if scale < if squeeze { 0.4 } else { 0.55 } {
+        if scale < 0.55 {
             return;
         }
         // Fronds reach about 1.8 * scale sideways: keep clear of any other block, so none of
         // them is squashed against a wall or rooted in one (the host's top surface is fine).
+        // Trimmed, it keeps the fronds that run into nothing instead.
         let reach = 1.8 * scale;
         let span = Vec3::new(reach, 0.0, reach);
-        let crowded = !squeeze
+        let crowded = !self.trim
             && self.solids.any(base - span, base + span, |b| {
                 let a = &b.aabb;
                 b.kind != BlockKind::Prop
@@ -421,7 +441,7 @@ impl Builder<'_> {
         } else {
             self.rng.range_i(6, 10)
         };
-        let mut tips = Vec::new();
+        let mut fronds = 0;
         for _ in 0..count {
             let yaw = self.rng.range(0.0, std::f32::consts::TAU);
             // Inner fronds stand up, outer ones arch over.
@@ -431,18 +451,36 @@ impl Builder<'_> {
             let w = len * if tuft { 0.09 } else { 0.3 };
             let k = self.rng.range(0.85, 1.1);
             let root = base + vec3(yaw.cos(), 0.0, yaw.sin()) * scale * 0.15 * spread;
-            tips.push(self.frond(root, yaw, el, len, w, shade(color, k)));
+            // Trimmed, a frond that runs into a block tries again shorter and more upright.
+            let tries = if self.trim { 3 } else { 1 };
+            for t in 0..tries {
+                let f = 0.65f32.powi(t);
+                let el = (el + 0.3 * t as f32).min(1.45);
+                if self
+                    .frond(root, yaw, el, len * f, w * f, shade(color, k))
+                    .is_some()
+                {
+                    fronds += 1;
+                    break;
+                }
+            }
         }
-        if self.rng.chance(self.flowers.bush) {
+        // One flower at most, on a stem rising from the middle of the rosette, among the upright
+        // inner fronds.
+        if fronds > 0 && self.rng.chance(self.flowers.bush) {
             let fc = self.flower_color();
-            for _ in 0..self.rng.range_i(1, 3) {
-                // Of two random tips, take the higher: flowers sit on upright fronds, not on
-                // the ones lying on the ground.
-                let pick = |s: &mut Self| tips[s.rng.range_i(0, tips.len() as i32) as usize];
-                let (t0, t1) = (pick(self), pick(self));
-                let tip = if t0.y > t1.y { t0 } else { t1 };
-                let r = self.rng.range(0.22, 0.34);
-                self.flower(tip + Vec3::Y * r * 0.9, r, fc, Vec3::Y);
+            let r = self.rng.range(0.22, 0.34);
+            let a = self.rng.range(0.0, std::f32::consts::TAU);
+            let lean = vec3(a.cos(), 0.0, a.sin()) * scale * self.rng.range(0.03, 0.12);
+            let foot = base + Vec3::Y * 0.04;
+            let top = base + lean + Vec3::Y * scale * self.rng.range(0.55, 0.8);
+            let stem = [foot, foot.lerp(top, 0.5) + lean * 0.3, top];
+            if stem.windows(2).all(|s| self.clear(s[0], s[1]))
+                && self.flower(top + Vec3::Y * r * 0.2, r, fc, Vec3::Y)
+            {
+                let c = shade(color, 0.8);
+                self.ribbon(&stem, Vec3::X, 0.06, 0.035, c);
+                self.ribbon(&stem, Vec3::Z, 0.06, 0.035, c);
             }
         }
     }
@@ -501,11 +539,13 @@ impl Builder<'_> {
                 self.leaf(*p, dir, size, leaf_col);
             }
         }
-        if self.rng.chance(self.flowers.vine) {
-            let fc = self.flower_color();
-            let p = pts[self.rng.range_i(2, SEGS as i32 + 1) as usize];
-            let r = self.rng.range(0.2, 0.3);
-            self.flower(p + Vec3::Y * r * 0.3, r, fc, Vec3::Y);
+        // Flowers down its length, none, one or several, each its own color.
+        for p in &pts[1..] {
+            if self.rng.chance(self.flowers.vine) {
+                let fc = self.flower_color();
+                let r = self.rng.range(0.2, 0.3);
+                self.flower(*p + Vec3::Y * r * 0.3, r, fc, Vec3::Y);
+            }
         }
     }
 
@@ -619,8 +659,6 @@ fn inside(a: &Aabb, p: Vec3, margin: f32) -> bool {
 pub struct Growth {
     pub plants: Vec<PlantVert>,
     pub lights: Vec<Light>,
-    /// The vertices of each light's flower in `plants`.
-    pub flowers: Vec<Range<usize>>,
 }
 
 /// Grows a lot's plants over its blocks; `blooms` are the flowers of its points of interest
@@ -680,7 +718,6 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         rng: &mut rng,
         out: Vec::new(),
         lights: Vec::new(),
-        flower_verts: Vec::new(),
         per_floor: [0; floors::MAX],
         id: 1,
         dens: 1.0,
@@ -689,7 +726,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         biome: biome_at(seed, lx, lz),
         solids: &solids,
         min_gap: MIN_FLOWER_GAP,
-        squeeze: false,
+        trim: false,
     };
 
     // Flowers of the points of interest: in an armchair, on a bench, in a pot (`chunks::Part::Bloom`).
@@ -709,8 +746,8 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
     for blk in blocks {
         let a = &blk.aabb;
         let size = a.size();
-        // Stairs are part of the city like the rest: their steps and landings grow plants too,
-        // squeezed between the rails and the flights.
+        // Stairs are part of the city like the rest: their steps and landings grow plants at the
+        // same rates, trimmed to spill down the flight between the rails and the wall.
         // A big chunk box reaching in from a neighbor is grown by the lot that owns it.
         if blk.kind == BlockKind::Collider {
             continue;
@@ -748,7 +785,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
             0.0
         };
         let inset = if stair { 0.15 } else { 1.0 };
-        b.squeeze = stair;
+        b.trim = stair;
         while n > 0.0 {
             if n >= 1.0 || b.rng.chance(n) {
                 let p = vec3(
@@ -768,7 +805,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
             }
             n -= 1.0;
         }
-        b.squeeze = false;
+        b.trim = false;
 
         // Hanging vines from the edges of decks and bridges.
         if plantable && !stair && size.y < MAX_SLAB && a.min.y > floors::bottom() + 3.0 {
@@ -859,7 +896,6 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
     Growth {
         plants: b.out,
         lights: b.lights,
-        flowers: b.flower_verts,
     }
 }
 
@@ -993,7 +1029,7 @@ mod tests {
 
     #[test]
     fn stairs_grow_plants_like_the_rest() {
-        let (mut stairs, mut grown) = (0, 0);
+        let (mut stairs, mut grown, mut lit) = (0, 0, 0);
         for lz in -9..=9 {
             for lx in -9..=9 {
                 if city::stair(1, lx, lz).is_none() {
@@ -1003,18 +1039,26 @@ mod tests {
                 let mut blocks = Vec::new();
                 let blooms = city::generate_lot_dressed(1, lx, lz, &mut blocks).blooms;
                 let g = grow_lot(1, lx, lz, &blocks, &blooms);
-                let on_stairs = |p: Vec3| {
+                // On the steps themselves, not only on the landings.
+                let on_steps = |p: Vec3, above: f32| {
                     blocks.iter().any(|b| {
+                        let size = b.aabb.size();
                         b.kind == BlockKind::Stair
+                            && size.x.min(size.z) < 1.0
                             && b.aabb.contains_xz(p)
                             && p.y > b.aabb.max.y
-                            && p.y < b.aabb.max.y + 0.3
+                            && p.y < b.aabb.max.y + above
                     })
                 };
-                grown += g.plants.iter().any(|v| on_stairs(v.pos)) as usize;
+                grown += g.plants.iter().any(|v| on_steps(v.pos, 0.3)) as usize;
+                lit += g.lights.iter().filter(|l| on_steps(l.pos, 3.0)).count();
             }
         }
         assert!(stairs > 8, "only {stairs} stairs");
-        assert!(grown * 5 > stairs, "plants on {grown} of {stairs} stairs");
+        assert!(
+            grown * 2 > stairs,
+            "plants on the steps of {grown} of {stairs} stairs"
+        );
+        assert!(lit > 0, "no flower on the steps of {stairs} stairs");
     }
 }

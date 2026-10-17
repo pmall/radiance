@@ -105,8 +105,6 @@ pub struct Renderer {
     detail_triangles: i32,
     /// Each lot's lights, with their index in the lot (a soul's identity).
     lots_lights: HashMap<(i32, i32), Vec<(usize, Light)>>,
-    /// The version of each lot drawn (`world::Lot::version`).
-    versions: HashMap<(i32, i32), u32>,
     /// Souls that are singing: their lights swell and fade back (1 = just started).
     pulses: HashMap<crate::audio::Soul, f32>,
     light_grid: LightGrid,
@@ -209,7 +207,6 @@ impl Renderer {
             prop_triangles: 0,
             detail_triangles: 0,
             lots_lights: HashMap::new(),
-            versions: HashMap::new(),
             pulses: HashMap::new(),
             light_grid,
             cover,
@@ -237,7 +234,6 @@ impl Renderer {
         self.details.clear();
         self.lots_props.clear();
         self.lots_lights.clear();
-        self.versions.clear();
     }
 
     /// Brings the per-lot meshes in line with the lots the world currently has loaded.
@@ -251,27 +247,20 @@ impl Renderer {
         self.details.retain(|k, _| live.contains(k));
         self.lots_props.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
-        self.versions.retain(|k, _| live.contains(k));
         for (k, lot) in world.lots() {
-            let fresh = !self.versions.contains_key(&k);
-            if !fresh && self.versions[&k] == lot.version {
+            if self.lots_props.contains_key(&k) {
                 continue;
             }
-            let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
-            if fresh {
-                self.lots_props.insert(k, lot.props.clone());
-                if let Some(m) = WorldMesh::build(lot, key, true) {
-                    self.details.insert(k, m);
-                }
-            }
-            // New, or one of its flowers went dark: its plants and lights again.
-            self.versions.insert(k, lot.version);
+            self.lots_props.insert(k, lot.props.clone());
             self.lots_lights
                 .insert(k, lot.lights().map(|(i, l)| (i, *l)).collect());
-            match WorldMesh::build(lot, key, false) {
-                Some(m) => self.meshes.insert(k, m),
-                None => self.meshes.remove(&k),
-            };
+            let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
+            if let Some(m) = WorldMesh::build(lot, key, false) {
+                self.meshes.insert(k, m);
+            }
+            if let Some(m) = WorldMesh::build(lot, key, true) {
+                self.details.insert(k, m);
+            }
         }
     }
 

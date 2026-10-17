@@ -69,8 +69,8 @@ city. Values are tuned with the report, then checked in game.
   one per 6x6-lot cell and floor, at the profile's `stair` chance per cell: rare everywhere (35 %
   of cells on D0, about 10 % below the top), rarer going up, so climbing gets harder and harder.
   Not every part of a floor has a stair: going down to reach another one is part of the climb. Stairs are part of the city like
-  the rest: steps and landings grow bushes, and flowers on them, at the floor's rates, the bushes
-  shrinking to fit between the rails and the next flight.
+  the rest: steps and landings grow bushes, and flowers on them, at the floor's rates; a bush on
+  the steps keeps the fronds that fit and spills down the flight.
   How the player climbs beyond stairs is not built yet (`docs/game-ideas.md`).
 - **Footbridges:** a gap of one or two lots between two decks of a floor (24 or 48 m; wider would
   be physically unlikely), over any hole or crater, gets a footbridge 70 % of the time, along the
@@ -88,8 +88,12 @@ city. Values are tuned with the report, then checked in game.
 - **Growth by floor:** plants and flowers rise with the light and culminate on the canopy's first
   floor (D6 with 9 floors), then thin out on the floors above, too new for much to have grown
   (owner's direction).
-- **Flower budget:** at most 24 flowers per lot and floor, at least 3 m apart (except within a
-  point of interest).
+- **Flower budget:** at most 24 flowers per lot and floor, free to grow close together (only kept
+  from growing into each other).
+- **Flowers per plant:** a bush has one flower at most, on a stem rising from its
+  middle; a hanging vine has none, one or several
+  down its length, and a wall climber may flower at every step of its climb (owner's
+  direction).
 - **Construction front:** about 1 tower in 8 rises 30 to 110 m past the top deck; only those can
   be unfinished skeletons with cranes. Roof and wall props that would pierce a deck are dropped.
 
@@ -171,8 +175,7 @@ Every prop stands fully on a deck, clear of everything else, with a collision bo
 around them.
 
 Points of interest with flowers (flowers in human places, `docs/poi-catalog.md`): a flower
-growing out of an armchair left by a wall, two flowers side by side on a bench (allowed closer than
-the usual 3 m), a dead garden of clay pots with one living flower, an old bed frame against a wall
+growing out of an armchair left by a wall, two flowers side by side on a bench, a dead garden of clay pots with one living flower, an old bed frame against a wall
 with a flower where someone slept. They are rare on purpose (a few % of
 lots, the profile's `poi`): too many would spell out that flowers are souls. Only the armchair
 always stands on the start plaza, facing the crater.

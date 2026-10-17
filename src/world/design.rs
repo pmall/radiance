@@ -19,7 +19,8 @@ use super::floors::{self, Zone};
 pub struct Flowers {
     /// Per bush.
     pub bush: f32,
-    /// Per hanging vine.
+    /// At each of a hanging vine's points down its length (six), so a vine has none, one or
+    /// several.
     pub vine: f32,
     /// Per branch of a wall climber.
     pub climber: f32,
@@ -63,8 +64,8 @@ pub const TOWER_HEIGHTS: [f32; 3] = [0.2, 0.68, 0.12];
 
 /// Most flowers per lot and floor (their lights are what the renderer can afford).
 pub const MAX_FLOWERS_PER_LOT: usize = 24;
-/// Least distance between two flowers, so their glows never pile up (owner's rule).
-pub const MIN_FLOWER_GAP: f32 = 3.0;
+/// Least distance between two flowers, so their petals do not grow into each other.
+pub const MIN_FLOWER_GAP: f32 = 0.7;
 /// Under a crater the sun gets in: plants grow as in the canopy, flowers this much more often
 /// than on their floor.
 pub const CRATER_FLOWERS: f32 = 1.5;
@@ -83,7 +84,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 plants: 0.45,
                 flowers: Flowers {
                     bush: 0.2,
-                    vine: 0.2,
+                    vine: 0.1,
                     climber: 0.04,
                     poi: 0.03,
                 },
@@ -97,7 +98,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 plants: 0.5,
                 flowers: Flowers {
                     bush: 0.22,
-                    vine: 0.22,
+                    vine: 0.11,
                     climber: 0.045,
                     poi: 0.03,
                 },
@@ -113,7 +114,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 plants: 0.8,
                 flowers: Flowers {
                     bush: 0.28,
-                    vine: 0.28,
+                    vine: 0.14,
                     climber: 0.055,
                     poi: 0.02,
                 },
@@ -127,7 +128,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 plants: 1.2,
                 flowers: Flowers {
                     bush: 0.4,
-                    vine: 0.4,
+                    vine: 0.2,
                     climber: 0.08,
                     poi: 0.01,
                 },
@@ -143,7 +144,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 plants: 1.6,
                 flowers: Flowers {
                     bush: 0.65,
-                    vine: 0.65,
+                    vine: 0.33,
                     climber: 0.13,
                     poi: 0.0,
                 },
@@ -157,7 +158,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 plants: 0.8,
                 flowers: Flowers {
                     bush: 0.3,
-                    vine: 0.3,
+                    vine: 0.15,
                     climber: 0.06,
                     poi: 0.0,
                 },
