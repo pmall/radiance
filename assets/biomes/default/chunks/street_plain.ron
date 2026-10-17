@@ -1,16 +1,17 @@
 // Street: the plain street around a lot, on every lot and floor no area, block or hub designs
-// (around its tower or its filler). A street light at the crossing of the lot's -x/-z corner,
-// its arm over the road: the planner never turns a street, so there is one at every crossing,
-// all alike. Benches, bins, planters and cabinets behind the curbs (the road takes the 3 m along
-// each edge), facing the road, at the floor's props chance; now and then a flower in a human
-// place. Only along the sides with a street: where the deck ends, the sidewalk stays empty.
+// (around its tower or its filler). A street light at the lot's -x/-z corner where roads cross or
+// turn there, its arm over the crossing: the planner never turns a street, so there is one at
+// every crossing, all alike. Benches, bins, planters and cabinets behind the curbs (a road takes
+// the 3 m along its edge), facing the road, at the floor's props chance; now and then a flower in
+// a human place. Only along the sides with a road (`roads.rs`): elsewhere the sidewalk stays
+// empty.
 Chunk(
     name: "street_plain",
     size: (1, 1),
     zones: [Depths, Middle],
     labels: ["street"],
     parts: [
-        If(street: [XMin, ZMin], parts: [
+        If(crossing: [XMin, ZMin], parts: [
             Module(name: "street_light", at: (3.5, 0.0, 3.5), turn: 2),
         ]),
         Mirror4(center: (12.0, 12.0), parts: [

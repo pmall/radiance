@@ -6,7 +6,7 @@ Chunk(
     zones: [Canopy],
     labels: ["street"],
     parts: [
-        If(street: [XMin, ZMin], parts: [
+        If(crossing: [XMin, ZMin], parts: [
             Module(name: "street_light", at: (3.5, 0.0, 3.5), turn: 2),
         ]),
     ],

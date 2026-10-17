@@ -83,6 +83,16 @@ city. Values are tuned with the report, then checked in game.
 - **No corner contacts:** two decks never meet by a corner alone (owner: unnatural); one of them
   is left open, the seed picking which, unless the plan needs it (a square's, a block's, a stair's
   or a crater's floor). The gap this leaves is often crossed by a footbridge.
+- **Roads** (owner: roads must make sense; `src/world/roads.rs`): a road runs along a lot border,
+  3 m on each side, only where it can be a real street: both lots are decks not paved over by a
+  chunk (a square, a market, a yard) and not one building over several lots, and both its ends are
+  full crossings (the four lots around each end are decks). So no road runs into a hole, the edge
+  of a deck or a square, and none is half a road: the lots along an edge keep their sidewalk to
+  it, with a road running along them one lot back. A road with no other road at one of its ends
+  is cut back (four rounds), and a network no more than two lots across (a ring around a block on
+  a small island) goes: what is left links crossings to crossings. The shader paints roads,
+  curbs, crossings and markings from the same answer (the cover map's road tile), and street
+  lights stand where roads cross or turn.
 - **Skybridges** between neighboring towers (60 % per pair, sometimes a second one at another
   height) land only on the base tier's walls, under any setback or frame going up.
 - **Growth by floor:** plants and flowers rise with the light and culminate on the canopy's first
@@ -148,7 +158,8 @@ places each scene in the kind of place it belongs to, never at random:
 - **Streets only between decks:** a lot border is a street on a floor only if the lot across it
   has a deck there; at the edge of a section the sidewalk runs to the edge instead (the pavement
   shader reads the cover map), so a road is never cut in half along its length. Curb, corner and
-  parking spots and street lights only stand along real streets.
+  parking spots and street lights only stand along real streets. (Now the road network,
+  "Roads" above.)
 - **Street lights:** not drawn at random but laid out like a real street: one per crossroads (two
   streets meeting), on a sidewalk corner, its arm reaching over the crossing; each street keeps its lights on the same
   side all along it, so they line up one per lot. Built in code (a modern pole and arm; no free

@@ -1,12 +1,14 @@
 // Cover map: which decks stand over each lot around the camera (src/render/cover.rs). Included by
 // scene.fs and post.fs (`#include`, src/render/shader.rs), each first defining COVER_TEX as the
 // sampler holding the map.
-// Tile 0 red and green: bit (f - 1) set for a deck on floor f; tiles 1..: sky view per floor.
+// Tile 0 red and green: bit (f - 1) set for a deck on floor f; tiles 1..: sky view per floor;
+// the last tile: the roads (src/world/roads.rs).
 // Constants mirrored there and in src/world/floors.rs (MAX floors; the run uses uFloorCount).
 const int COVER = 64;
 const float LOT = 24.0;
 const int FLOORS = 16;
-const int TILES = 1 + FLOORS / 4;
+const int ROADS_TILE = 1 + FLOORS / 4;
+const int TILES = ROADS_TILE + 1;
 uniform int uFloorCount;
 uniform float uFloorY[FLOORS];
 uniform vec2 uCoverOrigin;   // lot coordinates of texel (0, 0)
@@ -18,6 +20,26 @@ int coverBits(vec2 xz)
     if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, ivec2(COVER)))) return 0xffff;
     ivec2 rg = ivec2(texelFetch(COVER_TEX, c, 0).rg * 255.0 + 0.5);
     return rg.x | (rg.y << 8);
+}
+
+// The floor whose walking surface is at height y or just under it (0 the ground).
+int floorAt(float y)
+{
+    int f = 0;
+    for (int k = 1; k < FLOORS; k++) if (k < uFloorCount && uFloorY[k] <= y + 0.5) f = k;
+    return f;
+}
+
+// The roads of a lot on floor f (src/world/roads.rs, `bits`): x along its -x border, y along its
+// -z border.
+ivec2 roadsOf(ivec2 lot, int f)
+{
+    ivec2 c = lot - ivec2(uCoverOrigin);
+    // Beyond the map, a road along every border.
+    if (any(lessThan(c, ivec2(0))) || any(greaterThanEqual(c, ivec2(COVER)))) return ivec2(1);
+    int bits = int(texelFetch(COVER_TEX, ivec2(ROADS_TILE * COVER + c.x, c.y), 0)[f / 4] * 255.0 + 0.5);
+    bits >>= 2 * (f % 4);
+    return ivec2(bits & 1, (bits >> 1) & 1);
 }
 
 // 1 if a ray from p along dir clears every deck above p, else 0.
@@ -38,8 +60,7 @@ float skyVis(vec3 p, vec3 dir)
 // between lots.
 float skyView(vec3 p)
 {
-    int f = 0;
-    for (int k = 1; k < FLOORS; k++) if (k < uFloorCount && uFloorY[k] <= p.y + 0.5) f = k;
+    int f = floorAt(p.y);
     vec2 c = clamp(p.xz / LOT - uCoverOrigin, vec2(0.5), vec2(float(COVER) - 0.5));
     // Beyond the map, assume the city is covered.
     vec2 d = p.xz / LOT - uCoverOrigin;

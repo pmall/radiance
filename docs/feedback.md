@@ -122,6 +122,10 @@ What the project owner has said so far. Treat as requirements.
   bridges. Done: crane fix (a module gives way once per placement), skybridges land on solid
   walls only and are more common, footbridges over every gap of one or two lots, corner contacts
   opened (`docs/world.md`).
+- Roads "make no sense": half roads, roads running straight into a hole; roads must make sense.
+  Done: a road network (`docs/world.md`, "Roads"): roads only between two decks, never touching
+  a hole, a deck's edge or a square (the edge lots keep a sidewalk, the last road runs one lot
+  back), dead ends cut back, tiny isolated networks removed; street lights at real crossings.
 - Ideas on how to harness the player's progression: `docs/game-ideas.md`, "Progression shapes the
   city" (ideas, not decisions).
 

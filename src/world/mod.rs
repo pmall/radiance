@@ -8,6 +8,7 @@ pub mod floors;
 pub mod growth;
 pub mod planner;
 pub mod props;
+pub mod roads;
 pub mod tower;
 
 use std::collections::HashMap;

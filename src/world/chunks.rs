@@ -139,8 +139,9 @@ pub enum Part {
         rate: Rate,
     },
     /// The parts, only where the lot holding `at` (x, z; the chunk's first lot's middle when left
-    /// out) has a street on each of the `street` sides (the lot across has a deck on this floor)
-    /// and none on each of the `edge` sides (the deck ends there).
+    /// out) has a road along each of the `street` sides (`roads.rs`), no deck across each of the
+    /// `edge` sides (the deck ends there), and roads crossing or turning at the corner between the
+    /// two `crossing` sides (one along x, one along z).
     If {
         #[serde(default)]
         at: Option<(f32, f32)>,
@@ -148,6 +149,8 @@ pub enum Part {
         street: Vec<Side>,
         #[serde(default)]
         edge: Vec<Side>,
+        #[serde(default)]
+        crossing: Vec<Side>,
         parts: Vec<Part>,
     },
     /// A flower growing at this point: a point of interest, a flower in a human place (the flowers
@@ -985,15 +988,15 @@ pub struct Built {
 }
 
 /// Where a chunk is being built in the city, for the parts that depend on it (`Part::If`,
-/// `Rate`): its floor, and whether a lot has a deck on that floor.
-pub struct Env<'a> {
+/// `Rate`): the city's seed and the floor.
+pub struct Env {
+    pub seed: u64,
     pub floor: usize,
-    pub deck: &'a dyn Fn((i32, i32)) -> bool,
 }
 
 struct Expander<'a> {
     catalog: &'a Catalog,
-    env: Option<&'a Env<'a>>,
+    env: Option<&'a Env>,
     rng: Rng,
     out: Built,
     /// The accent color in effect (`Mat::Accent`).
@@ -1033,20 +1036,44 @@ impl<'a> Expander<'a> {
         }
     }
 
-    /// Whether the lot holding `at` has streets on the `street` sides and none on the `edge` ones.
-    fn streets_fit(&self, tf: &Tf, at: Option<(f32, f32)>, street: &[Side], edge: &[Side]) -> bool {
+    /// Whether the lot holding `at` has roads along the `street` sides, no deck across the `edge`
+    /// ones, and roads crossing at the corner between the `crossing` sides (`Part::If`).
+    fn streets_fit(
+        &self,
+        tf: &Tf,
+        at: Option<(f32, f32)>,
+        (street, edge, crossing): (&[Side], &[Side], &[Side]),
+    ) -> bool {
         let Some(env) = self.env else {
             return true;
         };
         let lot = super::city::LOT;
         let (x, z) = at.unwrap_or((lot * 0.5, lot * 0.5));
         let here = super::city::lot_of(tf.point(vec3(x, 0.0, z)));
-        let across = |s: Side| {
+        // A side's step in the city, once the chunk is turned.
+        let step = |s: Side| {
             let d = tf.dir(s.dir());
-            (here.0 + d.x.round() as i32, here.1 + d.z.round() as i32)
+            (d.x.round() as i32, d.z.round() as i32)
         };
-        street.iter().all(|&s| (env.deck)(across(s)))
-            && edge.iter().all(|&s| !(env.deck)(across(s)))
+        let road = |s: Side| super::roads::along(env.seed, here, step(s), env.floor);
+        let deck_across = |s: Side| {
+            let (dx, dz) = step(s);
+            super::city::deck(env.seed, here.0 + dx, here.1 + dz, env.floor)
+                != super::city::Deck::None
+        };
+        // The corner between the two sides: the -x-z corner of the lot it belongs to.
+        let corner = || {
+            let [a, b] = crossing else {
+                return None;
+            };
+            let ((ax, az), (bx, bz)) = (step(*a), step(*b));
+            let (dx, dz) = (ax + bx, az + bz);
+            (dx != 0 && dz != 0).then(|| (here.0 + dx.max(0), here.1 + dz.max(0)))
+        };
+        street.iter().all(|&s| road(s))
+            && edge.iter().all(|&s| !deck_across(s))
+            && (crossing.is_empty()
+                || corner().is_some_and(|c| super::roads::crossing(env.seed, c, env.floor)))
     }
 
     /// Starts a new group unless a module's boxes are being gathered.
@@ -1169,9 +1196,10 @@ impl<'a> Expander<'a> {
                     at,
                     street,
                     edge,
+                    crossing,
                     parts,
                 } => {
-                    if self.streets_fit(tf, *at, street, edge) {
+                    if self.streets_fit(tf, *at, (street, edge, crossing)) {
                         self.parts(parts, tf, depth);
                     }
                 }
