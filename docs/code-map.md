@@ -46,7 +46,6 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Chunk text format, modules, slots, `If`                 | `chunks::Part`, `chunks::expand_in`, `Env`                                |
 | Props drawn instanced                                   | `props::by_module`, `props::Placed`                                       |
 | Plants and flowers                                      | `growth::grow_lot`                                                        |
-| Flowers of neighboring lots kept apart                  | `World::settle_flowers` (`world/mod.rs`)                                  |
 | Collisions with what reaches in from the next lot       | `World::colliders_near`, `overhangs` (`world/mod.rs`)                     |
 
 ## Things to know

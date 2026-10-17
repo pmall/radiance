@@ -11,12 +11,9 @@ pub mod props;
 pub mod tower;
 
 use std::collections::HashMap;
-use std::ops::Range;
 
 use glam::Vec3;
 use sola_raylib::prelude::Color;
-
-use crate::rng;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Aabb {
@@ -131,9 +128,6 @@ const UNLOAD_RADIUS: i32 = 9;
 
 type LotKey = (i32, i32);
 
-/// Salt of the flowers' ranks (`World::settle_flowers`).
-const SALT_FLOWER_RANK: i32 = 31;
-
 /// A vertex of decorative plant geometry (no collision).
 pub struct PlantVert {
     pub pos: Vec3,
@@ -170,11 +164,6 @@ pub struct Lot {
     /// Props standing in the lot (from its chunks); the renderer draws them instanced.
     pub props: Vec<props::Placed>,
     lights: Vec<Light>,
-    /// The plant vertices of each light's flower, and whether it went dark
-    /// (`World::settle_flowers`).
-    flowers: Vec<(Range<usize>, bool)>,
-    /// Bumped whenever one of its flowers goes dark, so the renderer draws the lot again.
-    pub version: u32,
     /// Material variant (palette index) of the lot's biome.
     pub variant: u8,
     /// The boxes of its blocks reaching into the lots around (`overhangs`).
@@ -182,27 +171,13 @@ pub struct Lot {
 }
 
 impl Lot {
-    /// Its plant vertices, but those of the flowers gone dark.
     pub fn plants(&self) -> impl Iterator<Item = &PlantVert> {
-        let dark: Vec<Range<usize>> = self
-            .flowers
-            .iter()
-            .filter(|f| f.1)
-            .map(|f| f.0.clone())
-            .collect();
-        self.plants
-            .iter()
-            .enumerate()
-            .filter(move |(i, _)| !dark.iter().any(|r| r.contains(i)))
-            .map(|(_, v)| v)
+        self.plants.iter()
     }
 
-    /// Its flowers' lights, but those gone dark, each with its index: a soul's identity.
+    /// Its flowers' lights, each with its index: a soul's identity.
     pub fn lights(&self) -> impl Iterator<Item = (usize, &Light)> {
-        self.lights
-            .iter()
-            .enumerate()
-            .filter(|&(i, _)| !self.flowers[i].1)
+        self.lights.iter().enumerate()
     }
 }
 
@@ -254,7 +229,7 @@ impl World {
         }
     }
 
-    /// Generates a lot, grows its plants and settles its flowers with the lots around.
+    /// Generates a lot and grows its plants.
     fn load(&mut self, (x, z): LotKey) {
         let mut blocks = Vec::new();
         let dressed = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
@@ -265,49 +240,9 @@ impl World {
             plants: growth.plants,
             props: dressed.props,
             lights: growth.lights,
-            flowers: growth.flowers.into_iter().map(|r| (r, false)).collect(),
-            version: 0,
             variant: biome::variant_of(biome::biome_at(self.seed, x, z)) as u8,
         };
         self.lots.insert((x, z), lot);
-        self.settle_flowers((x, z));
-    }
-
-    /// Each lot spaces its own flowers (`design::MIN_FLOWER_GAP`, owner's rule: their glows never
-    /// pile up), not those of its neighbors': of two flowers of neighboring lots closer than that,
-    /// the one ranking lower goes dark, light and petals. Every pair is decided once both lots are
-    /// loaded, on fixed ranks, so what stays lit does not depend on the order lots load in.
-    fn settle_flowers(&mut self, key: LotKey) {
-        let rank = |(x, z): LotKey, i: usize| {
-            let h = rng::hash_coords(self.seed, x, SALT_FLOWER_RANK + i as i32, z);
-            (h, x, z, i)
-        };
-        let lot = &self.lots[&key];
-        let mut dark = Vec::new();
-        let around = (-1..=1).flat_map(|dz| (-1..=1).map(move |dx| (key.0 + dx, key.1 + dz)));
-        for n in around.filter(|&n| n != key) {
-            let Some(other) = self.lots.get(&n) else {
-                continue;
-            };
-            for (i, f) in lot.lights.iter().enumerate() {
-                for (j, g) in other.lights.iter().enumerate() {
-                    if f.pos.distance(g.pos) < design::MIN_FLOWER_GAP {
-                        dark.push(if rank(key, i) < rank(n, j) {
-                            (key, i)
-                        } else {
-                            (n, j)
-                        });
-                    }
-                }
-            }
-        }
-        for (k, i) in dark {
-            let lot = self.lots.get_mut(&k).unwrap();
-            if !lot.flowers[i].1 {
-                lot.flowers[i].1 = true;
-                lot.version += 1;
-            }
-        }
     }
 
     pub fn lots(&self) -> impl Iterator<Item = (LotKey, &Lot)> {
@@ -350,8 +285,6 @@ impl World {
                     plants: Vec::new(),
                     props: Vec::new(),
                     lights: Vec::new(),
-                    flowers: Vec::new(),
-                    version: 0,
                     variant: 0,
                 };
                 (k, lot)
@@ -364,44 +297,6 @@ impl World {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn flowers_of_neighboring_lots_keep_apart_whatever_the_load_order() {
-        let seed = 1;
-        let keys: Vec<LotKey> = (-2..3).flat_map(|z| (-2..3).map(move |x| (x, z))).collect();
-        let loaded = |order: Vec<LotKey>| {
-            let mut w = World::new(seed);
-            for k in order {
-                w.load(k);
-            }
-            w
-        };
-        let (a, b) = (
-            loaded(keys.clone()),
-            loaded(keys.iter().rev().copied().collect()),
-        );
-        let lit = |w: &World, k: LotKey| -> Vec<(usize, Vec3)> {
-            w.lots[&k].lights().map(|(i, l)| (i, l.pos)).collect()
-        };
-        let mut dark = 0;
-        for &k in &keys {
-            assert_eq!(
-                lit(&a, k),
-                lit(&b, k),
-                "lot {k:?} depends on the load order"
-            );
-            dark += a.lots[&k].flowers.iter().filter(|f| f.1).count();
-            for &n in keys.iter().filter(|&&n| n != k) {
-                for (_, f) in a.lots[&k].lights() {
-                    for (_, g) in a.lots[&n].lights() {
-                        let d = f.pos.distance(g.pos);
-                        assert!(d >= design::MIN_FLOWER_GAP, "{k:?} and {n:?}: {d} m");
-                    }
-                }
-            }
-        }
-        assert!(dark > 0, "no flower went dark: the test proves nothing");
-    }
 
     #[test]
     fn blocks_collide_in_every_lot_they_reach_into() {

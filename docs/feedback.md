@@ -22,7 +22,9 @@ What the project owner has said so far. Treat as requirements.
   flower's color and a visible glowing source, so it is clear which flower lights what.
 - Flowers: denser in the sunlit canopy, sparser in the depths (where each glow stands out).
   Plants and flowers culminate on D6 (the canopy's first floor), then are less present on D7 and
-  D8. Flowers keep at least 3 m apart.
+  D8.
+- Flowers grow freely, close together where they happen to: there is no minimum distance between
+  them (a 3 m minimum had been added without the owner's say, and is gone).
 - Plants must never traverse blocks: bush bases are not rooted in walls, stray leaf and stem
   vertices are pushed out of blocks (neighbor lots included), and a flower's light is clamped
   between the deck under it and the deck over it (no glow leaking through floors).
@@ -49,6 +51,8 @@ What the project owner has said so far. Treat as requirements.
   ("Z" stairs) with landings and rails.
 - Bushes without flowers are fine (flowers are the special, glowing part); the owner was unsure,
   so keep it easy to tune.
+- A bush has one flower at most, close to its middle (not floating at a frond's tip); a vine has
+  any number, from none to several.
 - Craters: lush plants, but flowers only a little denser than on their floor (owner questioned
   canopy-level flowers there; it was not a directive).
 - The debug overlay must be readable by a non-specialist: plain words, the floor shown large.
