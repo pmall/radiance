@@ -13,6 +13,7 @@ uniform float uFar;
 uniform float uGlow;         // plant glow strength for the time of day
 uniform float uDepthK;       // 0 in the canopy, 1 in the depths
 uniform vec3 uMote;          // mote tint (display space)
+uniform vec3 uSpores[4];     // the biome's spore colors (display space)
 
 out vec4 finalColor;
 
@@ -24,10 +25,7 @@ float linearDepth(float d)
 
 vec3 species(float h)
 {
-    if (h < 0.25) return vec3(0.35, 0.95, 0.9);
-    if (h < 0.5) return vec3(0.55, 1.0, 0.5);
-    if (h < 0.75) return vec3(1.0, 0.45, 0.85);
-    return vec3(0.6, 0.6, 1.0);
+    return uSpores[min(int(h * 4.0), 3)];
 }
 
 void main()

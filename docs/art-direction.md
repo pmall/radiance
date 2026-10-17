@@ -57,7 +57,8 @@ a smooth mesh built in code (a box pole and arm read poorly). Rules:
 ## Day/night cycle
 
 Time of day evolves continuously. Sun direction, sky, fog color, palette and grading all follow it,
-interpolating smoothly between key phases:
+interpolating smoothly between key phases (each biome has its own looks for them, the default
+biome's described here; `docs/world.md`, "Biomes"):
 
 - **Dawn:** cool, pale haze; neon fading, plants dimming.
 - **Day:** warm, hazy layers of chrome and overgrowth fading into ochre or teal fog.

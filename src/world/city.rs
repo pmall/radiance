@@ -884,7 +884,9 @@ fn skybridges(seed: u64, lx: i32, lz: i32) -> Vec<Block> {
         let (Some(a), Some(pa)) = (tower(seed, lx, lz), planner::tower_at(seed, lx, lz)) else {
             return out;
         };
-        let chance = biome_at(seed, lx, lz).bridge_chance;
+        let biome = biome_at(seed, lx, lz);
+        let cat = chunks::catalog(biome.name);
+        let chance = biome.bridge_chance;
         let mut rng = Rng::new(hash_coords(seed, lx, SALT_BRIDGE, lz));
         for (nx, nz) in [(lx + 1, lz), (lx, lz + 1)] {
             let (Some(b), Some(pb)) = (tower(seed, nx, nz), planner::tower_at(seed, nx, nz)) else {
@@ -900,7 +902,7 @@ fn skybridges(seed: u64, lx: i32, lz: i32) -> Vec<Block> {
             let (mut heights, mut built) = (Vec::new(), Vec::new());
             for chance in [chance, chance * 0.5] {
                 if rng.chance(chance) {
-                    push_bridge(&mut rng, &a, &b, along_x, &mut heights, &mut built);
+                    push_bridge(&mut rng, &cat, &a, &b, along_x, &mut heights, &mut built);
                 }
             }
             if first {
@@ -1037,6 +1039,7 @@ fn footbridge_room(seed: u64, lx: i32, lz: i32) -> Vec<Aabb> {
 
 /// This lot's span of its footbridges (`footbridge_span` modules, one per lot crossed).
 fn push_footbridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
+    let cat = chunks::catalog(biome_at(seed, lx, lz).name);
     for f in 1..floors::count() {
         for along_x in bridges_through(seed, lx, lz, f) {
             let o = lot_origin(lx, lz) + Vec3::Y * floors::y(f);
@@ -1052,7 +1055,7 @@ fn push_footbridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
                 turn: 0,
                 accent: None,
             }];
-            let built = chunks::expand(&chunks::shared(), &parts, &tf, 0);
+            let built = chunks::expand(&cat, &parts, &tf, 0);
             out.extend(
                 built
                     .boxes
@@ -1225,11 +1228,13 @@ fn push_switchback_stair(mid: Vec3, along_x: bool, bottom: f32, top: f32, out: &
 /// Length of a segment of the `skybridge_segment` module.
 const SKYBRIDGE_STEP: f32 = 2.0;
 
-/// A walkway with low parapets between two towers (`skybridge_segment` modules from wall to wall),
-/// at a height the seed picks between their tops, away from the `heights` of the pair's other
-/// bridges. `along_x` is the direction from `a` to `b`.
+/// A walkway with low parapets between two towers (`skybridge_segment` modules of `cat`, the
+/// deciding lot's biome, from wall to wall), at a height the seed picks between their tops, away
+/// from the `heights` of the pair's other bridges. `along_x` is the direction from `a` to `b`.
+#[allow(clippy::too_many_arguments)]
 fn push_bridge(
     rng: &mut Rng,
+    cat: &chunks::Catalog,
     a: &Tower,
     b: &Tower,
     along_x: bool,
@@ -1284,7 +1289,7 @@ fn push_bridge(
             accent: None,
         }],
     }];
-    let built = chunks::expand(&chunks::shared(), &parts, &tf, 0);
+    let built = chunks::expand(cat, &parts, &tf, 0);
     out.extend(
         built
             .boxes

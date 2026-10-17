@@ -1,5 +1,5 @@
-//! Props drawn instanced: one GPU mesh per prop (`world::props`), and each frame every placement
-//! near the camera in a single call per prop, so props cost no memory per lot.
+//! Props drawn instanced: one GPU mesh per prop and biome version (`world::props`), and each frame
+//! every placement near the camera in a single call per mesh, so props cost no memory per lot.
 
 use std::collections::HashMap;
 
@@ -7,7 +7,7 @@ use glam::Vec3;
 use sola_raylib::ffi;
 
 use super::mesh::MeshData;
-use crate::world::props::{self, Placed, Prop};
+use crate::world::props::{self, Placed, PropMesh};
 
 /// Which props are drawn: those within `reach` meters, height differences counting `VERTICAL`
 /// times (the decks hide the other floors' props), and only in front of the camera if `ahead`.
@@ -21,7 +21,8 @@ pub struct Reach {
 const VERTICAL: f32 = 1.6;
 
 pub struct PropMeshes {
-    meshes: Vec<(Prop, ffi::Mesh)>,
+    /// In the order of `props::meshes().list`.
+    meshes: Vec<ffi::Mesh>,
 }
 
 /// The placements of one prop to draw this frame.
@@ -33,13 +34,13 @@ pub struct Batch {
 impl PropMeshes {
     /// Requires an open window (GL context).
     pub fn new() -> Self {
-        let meshes = props::all().map(|p| (p, upload(p))).collect();
+        let meshes = props::meshes().list.iter().map(upload).collect();
         Self { meshes }
     }
 
-    /// The props of `lots` within reach, grouped by prop.
+    /// The props of `lots` within reach, grouped by mesh.
     pub fn batches<'a>(&self, lots: impl Iterator<Item = &'a [Placed]>, r: &Reach) -> Vec<Batch> {
-        let mut by_prop: HashMap<Prop, Vec<ffi::Matrix>> = HashMap::new();
+        let mut by_mesh: HashMap<usize, Vec<ffi::Matrix>> = HashMap::new();
         for placed in lots {
             for p in placed {
                 let d = p.pos - r.eye;
@@ -47,8 +48,8 @@ impl PropMeshes {
                 // Behind the camera, past the size of the biggest prop.
                 let behind = r.ahead.is_some_and(|a| d.dot(a) < -5.0);
                 if d.length_squared() < r.reach * r.reach && !behind {
-                    by_prop
-                        .entry(p.prop)
+                    by_mesh
+                        .entry(p.mesh_index())
                         .or_default()
                         .push(super::matrix(p.transform()));
                 }
@@ -56,8 +57,9 @@ impl PropMeshes {
         }
         self.meshes
             .iter()
-            .filter_map(|(prop, mesh)| {
-                let transforms = by_prop.remove(prop)?;
+            .enumerate()
+            .filter_map(|(i, mesh)| {
+                let transforms = by_mesh.remove(&i)?;
                 Some(Batch {
                     mesh: *mesh,
                     transforms,
@@ -70,7 +72,7 @@ impl PropMeshes {
 impl Drop for PropMeshes {
     fn drop(&mut self) {
         unsafe {
-            for (_, m) in &self.meshes {
+            for m in &self.meshes {
                 ffi::UnloadMesh(*m);
             }
         }
@@ -101,9 +103,9 @@ pub fn triangles(batches: &[Batch]) -> i32 {
 /// One prop's mesh, in the scene shader's vertex layout: uv.y is the material code (15 for chunk
 /// materials in pixel art, with the material in uv2.x; 14 for plain props; the outline id comes
 /// from the instance).
-fn upload(prop: Prop) -> ffi::Mesh {
+fn upload(prop: &PropMesh) -> ffi::Mesh {
     let mut m = MeshData::default();
-    for v in &props::mesh(prop).verts {
+    for v in &prop.verts {
         m.pos.extend_from_slice(&v.pos.to_array());
         m.nrm.extend_from_slice(&v.normal.to_array());
         match v.mat {

@@ -42,7 +42,11 @@
    - Lore pass *(done)*: unfinished tower tiers with tower cranes (the machines never stopped
      building), vegetation and flowers thickest in the canopy and thinnest in the depths (humans
      moved up as the city rose). See `docs/lore.md`.
-   - Biomes *(groundwork done)*: see `docs/world.md` and `docs/biome-ideas.md`.
+   - Biomes *(groundwork done: a biome sets its places, props, plants and sky; second biome: Cyan
+     Grotto)*: see `docs/world.md` ("Biomes") and `docs/biome-ideas.md`.
+   - Per-biome textures *(next, owner)*: each biome its own pixel art for the materials
+     (concrete, brick, tile, metal, wood, glass...) and the facade units (windows, balconies,
+     shops), not only its own colors: today `render/pixels.rs` draws one atlas for every biome.
    - Candidates from the *Last Radiance* brainstorm *(not started)*: sunlight craters, light-network
      veins, older architecture deep and machine intrusion high, set dressing, flowers in human
      places, melodic-gradient guidance. See "What the prototype can take now" in

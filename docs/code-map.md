@@ -46,7 +46,11 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 |                                                         | (module `footbridge_span`)                                                |
 | Per-floor numbers (holes, stairs, fillers, props, POIs) | `design::profile`, `FloorProfile`                                         |
 | Floors, heights, zones                                  | `floors::y`, `floors::zone`, `floors::count`                              |
-| Per-biome numbers (bridge chance, plants)               | `biome::biome_at`, `Biome`                                                |
+| Per-biome numbers (bridge chance, plant rates)          | `biome::biome_at`, `Biome`                                                |
+| Per-biome plant species (shapes, foliage, flowers)      | `biome::Plants`, `pick_species`; read in `growth::Builder` (`bush`,       |
+|                                                         | `hanging_vine`, `climber`, `flower`)                                      |
+| Per-biome props (a biome's module restyles a prop)      | `props::Meshes::load`, `props::biome_of`                                  |
+| Per-biome sky, fog, light, pollen, spores               | `biome::Atmosphere`; `look::Blend` (fades at a border), `Sky::from_cycle` |
 | Chunk text format, modules, slots, `If`                 | `chunks::Part`, `chunks::expand_in`, `Env`                                |
 | Props drawn instanced                                   | `props::by_module`, `props::Placed`                                       |
 | Plants and flowers                                      | `growth::grow_lot`                                                        |

@@ -819,12 +819,6 @@ pub fn catalog(biome: &str) -> Arc<Catalog> {
         .unwrap_or_default()
 }
 
-/// The shared modules alone (with the default biome's): props and facade units are built from
-/// these.
-pub fn shared() -> Arc<Catalog> {
-    catalog(DEFAULT_BIOME)
-}
-
 /// Newest modification time of the catalog's files.
 fn stamp() -> Option<SystemTime> {
     let root = Path::new(ASSETS);
@@ -1006,6 +1000,8 @@ struct Expander<'a> {
     in_module: bool,
     /// Whether props are placed whole (instanced) rather than built in boxes.
     instance: bool,
+    /// The biome whose versions of the props are placed (the catalog's).
+    biome: u8,
 }
 
 impl<'a> Expander<'a> {
@@ -1019,6 +1015,7 @@ impl<'a> Expander<'a> {
             group: 0,
             in_module: false,
             instance: true,
+            biome: super::props::biome_of(catalog),
         }
     }
 
@@ -1093,7 +1090,8 @@ impl<'a> Expander<'a> {
             let d = tf.dir(Vec3::Z);
             self.out.props.push(super::props::Placed {
                 prop,
-                pos: tf.point(super::props::mesh(prop).base),
+                biome: self.biome,
+                pos: tf.point(super::props::mesh(prop, self.biome).base),
                 yaw: d.x.atan2(d.z),
             });
             self.out.prop_groups.push(self.group);

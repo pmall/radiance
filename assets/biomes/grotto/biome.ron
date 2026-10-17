@@ -1,0 +1,2 @@
+// Cyan Grotto (`src/world/biome.rs`, `GROTTO`): it also draws on the default collection.
+(include: ["default"])

@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
-use super::biome::{Biome, biome_at, pick_color};
+use super::biome::{Climber, Plants, Vine, biome_at, pick_color, pick_species};
 use super::design::{MAX_FLOWERS_PER_LOT, MIN_FLOWER_GAP};
 use super::floors;
 use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert};
@@ -48,7 +48,8 @@ struct Builder<'a> {
     /// Flower chances of the block being planted (its floor's profile).
     flowers: super::design::Flowers,
     glow: u8,
-    biome: &'static Biome,
+    /// The lot's biome's plants: their species, colors and rates.
+    plants: &'static Plants,
     /// Blocks near the lot, neighbors included: what plants must keep clear of.
     solids: &'a Solids<'a>,
     /// Least distance between two flowers (`MIN_FLOWER_GAP`, except in points of interest).
@@ -67,20 +68,17 @@ impl Builder<'_> {
 
     /// A flower color from the biome's palette.
     fn flower_color(&mut self) -> Color {
-        let [r, g, b] = pick_color(self.biome.flowers, self.rng);
+        let [r, g, b] = pick_color(self.plants.flowers, self.rng);
         Color::new(r, g, b, 255)
     }
 
-    /// Leaf or stem color of the current plant.
+    /// Leaf or stem color of the current plant, from the biome's foliage.
     fn foliage(&mut self) -> Color {
-        let c = |r: i32, g: i32, b: i32| Color::new(r as u8, g as u8, b as u8, 255);
-        let j = self.rng.range_i(-14, 15);
-        match self.rng.range_i(0, 6) {
-            0 | 1 => c(52 + j, 130 + j, 84 + j),
-            2 | 3 => c(34 + j, 112 + j, 104 + j),
-            4 => c(96 + j, 150 + j, 70 + j),
-            _ => c(70 + j, 100 + j, 60 + j),
-        }
+        let p = self.plants;
+        let j = self.rng.range_i(-p.jitter, p.jitter + 1);
+        let [r, g, b] = pick_color(p.foliage, self.rng);
+        let c = |v: u8| (v as i32 + j).clamp(0, 255) as u8;
+        Color::new(c(r), c(g), c(b), 255)
     }
 
     /// Whether `p` lies strictly inside a block grown by `margin` (a point on a block's own
@@ -97,10 +95,12 @@ impl Builder<'_> {
         self.inside_block(center, 0.15)
     }
 
-    /// A flower: petals around a bright core, plus the point light that sits at it and takes its
-    /// color. `axis` is the way the flower faces. Skipped once the lot's light budget is spent.
-    /// Whether it grew.
+    /// A flower in the biome's shape: petals around a bright core, plus the point light that sits
+    /// at it and takes its color. `axis` is the way the flower faces. Skipped once the lot's light
+    /// budget is spent. Whether it grew.
     fn flower(&mut self, center: Vec3, radius: f32, color: Color, axis: Vec3) -> bool {
+        let shape = &self.plants.flower;
+        let radius = radius * shape.size;
         let at = center + axis * radius * 0.4;
         if self.per_floor[floors::floor_at(at.y)] >= MAX_FLOWERS_PER_LOT
             || self.buried(center)
@@ -112,7 +112,9 @@ impl Builder<'_> {
             return false;
         }
         let (u, v) = axis.any_orthonormal_pair();
-        let petals = self.rng.range_i(5, 8);
+        let petals = self.rng.range_i(shape.petals.0, shape.petals.1);
+        // Where a petal is widest, along it: the same share of its length whatever the length.
+        let widest = shape.length / 1.7;
         let spin = self.rng.range(0.0, std::f32::consts::TAU);
         let quads: Vec<[Vec3; 4]> = (0..petals)
             .map(|k| {
@@ -120,8 +122,11 @@ impl Builder<'_> {
                 let radial = u * a.cos() + v * a.sin();
                 let dir = (axis * 0.5 + radial).normalize();
                 let tangent = axis.cross(radial);
-                let (mid, tip) = (center + dir * radius * 0.95, center + dir * radius * 1.7);
-                let w = tangent * radius * 0.55;
+                let (mid, tip) = (
+                    center + dir * radius * 0.95 * widest,
+                    center + dir * radius * shape.length,
+                );
+                let w = tangent * radius * shape.width;
                 [center, mid + w, tip, mid - w]
             })
             .collect();
@@ -170,7 +175,7 @@ impl Builder<'_> {
             y_hi,
             pos: at,
             radius: 4.0 + 5.0 * radius,
-            color: vec3(lin(color.r), lin(color.g), lin(color.b)) * 2.2,
+            color: vec3(lin(color.r), lin(color.g), lin(color.b)) * shape.light,
         });
         true
     }
@@ -256,9 +261,10 @@ impl Builder<'_> {
         })
     }
 
-    /// A diamond leaf pointing along `dir`, tilted by `up`. Dropped if it would touch a block.
-    fn leaf(&mut self, base: Vec3, dir: Vec3, size: f32, color: Color) {
-        let side = dir.cross(Vec3::Y).normalize_or_zero() * size * 0.28;
+    /// A diamond leaf pointing along `dir`, `width` wide on each side (relative to its size).
+    /// Dropped if it would touch a block.
+    fn leaf(&mut self, base: Vec3, dir: Vec3, size: f32, width: f32, color: Color) {
+        let side = dir.cross(Vec3::Y).normalize_or_zero() * size * width;
         let lift = Vec3::Y * size * 0.12;
         let mid = base + dir * size * 0.45 + lift;
         let tip = base + dir * size + lift * 0.5;
@@ -334,8 +340,10 @@ impl Builder<'_> {
     }
 
     /// An arching blade from `base`, folded along its midrib, pointed at the tip and darker toward
-    /// the root. `el` is its initial elevation. Returns the tip, or nothing if the bush is trimmed
-    /// (`trim`) and the blade would run into a block.
+    /// the root. `el` is its initial elevation, `droop` how far its tip may sag (relative to its
+    /// length). Returns the tip, or nothing if the bush is trimmed (`trim`) and the blade would
+    /// run into a block.
+    #[allow(clippy::too_many_arguments)]
     fn frond(
         &mut self,
         base: Vec3,
@@ -343,12 +351,13 @@ impl Builder<'_> {
         el: f32,
         len: f32,
         w: f32,
+        droop: (f32, f32),
         color: Color,
     ) -> Option<Vec3> {
         const SEGS: usize = 3;
         let h = vec3(yaw.cos(), 0.0, yaw.sin());
         let side = vec3(-h.z, 0.0, h.x);
-        let droop = len * self.rng.range(0.15, 0.55);
+        let droop = len * self.rng.range(droop.0, droop.1);
         let pts: [Vec3; SEGS + 1] = std::array::from_fn(|i| {
             let t = i as f32 / SEGS as f32;
             base + h * (len * el.cos() * t)
@@ -391,10 +400,12 @@ impl Builder<'_> {
         Some(pts[SEGS])
     }
 
-    /// A rosette of arching fronds (or a tuft of narrow blades) sitting on a surface at `base`.
+    /// A bush of one of the biome's species (a rosette of arching fronds, a tuft of narrow
+    /// blades...) sitting on a surface at `base`.
     fn bush(&mut self, base: Vec3) {
-        let tuft = self.rng.chance(0.3);
-        let mut scale = self.rng.range(1.0, 2.0);
+        let plants: &'static Plants = self.plants;
+        let sp = pick_species(plants.bushes, self.rng);
+        let mut scale = self.rng.range(sp.size.0, sp.size.1);
         // Next to props (a bench, a bin), the bush grows smaller instead of not at all: its
         // fronds, reaching about 1.8 * scale, stay clear of them.
         // Only blocks within the largest reach can shrink it.
@@ -415,10 +426,10 @@ impl Builder<'_> {
         if scale < 0.55 {
             return;
         }
-        // Fronds reach about 1.8 * scale sideways: keep clear of any other block, so none of
-        // them is squashed against a wall or rooted in one (the host's top surface is fine).
-        // Trimmed, it keeps the fronds that run into nothing instead.
-        let reach = 1.8 * scale;
+        // Fronds reach about 1.8 * scale sideways (more if longer): keep clear of any other
+        // block, so none of them is squashed against a wall or rooted in one (the host's top
+        // surface is fine). Trimmed, it keeps the fronds that run into nothing instead.
+        let reach = 1.8 * scale * (sp.length / 1.2).max(1.0);
         let span = Vec3::new(reach, 0.0, reach);
         let crowded = !self.trim
             && self.solids.any(base - span, base + span, |b| {
@@ -436,19 +447,15 @@ impl Builder<'_> {
         }
         self.new_plant();
         let color = self.foliage();
-        let count = if tuft {
-            self.rng.range_i(10, 17)
-        } else {
-            self.rng.range_i(6, 10)
-        };
+        let count = self.rng.range_i(sp.blades.0, sp.blades.1);
         let mut fronds = 0;
         for _ in 0..count {
             let yaw = self.rng.range(0.0, std::f32::consts::TAU);
             // Inner fronds stand up, outer ones arch over.
             let spread = self.rng.f32();
-            let el = 1.3 - 0.9 * spread;
-            let len = scale * self.rng.range(0.9, 1.5) * if tuft { 1.2 } else { 1.0 };
-            let w = len * if tuft { 0.09 } else { 0.3 };
+            let el = sp.upright - sp.arch * spread;
+            let len = scale * self.rng.range(0.9, 1.5) * sp.length;
+            let w = len * sp.width;
             let k = self.rng.range(0.85, 1.1);
             let root = base + vec3(yaw.cos(), 0.0, yaw.sin()) * scale * 0.15 * spread;
             // Trimmed, a frond that runs into a block tries again shorter and more upright.
@@ -457,7 +464,7 @@ impl Builder<'_> {
                 let f = 0.65f32.powi(t);
                 let el = (el + 0.3 * t as f32).min(1.45);
                 if self
-                    .frond(root, yaw, el, len * f, w * f, shade(color, k))
+                    .frond(root, yaw, el, len * f, w * f, sp.droop, shade(color, k))
                     .is_some()
                 {
                     fronds += 1;
@@ -473,7 +480,7 @@ impl Builder<'_> {
             let a = self.rng.range(0.0, std::f32::consts::TAU);
             let lean = vec3(a.cos(), 0.0, a.sin()) * scale * self.rng.range(0.03, 0.12);
             let foot = base + Vec3::Y * 0.04;
-            let top = base + lean + Vec3::Y * scale * self.rng.range(0.55, 0.8);
+            let top = base + lean + Vec3::Y * scale * self.rng.range(sp.stem.0, sp.stem.1);
             let stem = [foot, foot.lerp(top, 0.5) + lean * 0.3, top];
             if stem.windows(2).all(|s| self.clear(s[0], s[1]))
                 && self.flower(top + Vec3::Y * r * 0.2, r, fc, Vec3::Y)
@@ -485,14 +492,15 @@ impl Builder<'_> {
         }
     }
 
-    /// A vine hanging from `from`, swaying sideways, crossed ribbons so it has volume.
-    fn hanging_vine(&mut self, from: Vec3, length: f32, out: Vec3) {
+    /// A vine of species `sp` hanging from `from`, swaying sideways, crossed ribbons so it has
+    /// volume.
+    fn hanging_vine(&mut self, sp: &Vine, from: Vec3, length: f32, out: Vec3) {
         self.new_plant();
         const SEGS: usize = 6;
         let color = self.foliage();
         let phase = self.rng.range(0.0, std::f32::consts::TAU);
-        let sway = self.rng.range(0.15, 0.7);
-        let w = self.rng.range(0.3, 0.55);
+        let sway = self.rng.range(sp.sway.0, sp.sway.1);
+        let w = self.rng.range(sp.width.0, sp.width.1);
         // It drapes over the edge: hangs outside the face of its host, and only sways outward.
         let from = from + out * (w * 0.6 + 0.12);
         let pts: Vec<Vec3> = (0..=SEGS)
@@ -526,7 +534,7 @@ impl Builder<'_> {
         self.ribbon(&pts, Vec3::Z, w, w * 0.4, color);
         let leaf_col = self.foliage();
         for (i, p) in pts.iter().enumerate().skip(1) {
-            if self.rng.chance(0.85) {
+            if self.rng.chance(sp.leaves) {
                 let a = self.rng.range(0.0, std::f32::consts::TAU);
                 // Leaves point away from the host face, never back into it.
                 let mut dir = vec3(a.cos(), -0.35, a.sin());
@@ -535,8 +543,9 @@ impl Builder<'_> {
                     dir -= 2.0 * inward * out;
                 }
                 let dir = (dir + out * 0.3).normalize();
-                let size = self.rng.range(1.2, 2.2) * (1.0 - i as f32 / (SEGS + 4) as f32);
-                self.leaf(*p, dir, size, leaf_col);
+                let size =
+                    self.rng.range(sp.leaf.0, sp.leaf.1) * (1.0 - i as f32 / (SEGS + 4) as f32);
+                self.leaf(*p, dir, size, sp.leaf_width, leaf_col);
             }
         }
         // Flowers down its length, none, one or several, each its own color.
@@ -549,23 +558,36 @@ impl Builder<'_> {
         }
     }
 
-    /// A branching climber growing up a wall. `origin` is the face's bottom-left point at the wall
-    /// surface, `along` the face's horizontal unit axis, `normal` points away from the wall.
-    fn climber(&mut self, origin: Vec3, along: Vec3, normal: Vec3, face_w: f32, y0: f32, y1: f32) {
+    /// A climber of species `sp` branching up a wall. `origin` is the face's bottom-left point at
+    /// the wall surface, `along` the face's horizontal unit axis, `normal` points away from the
+    /// wall.
+    #[allow(clippy::too_many_arguments)]
+    fn climber(
+        &mut self,
+        sp: &Climber,
+        origin: Vec3,
+        along: Vec3,
+        normal: Vec3,
+        face_w: f32,
+        y0: f32,
+        y1: f32,
+    ) {
         self.new_plant();
         let color = self.foliage();
         let leaf_col = self.foliage();
         let u0 = self.rng.range(0.5, face_w - 0.5);
+        // Enough steps to climb its tallest height, give or take the wandering.
+        let steps = (sp.height.1 / sp.step * 0.95).ceil() as i32;
         // (u, y, heading from straight up in radians, width, steps left, depth)
-        let mut stack = vec![(u0, y0, 0.0_f32, 0.5_f32, 26, 0)];
+        let mut stack = vec![(u0, y0, 0.0_f32, sp.width, steps, 0)];
         let mut budget = 300;
         while let Some((mut u, mut y, mut heading, mut w, mut steps, depth)) = stack.pop() {
             let mut pts = vec![origin + along * u + Vec3::Y * y + normal * 0.1];
             while steps > 0 && budget > 0 {
                 steps -= 1;
                 budget -= 1;
-                heading = (heading + self.rng.range(-0.4, 0.4)) * 0.85;
-                let step = 1.1;
+                heading = (heading + self.rng.range(-sp.wander, sp.wander)) * 0.85;
+                let step = sp.step;
                 u = (u + heading.sin() * step).clamp(0.3, face_w - 0.3);
                 y += heading.cos() * step;
                 if y > y1 {
@@ -581,18 +603,18 @@ impl Builder<'_> {
                 }
                 pts.push(p);
                 w *= 0.96;
-                if self.rng.chance(0.8) {
+                if self.rng.chance(sp.leaves) {
                     let sgn = if self.rng.chance(0.5) { 1.0 } else { -1.0 };
                     let dir = (along * sgn * 0.8 + Vec3::Y * 0.3 + normal * 0.5).normalize();
-                    let size = self.rng.range(1.0, 1.9);
-                    self.leaf(p, dir, size, leaf_col);
+                    let size = self.rng.range(sp.leaf.0, sp.leaf.1);
+                    self.leaf(p, dir, size, sp.leaf_width, leaf_col);
                 }
                 if self.rng.chance(self.flowers.climber) {
                     let fc = self.flower_color();
                     let r = self.rng.range(0.25, 0.35);
                     self.flower(p + normal * 0.3, r, fc, normal);
                 }
-                if depth < 3 && self.rng.chance(0.12) {
+                if depth < 3 && self.rng.chance(sp.branch) {
                     let side = if self.rng.chance(0.5) { 0.8 } else { -0.8 };
                     stack.push((u, y, heading + side, w * 0.7, steps / 2, depth + 1));
                 }
@@ -723,7 +745,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         dens: 1.0,
         flowers: super::design::profile(floors::START).flowers,
         glow: 0,
-        biome: biome_at(seed, lx, lz),
+        plants: &biome_at(seed, lx, lz).plants,
         solids: &solids,
         min_gap: MIN_FLOWER_GAP,
         trim: false,
@@ -780,7 +802,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         let soil = hint_at(top) == Some(GrowthKind::Soil)
             || blk.kind == BlockKind::Built(super::chunks::Mat::Soil);
         let mut n = if plantable {
-            area * 0.04 * dens * b.biome.bush_rate * if soil { 6.0 } else { 1.0 }
+            area * 0.04 * dens * b.plants.bush_rate * if soil { 6.0 } else { 1.0 }
         } else {
             0.0
         };
@@ -810,12 +832,13 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         // Hanging vines from the edges of decks and bridges.
         if plantable && !stair && size.y < MAX_SLAB && a.min.y > floors::bottom() + 3.0 {
             let perimeter = 2.0 * (size.x + size.z);
-            let mut n = perimeter * 0.3 * dens * b.biome.vine_rate;
+            let mut n = perimeter * 0.3 * dens * b.plants.vine_rate;
             while n > 0.0 {
                 if n >= 1.0 || b.rng.chance(n) {
                     let t = b.rng.range(0.0, perimeter);
                     let (x, z, out) = perimeter_point(a.min, a.max, t);
-                    let len = b.rng.range(3.0, 10.0 + 6.0 * dens);
+                    let sp = pick_species(b.plants.vines, b.rng);
+                    let len = b.rng.range(sp.length.0, sp.length.1 + sp.lush * dens);
                     // Hang only through free air: stop at whatever block lies below.
                     let top = a.max.y - 0.1;
                     let mut ground = f32::MIN;
@@ -837,7 +860,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
                     });
                     let len = len.min(top - ground - 0.3);
                     if len >= 2.0 {
-                        b.hanging_vine(vec3(x, top, z), len, out);
+                        b.hanging_vine(sp, vec3(x, top, z), len, out);
                     }
                 }
                 n -= 1.0;
@@ -877,18 +900,19 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
                 if w < 1.0 {
                     continue;
                 }
-                let count = if b.rng.chance(0.8 * b.biome.climber_rate * dens.min(1.3)) {
+                let count = if b.rng.chance(0.8 * b.plants.climber_rate * dens.min(1.3)) {
                     b.rng.range_i(1, 4)
                 } else {
                     0
                 };
                 for _ in 0..count {
+                    let sp = pick_species(b.plants.climbers, b.rng);
                     let start = floors::y(b.rng.range_i(0, floors::count() as i32) as usize);
                     if start + 3.0 > a.max.y || start < a.min.y {
                         continue;
                     }
-                    let top = (start + b.rng.range(12.0, 30.0)).min(a.max.y - 0.5);
-                    b.climber(origin, along, normal, w, start + 0.2, top);
+                    let top = (start + b.rng.range(sp.height.0, sp.height.1)).min(a.max.y - 0.5);
+                    b.climber(sp, origin, along, normal, w, start + 0.2, top);
                 }
             }
         }

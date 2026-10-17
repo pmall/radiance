@@ -10,16 +10,18 @@
 //! different typical zone sizes.
 //!
 //! A biome is also a collection of chunks: its `name` is its folder, `assets/biomes/<name>/`
-//! (`chunks.rs`, `docs/chunks.md`), and the planner places chunks from it in its zones.
+//! (`chunks.rs`, `docs/chunks.md`), and the planner places chunks from it in its zones. Its props
+//! are built from its own modules of the same names (`props.rs`).
 //!
 //! To add a biome: define a `Biome` const (start from `DEFAULT` with `..DEFAULT`), add it to
-//! `BIOMES`, and give it a folder of chunks (or none: it then draws from `default`). Everything that varies per biome lives in `Biome`, so generation code never matches
-//! on a biome's name.
+//! `BIOMES`, and give it a folder of chunks (or none: it then draws from `default`). Everything
+//! that varies per biome lives in `Biome` (its plants, its sky and fog, its palette) or in its
+//! folder (chunks, modules, props), so generation code never matches on a biome's name.
 //!
-//! Not done yet: blending across zone borders (palette and density fade, discrete choices flip),
-//! per-biome fog and sky tint in the post pass, and per-biome plant species.
+//! Not done yet: blending across zone borders (palette and density fade, discrete choices flip).
 
 use super::city;
+use crate::render::look::{self, Looks};
 use crate::rng::{Rng, hash_coords};
 
 const SALT_BIOME: i32 = 4;
@@ -60,7 +62,111 @@ impl Palette {
     }
 }
 
-/// Everything generation reads from a biome. `DEFAULT` holds the original values of the city.
+/// What a biome grows: how much of each kind of plant, the shapes of each kind (a weighted list of
+/// species, the seed picking one per plant), their colors and their flowers. How dense plants and
+/// flowers are by floor comes from the floor profiles (`design.rs`); these multiply it.
+pub struct Plants {
+    /// Flower colors (sRGB) with pick weights.
+    pub flowers: &'static [(u32, [u8; 3])],
+    /// Leaf and stem colors (sRGB) with pick weights; each plant varies its pick by up to
+    /// `jitter` on every channel.
+    pub foliage: &'static [(u32, [u8; 3])],
+    pub jitter: i32,
+    /// Multipliers on how many bushes, hanging vines and wall climbers a lot gets.
+    pub bush_rate: f32,
+    pub vine_rate: f32,
+    pub climber_rate: f32,
+    /// What grows on top surfaces, hangs from the edges of decks and bridges, climbs tower walls:
+    /// species with pick weights. A list of one species costs no roll.
+    pub bushes: &'static [(f32, Bush)],
+    pub vines: &'static [(f32, Vine)],
+    pub climbers: &'static [(f32, Climber)],
+    pub flower: Flower,
+}
+
+/// A bush: a rosette of arching blades on a top surface (fronds, grass, reeds), with at most one
+/// flower on a stem from its middle.
+pub struct Bush {
+    /// Size of the plant (meters).
+    pub size: (f32, f32),
+    /// Blades per plant, `min..max`.
+    pub blades: (i32, i32),
+    /// Blade length: the size times 0.9 to 1.5, times this. Up to 1.2 the blades fit the room a
+    /// bush keeps from walls; longer ones keep more.
+    pub length: f32,
+    /// Blade width, relative to its length.
+    pub width: f32,
+    /// Elevation of the innermost blades (radians), and how much lower the outermost arch.
+    pub upright: f32,
+    pub arch: f32,
+    /// How far a blade droops toward its tip, relative to its length.
+    pub droop: (f32, f32),
+    /// Height of the flower's stem, relative to the size.
+    pub stem: (f32, f32),
+}
+
+/// A vine hanging from an edge: crossed ribbons swaying sideways, leaves along it, flowers down
+/// its length.
+pub struct Vine {
+    /// Length (meters), up to what lies below; the longest grow `lush` meters longer where the
+    /// floor is dense with plants.
+    pub length: (f32, f32),
+    pub lush: f32,
+    /// Ribbon width at the top (meters); it tapers to 0.4 of it.
+    pub width: (f32, f32),
+    /// How far it sways sideways at the bottom (meters).
+    pub sway: (f32, f32),
+    /// Chance of a leaf at each of its six joints, the leaves' size (meters) and their width
+    /// (each side, relative to the size).
+    pub leaves: f32,
+    pub leaf: (f32, f32),
+    pub leaf_width: f32,
+}
+
+/// A climber: a stem branching up a wall, leaves and flowers along it.
+pub struct Climber {
+    /// How high it climbs (meters), up to the roof.
+    pub height: (f32, f32),
+    /// Stem width at the root (meters); it thins as it climbs, branches thinner still.
+    pub width: f32,
+    /// Length of a step (meters), and how far its heading wanders each step (radians).
+    pub step: f32,
+    pub wander: f32,
+    /// Chance of a branch at each step.
+    pub branch: f32,
+    /// Chance of a leaf at each step, the leaves' size (meters) and their width (each side,
+    /// relative to the size).
+    pub leaves: f32,
+    pub leaf: (f32, f32),
+    pub leaf_width: f32,
+}
+
+/// The shape of a biome's flowers: petals around a bright core, and the light each one gives.
+pub struct Flower {
+    /// Petals per flower, `min..max`.
+    pub petals: (i32, i32),
+    /// Petal length and width, relative to the flower's radius.
+    pub length: f32,
+    pub width: f32,
+    /// Multiplies every flower's radius (the light's reach follows).
+    pub size: f32,
+    /// Brightness of its light.
+    pub light: f32,
+}
+
+/// A biome's air: its sky, fog, light and grading through the day, and the particles drifting
+/// in it. Around the player it is drawn in their biome's atmosphere, fading into the next one's
+/// when they cross a border (`render::look::Blend`).
+pub struct Atmosphere {
+    pub looks: Looks,
+    /// Pollen mote tint by day (display space), mixed with the sun or moon's color.
+    pub pollen: [f32; 3],
+    /// Colors of the glowing spores of the night and the depths (display space).
+    pub spores: [[f32; 3]; 4],
+}
+
+/// Everything generation and rendering read from a biome. `DEFAULT` holds the original values of
+/// the city.
 pub struct Biome {
     pub name: &'static str,
     /// How often this biome is picked for a site, relative to the others.
@@ -68,12 +174,8 @@ pub struct Biome {
     /// Relative zone size; keep within 0.6..=1.5 so the site search (3x3 cells) stays exact.
     pub size: f32,
 
-    /// Flower colors (sRGB) with pick weights.
-    pub flowers: &'static [(u32, [u8; 3])],
-    /// Multipliers on how many bushes, hanging vines and wall climbers a lot gets.
-    pub bush_rate: f32,
-    pub vine_rate: f32,
-    pub climber_rate: f32,
+    pub plants: Plants,
+    pub atmosphere: Atmosphere,
 
     /// Chance that a lot holds no tower.
     pub tower_empty: f32,
@@ -84,21 +186,101 @@ pub struct Biome {
 }
 
 /// The original look of the city: cyan and magenta flowers with some green, violet and amber,
-/// vegetation and flowers by floor come from the floor profiles (`design.rs`).
+/// fronds and grass tufts, leafy vines and climbers.
 pub const DEFAULT: Biome = Biome {
     name: "default",
     frequency: 1.0,
     size: 1.0,
-    flowers: &[
-        (2, [70, 230, 210]),
-        (1, [120, 240, 110]),
-        (2, [240, 100, 200]),
-        (1, [140, 130, 255]),
-        (1, [255, 200, 100]),
-    ],
-    bush_rate: 1.0,
-    vine_rate: 1.0,
-    climber_rate: 1.0,
+    plants: Plants {
+        flowers: &[
+            (2, [70, 230, 210]),
+            (1, [120, 240, 110]),
+            (2, [240, 100, 200]),
+            (1, [140, 130, 255]),
+            (1, [255, 200, 100]),
+        ],
+        foliage: &[
+            (2, [52, 130, 84]),
+            (2, [34, 112, 104]),
+            (1, [96, 150, 70]),
+            (1, [70, 100, 60]),
+        ],
+        jitter: 14,
+        bush_rate: 1.0,
+        vine_rate: 1.0,
+        climber_rate: 1.0,
+        bushes: &[
+            // Tufts of narrow blades, then rosettes of broad fronds.
+            (
+                0.3,
+                Bush {
+                    size: (1.0, 2.0),
+                    blades: (10, 17),
+                    length: 1.2,
+                    width: 0.09,
+                    upright: 1.3,
+                    arch: 0.9,
+                    droop: (0.15, 0.55),
+                    stem: (0.55, 0.8),
+                },
+            ),
+            (
+                0.7,
+                Bush {
+                    size: (1.0, 2.0),
+                    blades: (6, 10),
+                    length: 1.0,
+                    width: 0.3,
+                    upright: 1.3,
+                    arch: 0.9,
+                    droop: (0.15, 0.55),
+                    stem: (0.55, 0.8),
+                },
+            ),
+        ],
+        vines: &[(
+            1.0,
+            Vine {
+                length: (3.0, 10.0),
+                lush: 6.0,
+                width: (0.3, 0.55),
+                sway: (0.15, 0.7),
+                leaves: 0.85,
+                leaf: (1.2, 2.2),
+                leaf_width: 0.28,
+            },
+        )],
+        climbers: &[(
+            1.0,
+            Climber {
+                height: (12.0, 30.0),
+                width: 0.5,
+                step: 1.1,
+                wander: 0.4,
+                branch: 0.12,
+                leaves: 0.8,
+                leaf: (1.0, 1.9),
+                leaf_width: 0.28,
+            },
+        )],
+        flower: Flower {
+            petals: (5, 8),
+            length: 1.7,
+            width: 0.55,
+            size: 1.0,
+            light: 2.2,
+        },
+    },
+    atmosphere: Atmosphere {
+        looks: look::DEFAULT_LOOKS,
+        pollen: [1.0, 0.78, 0.4],
+        spores: [
+            [0.35, 0.95, 0.9],
+            [0.55, 1.0, 0.5],
+            [1.0, 0.45, 0.85],
+            [0.6, 0.6, 1.0],
+        ],
+    },
     tower_empty: 0.18,
     bridge_chance: 0.6,
     palette: Palette {
@@ -126,8 +308,131 @@ pub const DEFAULT: Biome = Biome {
     },
 };
 
-/// Every biome the map can hold. Only the default exists for now.
-pub const BIOMES: &[&Biome] = &[&DEFAULT];
+/// Cyan Grotto (`docs/biome-ideas.md`): cold, calm, aquatic. Cyan and teal flowers with the odd
+/// white one, low ferns and moss, long curtains of vines, a teal fog at every hour; more empty
+/// lots, fewer bridges. Its props are tiled (`assets/biomes/grotto/`).
+pub const GROTTO: Biome = Biome {
+    name: "grotto",
+    frequency: 0.5,
+    size: 1.0,
+    plants: Plants {
+        flowers: &[
+            (4, [60, 230, 220]),
+            (3, [40, 190, 235]),
+            (1, [200, 250, 255]),
+        ],
+        foliage: &[
+            (2, [30, 100, 110]),
+            (2, [40, 120, 100]),
+            (1, [60, 140, 140]),
+            (1, [25, 80, 95]),
+        ],
+        jitter: 12,
+        bush_rate: 0.8,
+        vine_rate: 3.0,
+        climber_rate: 0.6,
+        bushes: &[
+            // Low ferns, broad fronds lying out flat.
+            (
+                0.8,
+                Bush {
+                    size: (0.8, 1.5),
+                    blades: (8, 13),
+                    length: 1.1,
+                    width: 0.22,
+                    upright: 0.9,
+                    arch: 0.7,
+                    droop: (0.3, 0.7),
+                    stem: (0.35, 0.5),
+                },
+            ),
+            // Moss tufts: short, dense, fine.
+            (
+                0.2,
+                Bush {
+                    size: (0.5, 0.9),
+                    blades: (14, 22),
+                    length: 0.8,
+                    width: 0.08,
+                    upright: 1.2,
+                    arch: 0.9,
+                    droop: (0.2, 0.5),
+                    stem: (0.6, 0.9),
+                },
+            ),
+        ],
+        vines: &[(
+            1.0,
+            Vine {
+                length: (6.0, 16.0),
+                lush: 8.0,
+                width: (0.35, 0.65),
+                sway: (0.05, 0.3),
+                leaves: 0.95,
+                leaf: (1.0, 1.8),
+                leaf_width: 0.22,
+            },
+        )],
+        climbers: &[(
+            1.0,
+            Climber {
+                height: (8.0, 20.0),
+                width: 0.3,
+                step: 1.0,
+                wander: 0.3,
+                branch: 0.08,
+                leaves: 0.6,
+                leaf: (0.7, 1.3),
+                leaf_width: 0.22,
+            },
+        )],
+        flower: Flower {
+            petals: (6, 9),
+            length: 1.4,
+            width: 0.45,
+            size: 0.9,
+            light: 2.4,
+        },
+    },
+    atmosphere: Atmosphere {
+        looks: look::GROTTO_LOOKS,
+        pollen: [0.7, 0.95, 1.0],
+        spores: [
+            [0.3, 0.95, 0.95],
+            [0.4, 0.8, 1.0],
+            [0.6, 1.0, 0.9],
+            [0.85, 0.95, 1.0],
+        ],
+    },
+    tower_empty: 0.25,
+    bridge_chance: 0.45,
+    palette: Palette {
+        neon: [[0.1, 0.95, 0.95], [0.3, 0.6, 1.0], [0.8, 1.0, 1.0]],
+        windows: [
+            [0.75, 0.95, 1.0],
+            [0.6, 0.85, 1.0],
+            [0.45, 0.95, 0.9],
+            [0.8, 0.9, 1.0],
+        ],
+        accents: [
+            [0.05, 0.35, 0.42],
+            [0.12, 0.5, 0.55],
+            [0.06, 0.22, 0.35],
+            [0.75, 0.82, 0.82],
+        ],
+        signs: [
+            [0.05, 0.5, 0.6],
+            [0.1, 0.3, 0.55],
+            [0.6, 0.85, 0.85],
+            [0.05, 0.65, 0.6],
+            [0.85, 0.9, 0.9],
+        ],
+        tint: [0.86, 0.96, 1.0],
+    },
+};
+
+/// Every biome the map can hold.
+pub const BIOMES: &[&Biome] = &[&DEFAULT, &GROTTO];
 
 /// Index of `biome` in `BIOMES`: the material variant its lots are drawn with. By name: two
 /// references to one `const` biome need not share an address.
@@ -151,6 +456,13 @@ pub fn palette_uniform() -> Vec<f32> {
 
 /// The biome of a lot.
 pub fn biome_at(seed: u64, lx: i32, lz: i32) -> &'static Biome {
+    // A chunk shown alone (`--chunk BIOME/NAME`) stands in its biome: its plants, props and sky.
+    if let Some(p) = super::chunks::preview() {
+        return BIOMES
+            .iter()
+            .find(|b| b.name == p.biome)
+            .unwrap_or(&&DEFAULT);
+    }
     // The plaza around spawn is always the default biome.
     if city::is_plaza(lx, lz) {
         return &DEFAULT;
@@ -204,6 +516,23 @@ pub fn pick_color(palette: &[(u32, [u8; 3])], rng: &mut Rng) -> [u8; 3] {
     palette[palette.len() - 1].1
 }
 
+/// Picks one species of a weighted list using `rng`; a list of one costs no roll, so a biome
+/// adding a second species to one kind leaves the other kinds' plants as they were.
+pub fn pick_species<'a, T>(species: &'a [(f32, T)], rng: &mut Rng) -> &'a T {
+    if let [(_, only)] = species {
+        return only;
+    }
+    let total: f32 = species.iter().map(|s| s.0).sum();
+    let mut roll = rng.f32() * total;
+    for (w, s) in species {
+        if roll < *w {
+            return s;
+        }
+        roll -= w;
+    }
+    &species[species.len() - 1].1
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,18 +566,56 @@ mod tests {
             assert_eq!(variant_of(b), i);
             assert!((0.6..=1.5).contains(&b.size), "{}: size {}", b.name, b.size);
             assert!(b.frequency > 0.0, "{} is never picked", b.name);
+            let p = &b.plants;
             assert!(
-                b.flowers.iter().any(|f| f.0 > 0),
+                p.flowers.iter().any(|f| f.0 > 0),
                 "{} has no flower colors",
                 b.name
             );
+            assert!(p.foliage.iter().any(|f| f.0 > 0), "{}: no foliage", b.name);
+            let ordered = |(lo, hi): (f32, f32)| lo <= hi;
+            let picks = |weights: &mut dyn Iterator<Item = f32>| {
+                weights.fold((0, true), |(n, ok), w| (n + 1, ok && w > 0.0))
+            };
+            for (kind, (n, ok)) in [
+                ("bushes", picks(&mut p.bushes.iter().map(|s| s.0))),
+                ("vines", picks(&mut p.vines.iter().map(|s| s.0))),
+                ("climbers", picks(&mut p.climbers.iter().map(|s| s.0))),
+            ] {
+                assert!(n > 0 && ok, "{}: {kind} need species of weight > 0", b.name);
+            }
+            for (_, s) in p.bushes {
+                assert!(ordered(s.size) && ordered(s.droop) && ordered(s.stem));
+                assert!(s.blades.0 > 0 && s.blades.0 < s.blades.1, "{}", b.name);
+            }
+            for (_, s) in p.vines {
+                assert!(ordered(s.length) && ordered(s.width) && ordered(s.leaf));
+            }
+            for (_, s) in p.climbers {
+                assert!(ordered(s.height) && ordered(s.leaf) && s.step > 0.1);
+            }
+            let f = &p.flower;
+            assert!(f.petals.0 >= 3 && f.petals.0 < f.petals.1, "{}", b.name);
         }
     }
 
+    /// The player wakes up in the default biome, and every biome has zones in every city, the
+    /// default one the most.
     #[test]
-    fn default_is_the_only_biome_for_now() {
-        for (lx, lz) in [(0, 0), (5, -9), (-40, 77)] {
-            assert_eq!(biome_at(1, lx, lz).name, "default");
+    fn every_biome_has_zones_and_the_spawn_is_default() {
+        for seed in 1..=3 {
+            assert_eq!(biome_at(seed, 0, 0).name, DEFAULT.name);
+            let mut lots = vec![0; BIOMES.len()];
+            for lz in (-60..60).step_by(2) {
+                for lx in (-60..60).step_by(2) {
+                    lots[variant_of(biome_at(seed, lx, lz))] += 1;
+                }
+            }
+            assert!(lots.iter().all(|&n| n > 0), "seed {seed}: {lots:?}");
+            assert!(
+                lots[0] == *lots.iter().max().unwrap(),
+                "seed {seed}: {lots:?}"
+            );
         }
     }
 
@@ -282,9 +649,20 @@ mod tests {
         let mut rng = Rng::new(1);
         let mut counts = [0; 5];
         for _ in 0..7000 {
-            let c = pick_color(DEFAULT.flowers, &mut rng);
-            counts[DEFAULT.flowers.iter().position(|p| p.1 == c).unwrap()] += 1;
+            let flowers = DEFAULT.plants.flowers;
+            let c = pick_color(flowers, &mut rng);
+            counts[flowers.iter().position(|p| p.1 == c).unwrap()] += 1;
         }
         assert!(counts[0] > counts[1] * 3 / 2 && counts[2] > counts[3] * 3 / 2);
+    }
+
+    #[test]
+    fn species_pick_matches_weights_and_one_costs_no_roll() {
+        let (mut a, mut b) = (Rng::new(5), Rng::new(5));
+        assert_eq!(*pick_species(&[(1.0, 'x')], &mut a), 'x');
+        assert_eq!(a.next_u64(), b.next_u64(), "a single species rolls nothing");
+        let list = [(0.25, 0), (0.75, 1)];
+        let ones: usize = (0..4000).map(|_| *pick_species(&list, &mut a)).sum();
+        assert!((2800..3200).contains(&ones), "{ones} of 4000");
     }
 }
