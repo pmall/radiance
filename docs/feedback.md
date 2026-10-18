@@ -35,6 +35,8 @@ What the project owner has said so far. Treat as requirements.
   glass curtain walls, big colored accent panels, billboards, rooftops full of machinery. The mood is
   different (ours is hazier, with night and bioluminescence) but the density and spirit are the goal.
 - Textures: existing assets are welcome, there is no need to code everything procedurally.
+- Outlines are black ink, at every hour and in every biome (they were a per-look tint that the
+  grading lifted to a grey violet). Fog still fades the far ones.
 
 - Guidance: the flowers' melodic gradient (`docs/guidance-ideas.md`, option 6).
 - Props and points of interest will need free external assets; the project agent owns the rules

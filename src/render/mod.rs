@@ -576,7 +576,6 @@ impl Renderer {
         // The looks were tuned for a city a third as tall: stretch the thinning over the stack.
         p.set_f32("uFogFalloff", look.fog_falloff * FOG_STACK_SCALE);
         p.set_f32("uFogGlow", look.fog_glow);
-        p.set_vec3("uInk", look.ink);
         p.set_f32("uExposure", look.exposure);
         p.set_f32("uSaturation", look.saturation);
         p.set_f32("uContrast", look.contrast);

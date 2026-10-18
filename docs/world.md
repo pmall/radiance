@@ -159,7 +159,7 @@ and a folder `assets/biomes/<name>/`. Between them, a biome sets:
   counts and widths, droop, sway, leaves, branching), plus the flowers' shape and light
   (`Flower`). What depends on the floor (plant density, flower chances) stays in the floor
   profiles.
-- **Its air** (`Atmosphere`): sky, fog, key light, ambient light, ink and grading at night, dawn,
+- **Its air** (`Atmosphere`): sky, fog, key light, ambient light and grading at night, dawn,
   day and dusk (`Looks`, in `render/look.rs`), the colors of pollen and spores, and its color
   script by height (`heights`): the hue the haze and the light take under the decks in the
   depths, the middle and the canopy (`docs/art-direction.md`, "Light under the decks"). The sky

@@ -12,7 +12,8 @@ not detail.
 ## Rendering look
 
 - **Cel shading** with 2–3 flat light bands.
-- **Outlines** (inverted hull or edge-detection post-process).
+- **Outlines:** black ink from an edge-detection post-process (`shaders/post.fs`), fading into the fog
+  with distance.
 - **Flat or lightly textured surfaces;** a subtle paper or grain overlay is welcome.
 - **Colored atmospheric fog:** distance fades into tinted gradients rather than gray, creating
   painted depth layers and hiding the draw distance.

@@ -30,7 +30,6 @@ uniform float uFogDensity;
 uniform float uFogFalloff;
 uniform float uFogGlow;
 uniform vec3 uGlowHaze;      // the flowers' light scattered in the haze around the eye (src/render/mod.rs)
-uniform vec3 uInk;
 uniform float uExposure;
 uniform float uSaturation;
 uniform float uContrast;
@@ -215,8 +214,8 @@ void main()
                 if (abs(nn.a - nc.a) > 0.001 && !plane) edge = 1.0;
             }
 
-            vec3 ink = mix(uInk, col * 0.3, 0.15);
-            col = mix(col, ink, edge);
+            // Black ink at every hour, in every biome; the fog over it fades the far lines.
+            col = mix(col, col * 0.05, edge);
         }
 
         if ((uEffects & FX_FOG) != 0) {
