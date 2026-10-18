@@ -147,11 +147,15 @@ fn read_input(rl: &RaylibHandle) -> Input {
     }
 }
 
-fn spawn_player(view: Option<[f32; 5]>) -> Player {
+/// The player at the spawn, or standing at `--view` (feet position, as screenshot notes give it).
+/// A shot or a benchmark holds the camera exactly there in free-fly; a normal run walks from there.
+fn spawn_player(view: Option<[f32; 5]>, fly: bool) -> Player {
     match view {
         Some([x, y, z, yaw, pitch]) => {
             let mut p = Player::new(vec3(x, y, z));
-            p.toggle_fly();
+            if fly {
+                p.toggle_fly();
+            }
             p.yaw = yaw.to_radians();
             p.pitch = pitch.to_radians();
             p
@@ -244,7 +248,7 @@ fn main() {
     }
     let mut bench_start = None;
 
-    let mut player = spawn_player(args.view);
+    let mut player = spawn_player(args.view, args.shot.is_some() || args.bench.is_some());
     let mut world = World::new(args.seed);
     world.stream(player.pos, usize::MAX);
     let mut renderer = Renderer::new();

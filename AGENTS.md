@@ -63,6 +63,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `cargo run -- <seed>`: run (seed optional).
 - `cargo run -- <seed> --time 0.5 --view x,y,z,yaw,pitch --shot out.png`: render one frame at a
   given time of day (0 = midnight, 0.5 = noon) and camera, save it and exit. Use it to check looks.
+  Without `--shot` (or `--bench`), `--view` starts a normal run walking from that spot (F2 flies).
 - `--overlay` keeps the debug panel in a shot. `--fx <mask>` sets effect bits for a shot, `--bench <frames>` prints ms/frame (no vsync). Shots and benchmarks are silent; `--no-audio` mutes a normal run, `RADIANCE_AUDIO_LOG=1` prints each note.
 - `P` in game saves a screenshot (no debug panel) to `screenshots/radiance-<seed>-<n>.png`
   (gitignored), with a `.txt` beside it: seed, floor, time and the `--view ... --shot` command that
