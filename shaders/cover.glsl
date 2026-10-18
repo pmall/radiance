@@ -42,10 +42,12 @@ ivec2 roadsOf(ivec2 lot, int f)
     return ivec2(bits & 1, (bits >> 1) & 1);
 }
 
-// 1 if a ray from p along dir clears every deck above p, else 0.
+// 1 if a ray from p along dir clears every deck above p, else 0. A ray nearly level (a low sun)
+// is taken a little raised: it meets the decks above far away, open only where it comes out under
+// an opening (it used to count as open, lighting the whole underside at once as the sun set).
 float skyVis(vec3 p, vec3 dir)
 {
-    if (dir.y < 0.02) return 1.0;
+    dir.y = max(dir.y, 0.02);
     for (int f = 1; f < FLOORS; f++) {
         if (f >= uFloorCount) break;
         float y = uFloorY[f] - 0.6;

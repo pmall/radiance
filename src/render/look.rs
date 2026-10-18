@@ -368,10 +368,13 @@ impl Sky {
     pub fn from_cycle(cycle: &DayCycle, blend: &Blend) -> Self {
         let mut look = blend.mean(|b| b.atmosphere.looks.at(cycle.t), |a, b, k| a.lerp(b, k));
         let sun = cycle.sun_dir();
-        // The key light swaps from sun to moon at the horizon; fade it out around the swap.
+        // The key light swaps from sun to moon at the horizon; fade it out around the swap, and
+        // its glow in the sky and the fog with it, or that glow jumps across the sky at the swap.
         let light_dir = if sun.y >= 0.0 { sun } else { -sun };
         let fade = (light_dir.y / 0.08).clamp(0.0, 1.0);
-        look.light *= fade * fade * (3.0 - 2.0 * fade);
+        let fade = fade * fade * (3.0 - 2.0 * fade);
+        look.light *= fade;
+        look.fog_glow *= fade;
         let pollen = blend.mean(|b| Vec3::from(b.atmosphere.pollen), |a, b, k| a.lerp(*b, k));
         let spores = blend.mean(
             |b| b.atmosphere.spores.map(Vec3::from),
