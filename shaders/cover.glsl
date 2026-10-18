@@ -68,3 +68,19 @@ float skyView(vec3 p)
     vec2 uv = (vec2(float((1 + f / 4) * COVER), 0.0) + c) / vec2(float(TILES * COVER), float(COVER));
     return texture(COVER_TEX, uv)[f % 4];
 }
+
+// The light under the decks (src/render/look.rs, Sky::heights): the hue the haze and the light
+// take where the sky does not reach, by height in the stack (0 the ground floor, 1 the top deck),
+// cold in the depths, warm in the middle, gold under the canopy; luminance 1.
+uniform vec3 uHeights[3];
+
+float stack01(float y)
+{
+    return clamp((y - uFloorY[0]) / max(uFloorY[max(uFloorCount - 1, 1)] - uFloorY[0], 1.0), 0.0, 1.0);
+}
+
+vec3 heightHue(float y)
+{
+    float h = stack01(y);
+    return mix(mix(uHeights[0], uHeights[1], smoothstep(0.15, 0.45, h)), uHeights[2], smoothstep(0.55, 0.8, h));
+}

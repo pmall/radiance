@@ -29,6 +29,7 @@ uniform vec3 uFog;
 uniform float uFogDensity;
 uniform float uFogFalloff;
 uniform float uFogGlow;
+uniform vec3 uGlowHaze;      // the flowers' light scattered in the haze around the eye (src/render/mod.rs)
 uniform vec3 uInk;
 uniform float uExposure;
 uniform float uSaturation;
@@ -140,14 +141,18 @@ vec2 fogLight(vec3 dir, float dist)
 
 // Fog color along a view ray of length dist, f = its fog amount. Fog sinks into darkness under
 // the decks, where little light gets down; where the sun gets through, it lights the fog as beams.
+const float DEEP_FOG = 0.3;   // brightness of the haze where no sky reaches, against the open fog
+
 vec3 fogColor(vec3 dir, float dist, float f)
 {
     float c = max(dot(dir, uLightDir), 0.0);
     vec2 fl = fogLight(dir, dist);
-    float dim = mix(0.12, 1.0, fl.x);
-    vec3 col = uFog * dim + uDisk * uFogGlow * (0.1 + 0.2 * c * c + 0.3 * pow(c, 6.0)) * fl.y;
+    // Under the decks the haze takes the hue of the floor (cold depths, warm middle, gold
+    // canopy), brighter than the shaded walls in it, so they stand as silhouettes.
+    vec3 deep = heightHue(uCamPos.y) * luma(uFog) * DEEP_FOG + uGlowHaze * 0.04;
+    vec3 col = mix(deep, uFog, fl.x) + uDisk * uFogGlow * (0.1 + 0.2 * c * c + 0.3 * pow(c, 6.0)) * fl.y;
     // Far fog blends into the sky behind it so silhouettes melt into the horizon.
-    return mix(col, sky(dir) * dim, smoothstep(0.4, 1.0, f));
+    return mix(col, mix(deep, sky(dir), fl.x), smoothstep(0.4, 1.0, f));
 }
 
 void main()
@@ -193,7 +198,11 @@ void main()
                 if (nn.a == 0.0 || wn > wc * 1.05) continue;
                 float crease = 1.0 - dot(nc.xyz * 2.0 - 1.0, nn.xyz * 2.0 - 1.0);
                 edge = max(edge, smoothstep(0.3, 0.6, crease));
-                if (abs(nn.a - nc.a) > 0.001) edge = 1.0;
+                // Another object, unless it is the same plane going on (two lots' slabs of one
+                // deck): depth continues the gradient across and the normal is the same.
+                float wf = i == 0 ? wl : wd;
+                bool plane = crease < 0.002 && abs(wn - 2.0 * wc + wf) < 0.02 * wc;
+                if (abs(nn.a - nc.a) > 0.001 && !plane) edge = 1.0;
             }
 
             vec3 ink = mix(uInk, col * 0.3, 0.15);
@@ -207,8 +216,10 @@ void main()
         }
     }
 
+    // The eye adapts: under the decks the image opens up a little.
+    float adapt = mix(1.35, 1.0, skyView(uCamPos));
     // Tonemap: gentle exponential shoulder, then to display sRGB.
-    col = 1.0 - exp(-col * uExposure);
+    col = 1.0 - exp(-col * uExposure * adapt);
     col = pow(col, vec3(1.0 / 2.2));
 
     if ((uEffects & FX_GRADING) != 0) {

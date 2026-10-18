@@ -48,7 +48,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `src/player.rs`: first-person controller (walk/run/jump, step-up, ledge grab, free-fly).
 - `src/world/`: world data, collision index and generation (`floors.rs`: the stack of floors, fixed per run but variable (`--floors N`) and its zones; `design.rs`: the floor profiles, every generation number that depends on the floor (holes, plants, flower chances, stairs, props) and the props/POI switches; `biome.rs`: map zones and everything a biome sets: its plants (species, colors, rates), its atmosphere (sky, fog, light through the day), its palette and textures (a biome's name is also its folder of chunks, modules and props; `docs/world.md`, "Biomes"); `city.rs`: builds a lot from what the planner says (ground, decks, hub stairs, its share of towers and chunks, skybridges), each lot a pure function of seed + lot coords, recent lots cached; `growth.rs`: plants grown over a lot's blocks; `roads.rs`: the road network, which lot borders are roads on each floor (never into a hole or an edge, no dead ends); `props.rs`: the props, box-built modules (placed instanced by chunks) plus the street light built in code; `chunks.rs`: hand-written map chunks and modules, one collection per biome in `assets/biomes/<biome>/` plus the shared modules of `assets/modules/` (`docs/chunks.md`); `planner.rs`: which chunk stands where (areas and sub-areas, towers, holes, craters, blocks, stair hubs, fillers, streets): every lot of every floor is a chunk; `tower.rs`: tower chunks built (tiers, written elevations, units near the decks, roofs)).
 - `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
-  post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `facades.rs` the towers' written elevations as a texture, `particles.rs` drifting motes and spores; `props.rs` draws the props instanced; `pixels.rs` draws each biome's pixel-art tiles of the chunk materials and facade units (a row of the atlas per biome); `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors). `look.rs` holds the per-time-of-day palettes (the default biome's looks) and the blend of biome atmospheres the sky is drawn in.
+  post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `facades.rs` the towers' written elevations as a texture, `particles.rs` drifting motes and spores; `props.rs` draws the props instanced; `pixels.rs` draws each biome's pixel-art tiles of the chunk materials, facade units and city surfaces (roads, sidewalks, roofs, deck undersides), and the swatches the wear is drawn in (a row of the atlas per biome); `noise.rs` the noise texture the wear's shapes come from; `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors). `look.rs` holds the per-time-of-day palettes (the default biome's looks) and the blend of biome atmospheres the sky is drawn in.
 - `assets/textures/`: CC0 photo textures and the packed `detail.png` (see its README); `tools/pack_textures.py` rebuilds it.
 - `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback);
   `#include "file"` pulls in a shared file such as `cover.glsl` (`src/render/shader.rs`, `INCLUDES`).
@@ -69,9 +69,13 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   (gitignored), with a `.txt` beside it: seed, floor, time and the `--view ... --shot` command that
   renders the same view. The owner uses them for feedback: run that command to see what they saw.
 - `V` in game starts/stops recording the run (screen and sound) to `recordings/radiance-<seed>-<time>.mp4` (needs `ffmpeg`; `src/recorder.rs`). `--record-for <seconds>` records that long and exits, to test it.
+- `python3 tools/lookdev.py LABEL`: render the reference views (eight places at day, dusk and
+  night) into `screenshots/lookdev/LABEL/`, a sheet per time of day; judge every look change on
+  them against an earlier label (needs a release build and Pillow).
 - `--chunk NAME` (or `BIOME/NAME`): show one hand-written chunk alone (with `--view`/`--shot`); `--catalog` lists every biome's chunks and modules.
 - `--report [radius]`: print the floor profiles next to what the seed produced (decks, stairs,
-  flowers by source, props by kind), then exit. Use it to tune generation. `--floors N` sets the
+  flowers by source, props by kind) and the places (areas, blocks, craters) with a `--view` to
+  stand in each, then exit. Use it to tune generation. `--floors N` sets the
   number of floors; `--no-props` / `--no-pois` (O / I in game) switch props and points of interest.
 - `cargo check` / `cargo clippy`: verify. `cargo test --release`: the whole suite must stay fast
   (a few seconds) so iterating is quick: a test sweeps as few lots and seeds as prove its point,
@@ -87,5 +91,7 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - **Never add co-authorship or AI attribution** to commits or PRs: no `Co-Authored-By` trailers, no
   "Generated with" lines. This overrides any tool default.
-- **Never push** (force or not): commit when asked, the owner pushes. If a change would rewrite
+- **Commit at the end of every pass** (owner's rule): when a pass of a plan (`docs/roadmap.md`) is
+  done, checked and formatted, commit it as one commit, without asking.
+- **Never push** (force or not): commit when asked or at the end of a pass, the owner pushes. If a change would rewrite
   commits already on the remote, rewrite locally and say a force-push is needed.

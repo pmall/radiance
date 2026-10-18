@@ -37,10 +37,12 @@ void main()
 
     float edge = 1.0 - smoothstep(0.35, 0.5, max(abs(local.x), max(abs(local.y), abs(local.z))) / BOX);
     float dist = length(local);
-    float near = smoothstep(1.0, 4.0, dist);
+    float near = smoothstep(2.0, 6.0, dist);
     float twinkle = mix(1.0, 0.55 + 0.45 * sin(uTime * 1.6 + phase * 3.0), spore);
 
     float size = mix(0.03, 0.08, vertexNormal.y) * (1.0 - spore) + mix(0.12, 0.3, vertexNormal.y) * spore;
+    // Specks, not blurred discs: never more than a few screen pixels across, however near.
+    size = min(size, dist * mix(0.0022, 0.0045, spore));
     fragCorner = vertexPosition.xy;
     fragData = vec4(edge * near * twinkle, spore, vertexColor.b, 1.0);
     fragViewZ = dot(local, uCamFwd);

@@ -33,7 +33,9 @@ across; modern street lights (dead, only flowers glow) at the crossroads.
 
 Working method: get the look as far as possible with code, then add a layer of real photo detail.
 The second layer is `assets/textures/detail.png` (CC0 concrete, asphalt, wall, metal), sampled in the
-scene shader in world space and multiplied over the procedural colors.
+scene shader in world space and multiplied over the procedural colors. *(Being replaced: streets,
+sidewalks, roofs and deck undersides are now pixel art like the chunks, see "Wear"; the photo
+detail is left on stairs, steel, the street light and plants until pass 4 of milestone 10.)*
 
 ### Props and external assets: consistency rules
 
@@ -53,6 +55,45 @@ a smooth mesh built in code (a box pole and arm read poorly). Rules:
 - **Seed places, module shapes:** what appears where comes from the seed (`dressing.rs`); a prop
   gets a simple box for collision (a pole only, for street lights).
 - **Review:** every new prop is checked with `--shot` renders, day and night.
+
+## Wear: abandoned, not empty
+
+*(Milestone 10, pass 1: `groundWear` and `wallWear` in `shaders/scene.fs`.)* Abandonment is what
+people left and what time did to it, so every surface is worn, drawn on the same pixel grid as
+the pixel art (16 pixels per meter, ordered dither) in the biome's swatches and by its amounts
+(`Textures`: `dusty`, `littered`, `puddled`, `mossy`, `damp`), and by height: the depths dusty and
+stained, the canopy mossy and strewn with leaves, open sky bringing rain.
+
+- **Ground:** damp blotches, long cracks with weeds, dust and sand in drifts, moss in patches, dead
+  leaves gathered in the gutters along the curbs, glints of broken glass, puddles with a wet rim
+  that mirror the sky, the sun and the flowers' light (the strongest abandoned cue). Road
+  markings are worn nearly away.
+- **Walls:** a ragged band of grime at the foot, moss in it where it is wet, rain streaks and the
+  odd rust streak under every story's ledge, soot under the deck above.
+- **Surfaces in pixel art:** roads (asphalt with patches and sealed cracks, or the biome's
+  stone), sidewalks, curbstones, roofs (tar and gravel) and deck undersides (coffers between
+  beams, water stains, salts) are tiles of the biome's row of the atlas (`render/pixels.rs`), like
+  the chunk materials, so the street and the square share one style.
+- Broad shapes come from a noise texture (`render/noise.rs`), so the wear costs no frame time;
+  single pixels (cracks, leaves, glints) are only worked out up close.
+
+## Light under the decks
+
+*(Milestone 10, pass 1.)* Most of the city lies under a deck. There the haze, not the sky, is the
+light: it is brighter than the walls standing in it, so they read as silhouettes against it
+(*Blade Runner*, *Stray*), and it takes a hue per height, the biome's color script
+(`Atmosphere::heights`): cold blue-green in the depths, where every flower stands out, warm amber
+in the middle, gold under the canopy (the Grotto: deep blue, teal, pale aqua). The ambient light
+of surfaces the sky does not reach takes the same hue. At night the haze takes the colors of the
+flowers around the eye, faint where there are few, so walls still stand out in the dark. Under
+the decks the eye adapts a little (the image opens up by a third). Particles are specks of a few
+screen pixels and halos have hard steps and a dithered glow, like the textures.
+
+## Reference views
+
+Every look change is judged on the same images: `python3 tools/lookdev.py LABEL` renders eight
+views at day, dusk and night into `screenshots/lookdev/LABEL/` (a sheet per time of day), to set
+side by side with an earlier label.
 
 ## Day/night cycle
 

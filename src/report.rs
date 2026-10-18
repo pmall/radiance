@@ -2,6 +2,7 @@
 //! is measured instead of guessed. Prints the floor profiles (`world::design`) and, over the lots
 //! around the spawn, the decks, stairs, chunks placed, flowers by source and props by kind.
 
+use crate::world::city::LOT;
 use crate::world::planner::{self, Role};
 use crate::world::props::Prop;
 use crate::world::{BlockKind, city, design, floors, growth};
@@ -17,6 +18,8 @@ pub fn run(seed: u64, radius: i32) {
     let mut filler_lots = vec![0usize; n];
     let mut hole_lots = vec![0usize; n];
     let mut by_name: std::collections::BTreeMap<String, usize> = Default::default();
+    // The designed places (areas, blocks, craters) whose corner lies in the scanned square.
+    let mut places: Vec<planner::Placement> = Vec::new();
     // Flowers: plants (stairs apart), plants on stairs, points of interest.
     let mut flowers = vec![[0usize; 3]; n];
     // Props: street furniture, what people left; points of interest.
@@ -44,6 +47,9 @@ pub fn run(seed: u64, radius: i32) {
                 // Counted once, at the corner lot.
                 if p.origin == (lx, lz) {
                     *by_name.entry(p.chunk.clone()).or_default() += 1;
+                    if matches!(p.role, Role::Area | Role::Block | Role::Crater) {
+                        places.push(p.clone());
+                    }
                 }
             }
             if let Some(p) = planner::tower_at(seed, lx, lz)
@@ -181,5 +187,29 @@ pub fn run(seed: u64, radius: i32) {
     println!("Chunks placed (whole or in part around the spawn):");
     for (name, count) in &by_name {
         println!("  {name:<24} {count}");
+    }
+    println!();
+    println!("Places (areas, blocks, craters), nearest first, with a view standing at the middle:");
+    let middle = |p: &planner::Placement| {
+        (
+            (p.origin.0 as f32 + p.size.0 as f32 * 0.5) * LOT,
+            (p.origin.1 as f32 + p.size.1 as f32 * 0.5) * LOT,
+        )
+    };
+    places.sort_by(|a, b| {
+        let (da, db) = (middle(a), middle(b));
+        (da.0.hypot(da.1)).total_cmp(&db.0.hypot(db.1))
+    });
+    for p in &places {
+        let (x, z) = middle(p);
+        println!(
+            "  {:<20} {:<8} {:>2}x{:<2} {}  --view {x:.0},{:.0},{z:.0},0,0",
+            p.chunk,
+            format!("{:?}", p.role),
+            p.size.0,
+            p.size.1,
+            floors::name(p.floor),
+            floors::y(p.floor),
+        );
     }
 }

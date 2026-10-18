@@ -13,6 +13,7 @@ mod halos;
 mod lights;
 pub mod look;
 mod mesh;
+pub mod noise;
 mod overlay;
 mod particles;
 pub mod pixels;
@@ -190,6 +191,8 @@ impl Renderer {
         unsafe { (*material.maps.add(cover::SLOT)).texture = cover.texture };
         let prop_meshes = props::PropMeshes::new();
         unsafe { (*material.maps.add(pixels::SLOT)).texture = pixels::load() };
+        // Map slot 0 is the noise the wear is drawn from, sampler `texture0`.
+        unsafe { (*material.maps.add(noise::SLOT)).texture = noise::load() };
         let facades = facades::Facades::new();
         unsafe { (*material.maps.add(facades::SLOT)).texture = facades.texture };
         surfaces::bind_samplers(&mut material);
@@ -314,6 +317,24 @@ impl Renderer {
     }
 
     /// Draws the world to the screen. Call between BeginDrawing and EndDrawing.
+    /// The flowers' light scattered in the haze around the eye: the mean color of the flowers on
+    /// the eye's floor within reach, nearer ones counting more, faint where there are few. At
+    /// night it lifts the far haze into their colors, so walls stand out against it.
+    fn glow_haze(&self, eye: Vec3) -> Vec3 {
+        const REACH: f32 = 90.0;
+        let (mut sum, mut weight) = (Vec3::ZERO, 0.0);
+        for (_, l) in self.lots_lights.values().flatten() {
+            let d = l.pos.distance(eye);
+            if d > REACH || eye.y < l.y_lo - 1.0 || eye.y > l.y_hi + 1.0 {
+                continue;
+            }
+            let w = 1.0 - d / REACH;
+            sum += l.color * w;
+            weight += w;
+        }
+        sum / (weight + 6.0)
+    }
+
     pub fn draw(&mut self, view: &View, sky: &Sky, time: f32) {
         let (rw, rh) = unsafe { (ffi::GetRenderWidth(), ffi::GetRenderHeight()) };
         let sw = ((rw as f32 * self.render_scale) as i32).max(1);
@@ -385,6 +406,10 @@ impl Renderer {
         s.set_i32("uShadows", shadows as i32);
         s.set_f32("uShadowTexel", self.shadow.texel());
         s.set_vec3_array("uPalette", &crate::world::biome::palette_uniform());
+        s.set_vec3_array("uWear", &pixels::wear_uniform());
+        let heights: Vec<f32> = sky.heights.iter().flat_map(|c| c.to_array()).collect();
+        s.set_vec3_array("uHeights", &heights);
+        s.set_vec3("uCamPos", view.pos);
         s.set_vec3("uLightDir", sky.light_dir);
         s.set_vec3("uLight", look.light);
         s.set_vec3("uAmbientSky", look.ambient_sky);
@@ -406,6 +431,7 @@ impl Renderer {
             })
         });
         self.lights_in_use = self.light_grid.update(lights, view.pos);
+        let glow_haze = self.glow_haze(view.pos) * look.plant_glow;
         let s = &mut self.scene;
         s.set_vec3("uGridOrigin", self.light_grid.origin);
         s.set_f32("uGlow", look.plant_glow);
@@ -453,6 +479,8 @@ impl Renderer {
         p.set_f32("uStars", look.stars);
         p.set_vec3("uLightDir", sky.light_dir);
         p.set_vec3("uFog", look.fog);
+        p.set_vec3_array("uHeights", &heights);
+        p.set_vec3("uGlowHaze", glow_haze);
         p.set_vec2("uCoverOrigin", cover_origin);
         p.set_f32_array("uFloorY", &cover::floor_uniform());
         p.set_i32("uFloorCount", crate::world::floors::count() as i32);

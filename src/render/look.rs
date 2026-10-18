@@ -368,6 +368,9 @@ pub struct Sky {
     /// Tint of the day's pollen motes and colors of the night's spores (display space).
     pub pollen: Vec3,
     pub spores: [Vec3; 4],
+    /// The color script by height (`Atmosphere::heights`): depths, middle, canopy, linear, each
+    /// scaled to a luminance of 1.
+    pub heights: [Vec3; 3],
 }
 
 impl Sky {
@@ -384,11 +387,21 @@ impl Sky {
             |b| b.atmosphere.spores.map(Vec3::from),
             |a, b, k| std::array::from_fn(|i| a[i].lerp(b[i], k)),
         );
+        let heights = blend
+            .mean(
+                |b| b.atmosphere.heights.map(Vec3::from),
+                |a, b, k| std::array::from_fn(|i| a[i].lerp(b[i], k)),
+            )
+            .map(|c| {
+                let c = c.powf(2.2);
+                c / c.dot(vec3(0.2126, 0.7152, 0.0722)).max(1e-4)
+            });
         Self {
             look,
             light_dir,
             pollen,
             spores,
+            heights,
         }
     }
 }

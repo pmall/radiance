@@ -1,7 +1,9 @@
-//! Pixel-art textures of the chunk materials (`world::chunks::Mat`, `docs/chunks.md`) and of the
-//! tower facade units: one tile of 4 m at 16 pixels per meter each, drawn here by code (limited
-//! palettes, ordered dithering, chunky joints, cracks, rivets and stains) and sampled with crisp
-//! nearest filtering by `atlasTile` in `shaders/scene.fs`. Tiles wrap seamlessly.
+//! Pixel-art textures of the chunk materials (`world::chunks::Mat`, `docs/chunks.md`), of the
+//! tower facade units and of the city's own surfaces (roads, sidewalks, roofs, deck undersides):
+//! one tile of 4 m at 16 pixels per meter each, drawn here by code (limited palettes, ordered
+//! dithering, chunky joints, cracks, rivets and stains) and sampled with crisp nearest filtering
+//! by `atlasTile` in `shaders/scene.fs`. Tiles wrap seamlessly. A last tile holds swatches: the
+//! colors the shader's wear (dust, litter, moss, puddles) is drawn in.
 //!
 //! Every biome draws its own row of tiles from its `Textures` (`Biome::textures`): the shades of
 //! each material, the patterns that come in several kinds (slabs or setts, plaster or tiled walls,
@@ -20,8 +22,11 @@ pub const TILE: usize = 64;
 pub const MATERIALS: usize = 11;
 /// Tower facade units (`facade_tiles`), after the materials: 4 m bays one story (4 m) high.
 pub const FACADES: usize = 11;
-/// Tiles in a row of the atlas.
-pub const COUNT: usize = MATERIALS + FACADES;
+/// The city's surfaces (`surface_tiles`), after the facade units: road, sidewalk, roof, deck
+/// underside.
+pub const SURFACES: usize = 4;
+/// Tiles in a row of the atlas: materials, facade units, surfaces, and the swatches last.
+pub const COUNT: usize = MATERIALS + FACADES + SURFACES + 1;
 /// Rows of the atlas: one per biome (`biome::variant_of`), room for all of them.
 pub const ROWS: usize = MAX_BIOMES;
 /// Material slot (sampler `texture10`) of the atlas.
@@ -57,9 +62,21 @@ pub struct Textures {
     pub pane: [Rgb; 4],
     /// Laundry hanging in the enclosed balconies.
     pub laundry: [Rgb; 3],
+    /// Road asphalt, and roof tar.
+    pub asphalt: Ramp,
+    /// Dust, sand and grit settled on the ground.
+    pub dust: Ramp,
+    /// Dead leaves and scraps of paper lying about.
+    pub litter: Ramp,
+    /// Standing water, dark to light (the shader adds what it reflects).
+    pub water: Ramp,
 
     /// How stone and dark stone are laid.
     pub paving: (Paving, Paving),
+    /// Roads: asphalt with lane markings, or stone without.
+    pub road: Road,
+    /// How sidewalks are laid, in concrete shades.
+    pub sidewalk: Paving,
     /// Brick size (width, height), and whether they are glazed (a sheen, no soot).
     pub bricks: (usize, usize),
     pub glazed: bool,
@@ -77,6 +94,20 @@ pub struct Textures {
     /// Water instead of rain: tide marks, algae running down walls, mist and beads on glass. 0
     /// none, 1 soaked.
     pub damp: f32,
+    /// Wear the shader draws over every surface (`groundWear`, `wallWear` in `shaders/scene.fs`),
+    /// 0 none to 1 thick: dust and sand drifts, leaves and litter, puddles.
+    pub dusty: f32,
+    pub littered: f32,
+    pub puddled: f32,
+}
+
+/// How a road is surfaced.
+#[derive(Clone, Copy)]
+pub enum Road {
+    /// Asphalt, patched and cracked, with lane markings.
+    Asphalt,
+    /// Dark stone laid this way, no markings.
+    Stone(Paving),
 }
 
 /// How a stone floor is laid.
@@ -186,7 +217,37 @@ pub const DEFAULT_TEXTURES: Textures = Textures {
     frame: [[92, 92, 88], [168, 166, 158], [206, 204, 196]],
     pane: [[8, 10, 14], [14, 18, 24], [22, 28, 36], [34, 42, 52]],
     laundry: [[168, 60, 48], [210, 204, 188], [70, 110, 150]],
+    asphalt: [
+        [34, 36, 40],
+        [50, 52, 56],
+        [68, 69, 72],
+        [88, 88, 88],
+        [116, 112, 106],
+    ],
+    dust: [
+        [74, 66, 54],
+        [98, 88, 70],
+        [124, 112, 90],
+        [150, 136, 108],
+        [174, 160, 128],
+    ],
+    litter: [
+        [70, 42, 24],
+        [112, 70, 32],
+        [138, 100, 52],
+        [104, 66, 44],
+        [196, 188, 168],
+    ],
+    water: [
+        [10, 14, 20],
+        [18, 24, 32],
+        [28, 36, 46],
+        [44, 54, 64],
+        [70, 82, 92],
+    ],
     paving: (Paving::Slabs(16), Paving::Slabs(8)),
+    road: Road::Asphalt,
+    sidewalk: Paving::Slabs(16),
     bricks: (8, 4),
     glazed: false,
     tiles: 8,
@@ -194,8 +255,11 @@ pub const DEFAULT_TEXTURES: Textures = Textures {
     corroded: (0.0, 0.45),
     wall: Wall::Plaster,
     arched: false,
-    mossy: 0.0,
-    damp: 0.0,
+    mossy: 0.3,
+    damp: 0.15,
+    dusty: 0.6,
+    littered: 0.5,
+    puddled: 0.35,
 };
 
 /// Cyan Grotto: an old bathhouse district gone cold and wet. Pale limestone and basalt setts with
@@ -290,7 +354,37 @@ pub const GROTTO_TEXTURES: Textures = Textures {
     frame: [[64, 80, 84], [132, 152, 152], [186, 204, 202]],
     pane: [[6, 12, 16], [10, 20, 26], [16, 32, 40], [30, 52, 62]],
     laundry: [[214, 222, 222], [96, 168, 178], [40, 66, 106]],
+    asphalt: [
+        [16, 22, 26],
+        [26, 34, 38],
+        [38, 48, 52],
+        [54, 64, 68],
+        [78, 88, 90],
+    ],
+    dust: [
+        [58, 70, 68],
+        [80, 94, 90],
+        [104, 118, 112],
+        [130, 142, 134],
+        [156, 166, 156],
+    ],
+    litter: [
+        [30, 56, 46],
+        [48, 84, 64],
+        [76, 110, 80],
+        [110, 96, 70],
+        [200, 214, 208],
+    ],
+    water: [
+        [6, 18, 22],
+        [10, 30, 36],
+        [18, 46, 52],
+        [32, 68, 74],
+        [60, 104, 108],
+    ],
     paving: (Paving::Slabs(16), Paving::Setts(8)),
+    road: Road::Stone(Paving::Setts(8)),
+    sidewalk: Paving::Slabs(8),
     bricks: (8, 4),
     glazed: true,
     tiles: 4,
@@ -300,6 +394,9 @@ pub const GROTTO_TEXTURES: Textures = Textures {
     arched: true,
     mossy: 0.7,
     damp: 0.8,
+    dusty: 0.15,
+    littered: 0.3,
+    puddled: 0.9,
 };
 
 /// 4x4 ordered dither thresholds, in 0..1.
@@ -1104,7 +1201,198 @@ fn letters(t: &mut Tile, y0: i32, salt: i32) {
     }
 }
 
-/// A biome's row of tiles: the materials in `Mat::index` order, then the facade units.
+// The city's own surfaces (`pavement`, `roof` and `underside` in shaders/scene.fs), which the
+// shader wears further on top (dust, litter, moss, puddles).
+
+/// Asphalt: dark binder with light aggregate showing through, patches of newer tar sealed by a
+/// darker line, crack lines; moss in some cracks where the biome grows it.
+fn asphalt(s: &Textures, salt: i32) -> Tile {
+    let mut rng = Rng::new(salt as u64);
+    let patches: Vec<(i32, i32, i32, i32)> = (0..2)
+        .map(|_| {
+            (
+                rng.range_i(0, TILE as i32),
+                rng.range_i(0, TILE as i32),
+                rng.range_i(12, 28),
+                rng.range_i(8, 20),
+            )
+        })
+        .collect();
+    // 0 outside every patch, 1 on a patch's border, 2 inside.
+    let patch = |x: usize, y: usize| {
+        patches
+            .iter()
+            .map(|&(px, py, w, h)| {
+                let dx = (x as i32 - px).rem_euclid(TILE as i32);
+                let dy = (y as i32 - py).rem_euclid(TILE as i32);
+                if dx >= w || dy >= h {
+                    0
+                } else if dx == 0 || dy == 0 || dx == w - 1 || dy == h - 1 {
+                    1
+                } else {
+                    2
+                }
+            })
+            .max()
+            .unwrap_or(0)
+    };
+    let mut t = Tile::new();
+    t.fill(|x, y| {
+        let mut v = 0.42
+            + 0.16 * (noise(x, y, 16, 16, salt + 1) - 0.5)
+            + 0.1 * (noise(x, y, 4, 4, salt + 2) - 0.5);
+        match patch(x, y) {
+            1 => v = 0.05,
+            2 => v = 0.25 + 0.08 * (noise(x, y, 8, 8, salt + 3) - 0.5),
+            _ => {
+                let a = hash(x as i32, y as i32, salt + 4);
+                if a > 0.94 {
+                    v += 0.25;
+                } else if a < 0.05 {
+                    v -= 0.18;
+                }
+            }
+        }
+        ramp(&s.asphalt, v, x, y)
+    });
+    t.cracks(4, 18, s.asphalt[0], salt as u64 + 5);
+    for y in 0..TILE {
+        for x in 0..TILE {
+            if t.px[y * TILE + x] == s.asphalt[0]
+                && let Some(m) = moss(s, x, y, 0.9, salt + 6)
+            {
+                t.px[y * TILE + x] = m;
+            }
+        }
+    }
+    t
+}
+
+/// A flat roof: tar membrane in rolls a meter wide, a raised seam between them lit on one side,
+/// gravel strewn over it, moss in patches.
+fn roof(s: &Textures) -> Tile {
+    let mut t = Tile::new();
+    t.fill(|x, y| {
+        if let Some(m) = moss(s, x, y, 0.45, 155) {
+            return m;
+        }
+        let mut v =
+            0.5 + 0.2 * (noise(x, y, 16, 16, 150) - 0.5) + 0.12 * (noise(x, y, 2, 2, 151) - 0.5);
+        if x % 16 == 0 {
+            v = 0.85;
+        } else if x % 16 == 1 {
+            v = 0.15;
+        }
+        if hash(x as i32, y as i32, 152) > 0.86 {
+            return ramp(
+                &s.concrete,
+                0.35 + 0.5 * hash(x as i32, y as i32, 153),
+                x,
+                y,
+            );
+        }
+        ramp(&s.asphalt, v, x, y)
+    });
+    t.cracks(2, 10, s.asphalt[0], 154);
+    t
+}
+
+/// The underside of a deck: cast concrete in coffers between beams, a main beam along one edge of
+/// the tile and a rib along the other, lit on one side and shadowed on the other; rings of water
+/// stains in the coffers, pale mineral streaks along the beams, algae where it is damp.
+fn underside(s: &Textures) -> Tile {
+    const BEAM: usize = 6;
+    const RIB: usize = 3;
+    let mut t = Tile::new();
+    t.fill(|x, y| {
+        let beam = x < BEAM;
+        let rib = y < RIB;
+        let mut v = if beam || rib {
+            0.6 + 0.15 * (noise(x, y, 8, 8, 160) - 0.5)
+        } else {
+            0.3 + 0.15 * (noise(x, y, 16, 16, 161) - 0.5)
+        };
+        if x == BEAM || y == RIB {
+            v = 0.05;
+        } else if x == BEAM - 1 || y == RIB - 1 {
+            v += 0.2;
+        }
+        if !beam && !rib {
+            // Rings of water stains, spreading from where the slab leaks.
+            let w = noise(x, y, 16, 16, 162);
+            if w > 0.55 && (w * 14.0).fract() < 0.18 {
+                v -= 0.15;
+            }
+            if w > 0.6 && s.damp > 0.0 && noise(x, y, 2, 2, 163) > 1.0 - 0.5 * s.damp {
+                return ramp(&s.moss, 0.1 + 0.3 * noise(x, y, 4, 4, 164), x, y);
+            }
+        } else if noise(x, y, 2, 16, 165) > 0.78 {
+            // Efflorescence: salts the water leaves on its way out.
+            v = 0.95;
+        }
+        v += 0.1 * (noise(x, y, 2, 2, 166) - 0.5);
+        ramp(&s.concrete, v, x, y)
+    });
+    t.cracks(3, 12, s.concrete[0], 167);
+    t
+}
+
+/// Road, sidewalk, roof and deck underside, in `SURFACES` order.
+fn surface_tiles(s: &Textures) -> Vec<Tile> {
+    let road = match s.road {
+        Road::Asphalt => asphalt(s, 120),
+        Road::Stone(how) => paving(s, &s.stone_dark, how, 130),
+    };
+    vec![
+        road,
+        paving(s, &s.concrete, s.sidewalk, 140),
+        roof(s),
+        underside(s),
+    ]
+}
+
+/// Rows of the swatch tile, each a ramp of five colors from its first pixel (`swatch` in
+/// shaders/scene.fs).
+const SWATCHES: usize = 6;
+
+/// The swatch tile: the ramps the shader's wear is drawn in, a row each: dust, litter, moss,
+/// water, corrosion, asphalt.
+fn swatches(s: &Textures) -> Tile {
+    let rows: [&Ramp; SWATCHES] = [
+        &s.dust,
+        &s.litter,
+        &s.moss,
+        &s.water,
+        &s.corrosion,
+        &s.asphalt,
+    ];
+    let mut t = Tile::new();
+    for (r, ramp) in rows.iter().enumerate() {
+        for (i, c) in ramp.iter().enumerate() {
+            t.set(i as i32, r as i32, *c);
+        }
+    }
+    t
+}
+
+/// Every biome's wear amounts for the shader (`uWear`): two vec3s a biome, (moss, damp, dust)
+/// and (litter, puddles, lane markings), unused biomes zero.
+pub fn wear_uniform() -> Vec<f32> {
+    let mut v: Vec<f32> = BIOMES
+        .iter()
+        .take(MAX_BIOMES)
+        .flat_map(|b| {
+            let s = &b.textures;
+            let markings = matches!(s.road, Road::Asphalt) as u8 as f32;
+            [s.mossy, s.damp, s.dusty, s.littered, s.puddled, markings]
+        })
+        .collect();
+    v.resize(MAX_BIOMES * 6, 0.0);
+    v
+}
+
+/// A biome's row of tiles: the materials in `Mat::index` order, the facade units, the surfaces,
+/// the swatches.
 fn row(s: &Textures) -> Vec<Tile> {
     [
         paving(s, &s.stone, s.paving.0, 1),
@@ -1121,6 +1409,8 @@ fn row(s: &Textures) -> Vec<Tile> {
     ]
     .into_iter()
     .chain(facade_tiles(s))
+    .chain(surface_tiles(s))
+    .chain(std::iter::once(swatches(s)))
     .collect()
 }
 
@@ -1184,7 +1474,12 @@ mod tests {
         let mut rows: Vec<Vec<Rgb>> = Vec::new();
         for b in BIOMES {
             let s = &b.textures;
-            for p in [s.paving.0, s.paving.1] {
+            let road = match s.road {
+                Road::Stone(p) => Some(p),
+                Road::Asphalt => None,
+            };
+
+            for p in [s.paving.0, s.paving.1, s.sidewalk].into_iter().chain(road) {
                 let (Paving::Slabs(n) | Paving::Setts(n)) = p;
                 assert!(divides(n) && n >= 4, "{}: paving of {n}", b.name);
             }
@@ -1194,10 +1489,21 @@ mod tests {
             let (bw, bh) = s.bricks;
             assert!(divides(bw) && divides(bh) && bw >= 4, "{}: bricks", b.name);
             assert!(divides(s.tiles) && s.tiles >= 3, "{}: tiles", b.name);
-            for f in [s.mosaic, s.corroded.0, s.corroded.1, s.mossy, s.damp] {
+            for f in [
+                s.mosaic,
+                s.corroded.0,
+                s.corroded.1,
+                s.mossy,
+                s.damp,
+                s.dusty,
+                s.littered,
+                s.puddled,
+            ] {
                 assert!((0.0..=1.0).contains(&f), "{}: {f} out of 0..1", b.name);
             }
-            let px: Vec<Rgb> = row(s).into_iter().flat_map(|t| t.px).collect();
+            let tiles = row(s);
+            assert_eq!(tiles.len(), COUNT, "{}: tiles in a row", b.name);
+            let px: Vec<Rgb> = tiles.into_iter().flat_map(|t| t.px).collect();
             assert!(!rows.contains(&px), "{} draws another biome's row", b.name);
             rows.push(px);
         }

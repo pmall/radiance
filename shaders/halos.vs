@@ -44,7 +44,7 @@ void main()
     // Same rule as the scene shader: always strong in the lightless depths.
     float glow = mix(uGlow, max(uGlow, 0.85), 1.0 - smoothstep(-60.0, -10.0, a.y));
     // A fixed world size up close, growing a little with distance so far flowers stay visible.
-    float size = max(0.7, dist * 0.012);
+    float size = max(0.5, dist * 0.01);
 
     fragCorner = vertexPosition.xy;
     fragColor = vec4(pow(lin, vec3(1.0 / 2.2)), mix(0.3, 1.0, glow));

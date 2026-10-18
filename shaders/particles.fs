@@ -1,6 +1,6 @@
 #version 330
 
-// Soft additive sprites, hidden behind scene geometry by comparing against the scene depth.
+// Square additive specks, hidden behind scene geometry by comparing against the scene depth.
 
 in vec2 fragCorner;
 in vec4 fragData;
@@ -30,13 +30,11 @@ vec3 species(float h)
 
 void main()
 {
-    float r = length(fragCorner);
-    if (r > 1.0) discard;
     vec2 uv = gl_FragCoord.xy / uScreen;
     if (fragViewZ > linearDepth(texture(texture1, uv).r)) discard;
 
-    // A crisp core with a soft rim reads as a painted dot.
-    float a = smoothstep(1.0, 0.55, r);
+    // A crisp square speck, like a pixel of the textures.
+    float a = 1.0;
     float spore = fragData.y;
     float glow = max(uGlow, 0.85 * uDepthK);
     vec3 col = mix(uMote * mix(0.55, 0.2, uGlow), species(fragData.z) * 0.95, spore);

@@ -1,6 +1,7 @@
 #version 330
 
-// A painted halo: bright core, a mid ring and a soft outer ring, additive, hidden by scene depth.
+// A pixel-art halo: bright core, a mid ring and a dithered outer glow, additive, hidden by scene
+// depth.
 
 in vec2 fragCorner;
 in vec4 fragColor;
@@ -29,9 +30,12 @@ void main()
     float visible = smoothstep(0.0, 0.4, hidden);
     if (visible <= 0.0) discard;
 
-    float a = 0.85 * (1.0 - smoothstep(0.16, 0.22, r))
-            + 0.28 * (1.0 - smoothstep(0.42, 0.52, r))
-            + 0.14 * (1.0 - smoothstep(0.80, 1.0, r));
+    // Hard steps, and the outer glow as a dither of 2x2 screen pixels, like the textures.
+    vec2 q = floor(gl_FragCoord.xy / 2.0);
+    float dither = fract(dot(q, vec2(0.5, 0.25)) + 0.25 * mod(q.y, 2.0));
+    float a = 0.85 * step(r, 0.2)
+            + 0.3 * step(r, 0.45)
+            + 0.5 * step(dither, 0.45 - 0.45 * r) * step(r, 1.0);
     vec3 col = mix(fragColor.rgb, vec3(1.0), 0.5 * (1.0 - smoothstep(0.1, 0.25, r)));
     float fade = exp(-fragViewZ * 0.008);
     finalColor = vec4(col, a * fragColor.a * visible * fade);

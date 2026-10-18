@@ -131,8 +131,9 @@ impl WorldMesh {
                     let along = if n.x != 0.0 { 2 } else { 0 };
                     let c = corners[k];
                     let loc = if let BlockKind::Built(m) = b.kind {
-                        // Built boxes: their material, painted in world space.
-                        [m.index() as f32, 0.0]
+                        // Built boxes: their material, painted in world space, and their
+                        // height, which bounds the grime at their foot (`wallWear`).
+                        [m.index() as f32, size.y]
                     } else if n.y != 0.0 {
                         [c[0], c[2]]
                     } else {

@@ -158,6 +158,10 @@ pub struct Atmosphere {
     pub pollen: [f32; 3],
     /// Colors of the glowing spores of the night and the depths (display space).
     pub spores: [[f32; 3]; 4],
+    /// The color script by height: the hue of the haze and of the light where the sky does not
+    /// reach, in the depths, the middle floors and the canopy (display space; only the hue counts,
+    /// the brightness comes from the look's fog and ambient).
+    pub heights: [[f32; 3]; 3],
 }
 
 /// Everything generation and rendering read from a biome. `DEFAULT` holds the original values of
@@ -277,6 +281,9 @@ pub const DEFAULT: Biome = Biome {
             [1.0, 0.45, 0.85],
             [0.6, 0.6, 1.0],
         ],
+        // Cold blue-green depths where every flower stands out, warm haze in the middle, gold
+        // under the canopy.
+        heights: [[0.42, 0.66, 0.78], [0.95, 0.74, 0.5], [1.0, 0.86, 0.56]],
     },
     tower_empty: 0.18,
     bridge_chance: 0.6,
@@ -391,6 +398,8 @@ pub const GROTTO: Biome = Biome {
             [0.6, 1.0, 0.9],
             [0.85, 0.95, 1.0],
         ],
+        // Deep blue at the bottom, teal through the middle, pale aqua-green up high.
+        heights: [[0.32, 0.56, 0.86], [0.46, 0.84, 0.86], [0.7, 0.96, 0.84]],
     },
     tower_empty: 0.25,
     bridge_chance: 0.45,

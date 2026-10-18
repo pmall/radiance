@@ -157,8 +157,10 @@ and a folder `assets/biomes/<name>/`. Between them, a biome sets:
   (`Flower`). What depends on the floor (plant density, flower chances) stays in the floor
   profiles.
 - **Its air** (`Atmosphere`): sky, fog, key light, ambient light, ink and grading at night, dawn,
-  day and dusk (`Looks`, in `render/look.rs`), and the colors of pollen and spores. The sky is
-  drawn in the atmosphere of the player's biome and fades into the next one's over 4 seconds
+  day and dusk (`Looks`, in `render/look.rs`), the colors of pollen and spores, and its color
+  script by height (`heights`): the hue the haze and the light take under the decks in the
+  depths, the middle and the canopy (`docs/art-direction.md`, "Light under the decks"). The sky
+  is drawn in the atmosphere of the player's biome and fades into the next one's over 4 seconds
   when they cross a border (`look::Blend`).
 - **Its textures** (`Textures`, in `render/pixels.rs`): its own pixel art for every chunk material
   and facade unit, one row of the atlas per biome, so the same chunk reads differently from one
@@ -167,7 +169,11 @@ and a folder `assets/biomes/<name>/`. Between them, a biome sets:
   patterns that come in several kinds (slabs or setts, plain or glazed bricks, tile size and how
   much tiles differ, plaster or tiled tower walls, square or round-headed windows) and the wear
   (how corroded metal is, moss in joints and on ledges, damp: tide marks, algae running down,
-  misted glass). The default set is the original city's; start a new one from
+  misted glass). It also sets the city's own surfaces: how roads are surfaced (asphalt with
+  lane markings, or stone without), how sidewalks are laid, and the shades of asphalt, dust,
+  litter and standing water; and how worn everything is (`dusty`, `littered`, `puddled`, with
+  `mossy` and `damp`), which the shader draws over every surface (`docs/art-direction.md`,
+  "Wear"). The default set is the original city's; start a new one from
   `..DEFAULT_TEXTURES`. Lot meshes and props carry their biome, so a prop is drawn in the pixel
   art of the zone it stands in.
 - **Its colors** (`Palette`): the eight paints of its tower walls (the shader tints the walls' pixel

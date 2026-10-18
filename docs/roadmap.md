@@ -82,6 +82,41 @@
       by a column, phone booth...), which need models not in these kits.
       The darkness of the depths stays (owner's call).
 
+10. **Beautiful, consistent, abandoned** (owner, after the biomes: "bland", "empty more than
+    abandoned", "always habitation, I never spot a square or some special architecture"; before
+    any new biome or feature). The diagnosis: nothing was left behind and nothing has aged; three
+    styles in one image (pixel-art chunks, smooth photo-grained streets, smooth plants, blurred
+    particles); one olive gray from the ground to the ceiling; isolated apartment towers in a sea
+    of asphalt; special places so rare one is met every 2 to 3 km of a floor; biomes that differ
+    only in the sky. About eight passes, each judged on the reference views
+    (`tools/lookdev.py`, `docs/art-direction.md`):
+    1. Reference views, wear and light *(done, to be judged by the owner)*: the reference views;
+       roads, sidewalks, curbs, roofs and deck undersides in each biome's pixel art (the Grotto's
+       roads cobbled, no markings); wear over every surface (dust drifts, cracks with weeds, moss,
+       dead leaves gathered in the gutters, glints of glass, puddles that mirror the sky and the
+       flowers; grime and moss at the foot of walls, streaks under every ledge, soot under the
+       deck above), road markings worn nearly away; a color per height under the decks (cold
+       depths, warm middle, gold canopy) and a haze brighter than the walls in it, so they stand
+       as silhouettes; the flowers' colors in the night haze; the eye adapting under the decks;
+       particles and halos as pixel specks; no outline across two lots of one deck. Frame time
+       unchanged (the wear reads a noise texture).
+    2. Light, continued: stronger sunbeams through holes and craters, the deck undersides as a
+       structure (beams, pipes, dead lamps, drips), flower light on walls.
+    3. Things left behind: a scatter of debris by rules (against walls, under facades, never in
+       the road), ground cover along curbs and wall feet, cables sagging across the streets.
+    4. One look, finished: everything still smooth or photo-grained (stairs, steel, the street
+       light, deck edges) in pixel art.
+    5. Pixel-art plants (maybe two passes): leaves as flat cut-outs in crisp pixels instead of
+       smooth folded shapes.
+    6. The planner: special places on every floor, met every few hundred meters; buildings along
+       the sidewalks with alleys and courtyards; fewer vacant lots.
+    7. Landmarks (probably two passes): tall silhouettes seen from afar; the old stone city in the
+       depths (arches, cobbles, tram tracks, a temple, a market hall), a station, a mall atrium,
+       a parking garage, a stadium in the middle; machine structures in the canopy; towers that
+       are not housing, and abandoned ones (a gaping hole, one leaning on its neighbor).
+    8. The Grotto: flooded streets, its own street furniture, its landmark (a tiled bathhouse
+       dome).
+
 ## Debug and art-iteration tools
 
 Important, since the purpose is art exploration. Build them alongside the features they serve.
@@ -97,6 +132,11 @@ Important, since the purpose is art exploration. Build them alongside the featur
 - Live-tweakable shader and palette parameters, if practical (e.g. shader hot-reload from disk).
   *(shader hot-reload done, F10 forces it; palettes still in `src/render/look.rs`)*
 - Headless frame capture for checking looks: `--time`, `--view`, `--shot`, `--fx` (effect mask). *(done)*
+- Reference views *(done)*: `python3 tools/lookdev.py LABEL` renders eight fixed views (spawn,
+  streets on D0 and D3, a laundry court, the great square, a park, the canopy, the Grotto) at day,
+  dusk and night into `screenshots/lookdev/LABEL/`, with one sheet per time of day; every look
+  change is judged on them, before against after. `--report` lists the places (areas, blocks,
+  craters) with a `--view` to stand in each.
 - Screenshots for feedback *(done: P saves to `screenshots/` with a note holding the command that
   renders the same view)*.
 - Record a run to MP4 with the screen and the sound. *(done: V; 1600x900 60 fps H.264 (NVENC when available) with AAC audio, saved in the background to `recordings/`; the overlay stays out of the video)*

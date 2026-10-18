@@ -146,6 +146,15 @@ What the project owner has said so far. Treat as requirements.
   consistency; the default city is one biome like the others and should evolve the same way.
   Plan: `docs/world.md`, "Biomes", "Not yet".
 
+- Visual pass before more biomes or features (owner): "the graphics look a bit bland", "it feels
+  empty more than abandoned", and the chunks "always habitation, I never spot a square or some
+  special architecture". The agent's diagnosis and plan were accepted: abandoned (wear, things
+  left behind), one consistent look (everything in the pixel-art style), light that composes the
+  image (a color per height, glowing haze, silhouettes), a city instead of a housing estate
+  (special places met often, landmarks, buildings along the streets), biomes recognizable at a
+  glance. New chunks and props are allowed for this pass (an exception to the catalog rule); the
+  order is the agent's call. Plan and status: `docs/roadmap.md`, milestone 10.
+
 ## How to work on generation (owner's direction)
 
 - Think of the game as one consistent system, not fix after fix. The code must be as consistent

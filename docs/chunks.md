@@ -129,6 +129,9 @@ The catalog does not grow on its own: no new chunks or props are written unless 
 When the owner wants more content, they ask for a **new biome**, and that biome's chunks and props
 are written then, in its own folder. The `default` biome is what exists now.
 
+Exception (owner): the visual pass of milestone 10 (`docs/roadmap.md`) may add chunks and props
+to the existing biomes: landmarks, special places, things left behind.
+
 ## Biomes
 
 A biome is a meta collection of chunks: in the end every biome has its own set of chunks and props,
