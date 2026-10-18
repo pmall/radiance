@@ -338,7 +338,10 @@ the `default` biome:
   side: the core alone, slab pieces with rebar, the top carried over the gap) and `tower_leaning`
   (the construction front: above the top deck its top leans in steps of two stories until it
   rests on the wall of a taller neighbor, a tier's `lean: true`, `tower::lean`; straight when no
-  neighbor qualifies). A tower is `tiers` stacked from the bottom of the stack (a setback takes the top
+  neighbor qualifies), `tower_spire` (2x2 lots, the machines' tallest work: `rise: (180, 300)`
+  meters over the top deck, stepping in to a frame and a crane, about one every 350 m). The
+  towers rising past the top deck are also drawn far beyond the loaded lots, out to about a
+  kilometer (`world::skyline`), their bodies and big parts only, their feet lost in the haze. A tower is `tiers` stacked from the bottom of the stack (a setback takes the top
   `stories` the seed picks, at its `chance`); each tier has a body painted from its written
   **elevations** and parts `each_story`, `each_floor` (fire escapes, signs), `streets` (what stands
   against its walls, only where a deck is) and `roof`. Elevations are written as seen from outside,

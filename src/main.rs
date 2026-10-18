@@ -256,6 +256,7 @@ fn main() {
         renderer.effects = fx;
     }
     renderer.sync_world(&world);
+    renderer.sync_skyline(world.seed, player.pos, true);
     // Sound only for interactive runs: screenshots and benchmarks stay silent.
     let mut audio = if args.shot.is_none() && args.bench.is_none() && !args.no_audio {
         audio::Audio::new(args.seed)
@@ -428,6 +429,7 @@ fn main() {
         }
         world.stream(player.pos, STREAM_BUDGET);
         renderer.sync_world(&world);
+        renderer.sync_skyline(world.seed, player.pos, false);
 
         blend.update(biome_variant(world.seed, player.pos), dt);
         let sky = Sky::from_cycle(&cycle, &blend);

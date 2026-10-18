@@ -211,6 +211,22 @@ impl HotShader {
         }
     }
 
+    /// Sets an `int[]` uniform.
+    pub fn set_i32_array(&mut self, name: &'static str, data: &[i32]) {
+        let loc = self.loc(name);
+        if loc >= 0 {
+            unsafe {
+                ffi::SetShaderValueV(
+                    self.raw,
+                    loc,
+                    data.as_ptr() as _,
+                    ffi::ShaderUniformDataType::SHADER_UNIFORM_INT as i32,
+                    data.len() as i32,
+                )
+            };
+        }
+    }
+
     /// Sets a `vec3[]` uniform from packed floats (3 per element).
     pub fn set_vec3_array(&mut self, name: &'static str, data: &[f32]) {
         let loc = self.loc(name);

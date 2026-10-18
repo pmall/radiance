@@ -307,6 +307,23 @@ pub fn build(cat: &Catalog, p: &Placement, seed: u64) -> Built {
     out
 }
 
+/// Smallest extent of a part kept in a tower's far silhouette (a mast, a crane, a sign frame).
+const SILHOUETTE_PART: f32 = 8.0;
+
+/// What a placed tower shows from far away (`world::skyline`): its bodies (leaning ones
+/// included) and its big parts (masts, cranes, sign frames).
+pub fn silhouette(cat: &Catalog, p: &Placement, seed: u64) -> Vec<Block> {
+    build(cat, p, seed)
+        .blocks
+        .into_iter()
+        .filter(|b| match b.kind {
+            BlockKind::Tower(_) => true,
+            BlockKind::Built(_) => b.aabb.size().max_element() >= SILHOUETTE_PART,
+            _ => false,
+        })
+        .collect()
+}
+
 impl Built {
     /// Keeps the boxes, props and flowers of the groups `keep` says.
     fn retain(&mut self, keep: impl Fn(u32) -> bool) {

@@ -70,6 +70,9 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Cables across the streets between towers                | `leftovers::cables`, `push_cable` (kept out of skybridges)                      |
 | Weeds at the wall feet and behind the curbs             | `growth::grow_lot` (end), `Builder::weed`                                       |
 | Collisions with what reaches in from the next lot       | `World::colliders_near`, `overhangs` (`world/mod.rs`)                           |
+| Far skyline: front towers out to 1 km, past loaded lots | `skyline::blocks` (`RADIUS`), `tower::silhouette`; drawn by `render::skyline`,  |
+|                                                         | left out over loaded lots (`uLoaded` in `shaders/scene.fs`)                     |
+| How far over the top deck a front tower rises           | `planner::tower_stories` (a chunk's `rise`, e.g. `tower_spire`)                 |
 
 ## Things to know
 

@@ -164,7 +164,9 @@
       `tower_hotel`, `tower_telecom`, with new facade units: curtain walls, broken curtain walls,
       ribbon windows)*; a tower with a gaping hole *(done: `tower_breached`)* or leaning on its
       neighbor *(done: `tower_leaning`, about one every 400 m at the construction front)*; tall
-      silhouettes above the construction front.
+      silhouettes above the construction front *(done: `tower_spire`, 180 to 300 m over the top
+      deck, and the far skyline: the front's towers drawn out to about a kilometer, past the
+      loaded lots, `world/skyline.rs`; about 0.35 ms/frame more at the spawn, 10 ms there)*.
     - Maybe a second plant pass (pass 5): the flowers' petals in pixel art.
     - Frame time: about 9.0 ms at the spawn (8.0 ms before pass 2, most of it the sunbeams in the
       haze); D5 views about 11 ms (7.5 M triangles) anywhere on that floor, not caused by the

@@ -15,6 +15,12 @@ uniform vec3 uLight;         // key light color * intensity
 uniform vec3 uAmbientSky;
 uniform vec3 uAmbientGround;
 uniform int uEffects;
+// The far skyline (src/render/skyline.rs) is drawn with uSkyline = 1, and left out over the lots
+// loaded around the camera, which draw their own towers: a row of bits per lot row, bit 0 of row
+// 0 the lot at uLoadedOrigin.
+uniform int uSkyline;
+uniform int uLoaded[21];
+uniform vec2 uLoadedOrigin;
 uniform sampler2D texture1;  // shadow map depth
 uniform mat4 uLightVP;
 uniform int uShadows;
@@ -539,6 +545,11 @@ vec3 pixelStem(vec3 base, vec3 p, float seed)
 
 void main()
 {
+    if (uSkyline == 1) {
+        ivec2 l = ivec2(floor(fragWorldPos.xz / 24.0 - uLoadedOrigin));
+        if (l.x >= 0 && l.y >= 0 && l.x < 21 && l.y < 21 && ((uLoaded[l.y] >> l.x) & 1) == 1)
+            discard;
+    }
     vec3 n = normalize(fragNormal);
     vec3 albedo = pow(fragColor.rgb, vec3(2.2));
     bool textured = (uEffects & FX_TEXTURE) != 0;

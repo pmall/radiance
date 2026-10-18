@@ -20,6 +20,7 @@ pub mod pixels;
 mod props;
 mod shader;
 mod shadow;
+mod skyline;
 mod surfaces;
 mod targets;
 
@@ -81,6 +82,8 @@ const RELOAD_POLL: f32 = 0.5;
 const FOG_STACK_SCALE: f32 = 0.4;
 
 const IDENTITY: ffi::Matrix = matrix(Mat4::IDENTITY);
+/// Side of the square of lots `uLoaded` covers: every lot the world keeps loaded.
+const LOADED_SIDE: usize = 21;
 
 pub struct View {
     pub pos: Vec3,
@@ -111,6 +114,8 @@ pub struct Renderer {
     light_grid: LightGrid,
     cover: CoverMap,
     facades: facades::Facades,
+    /// The towers over the top deck past the loaded lots (`skyline.rs`).
+    skyline: skyline::Skyline,
     /// Seed of the synced world, for the cover map.
     seed: u64,
     particles: Overlay,
@@ -210,6 +215,7 @@ impl Renderer {
             light_grid,
             cover,
             facades,
+            skyline: Default::default(),
             seed: 0,
             particles: particles::new(),
             halos,
@@ -233,6 +239,29 @@ impl Renderer {
         self.details.clear();
         self.lots_props.clear();
         self.lots_lights.clear();
+        self.skyline.clear();
+    }
+
+    /// Keeps the far skyline made around `pos` (`skyline.rs`); `wait` blocks until it is ready
+    /// (for the first frame of a shot).
+    pub fn sync_skyline(&mut self, seed: u64, pos: Vec3, wait: bool) {
+        self.skyline
+            .update(seed, crate::world::city::lot_of(pos), wait);
+    }
+
+    /// The lots loaded around `center`, a row of bits per lot row (`uLoaded` in
+    /// shaders/scene.fs), and the lot of bit 0 in row 0.
+    fn loaded_mask(&self, center: (i32, i32)) -> ([i32; LOADED_SIDE], (i32, i32)) {
+        let r = LOADED_SIDE as i32 / 2;
+        let origin = (center.0 - r, center.1 - r);
+        let mut rows = [0i32; LOADED_SIDE];
+        for &(x, z) in self.lots_props.keys() {
+            let (i, j) = (x - origin.0, z - origin.1);
+            if (0..LOADED_SIDE as i32).contains(&i) && (0..LOADED_SIDE as i32).contains(&j) {
+                rows[j as usize] |= 1 << i;
+            }
+        }
+        (rows, origin)
     }
 
     /// Brings the per-lot meshes in line with the lots the world currently has loaded.
@@ -266,6 +295,12 @@ impl Renderer {
     /// Triangles drawn in the last frame.
     pub fn triangles(&self) -> i32 {
         self.meshes.values().map(|m| m.triangles()).sum::<i32>()
+            + self
+                .skyline
+                .meshes
+                .iter()
+                .map(|m| m.triangles())
+                .sum::<i32>()
             + self.detail_triangles
             + self.prop_triangles
     }
@@ -428,6 +463,7 @@ impl Renderer {
         });
         self.lights_in_use = self.light_grid.update(lights, view.pos);
         let glow_haze = self.glow_haze(view.pos) * look.plant_glow;
+        let (rows, origin) = self.loaded_mask(crate::world::city::lot_of(view.pos));
         let s = &mut self.scene;
         s.set_vec3("uGridOrigin", self.light_grid.origin);
         s.set_f32("uGlow", look.plant_glow);
@@ -449,6 +485,14 @@ impl Renderer {
                 detail += mesh.triangles();
             }
             self.detail_triangles = detail;
+            // The far skyline, but not where a loaded lot draws its tower.
+            s.set_i32_array("uLoaded", &rows);
+            s.set_vec2("uLoadedOrigin", Vec2::new(origin.0 as f32, origin.1 as f32));
+            s.set_i32("uSkyline", 1);
+            for mesh in &self.skyline.meshes {
+                ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
+            }
+            s.set_i32("uSkyline", 0);
             s.set_i32("uInstanced", 1);
             props::draw(&batches, self.material);
             s.set_i32("uInstanced", 0);

@@ -825,7 +825,14 @@ fn tower_stories(chunk: &Chunk, rng: &mut Rng) -> u32 {
             floors::y(rng.range_i(START as i32, floors::count() as i32) as usize)
                 + rng.range(8.0, 28.0)
         }
-        Height::Front => rng.range(floors::top() + 30.0, floors::top() + 110.0),
+        Height::Front => {
+            let (lo, hi) = chunk
+                .tower
+                .as_ref()
+                .and_then(|t| t.rise)
+                .unwrap_or((30.0, 110.0));
+            rng.range(floors::top() + lo, floors::top() + hi)
+        }
     };
     (((top - floors::bottom()) / chunks::STORY).round() as u32).max(3)
 }

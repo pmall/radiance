@@ -10,6 +10,7 @@ pub mod leftovers;
 pub mod planner;
 pub mod props;
 pub mod roads;
+pub mod skyline;
 pub mod tower;
 
 use std::collections::HashMap;
@@ -177,6 +178,18 @@ pub struct Lot {
 }
 
 impl Lot {
+    /// Blocks to draw only: no plants, props or lights (`skyline`).
+    pub fn scenery(blocks: Vec<Block>, variant: u8) -> Self {
+        Self {
+            blocks,
+            plants: Vec::new(),
+            props: Vec::new(),
+            lights: Vec::new(),
+            variant,
+            overhangs: Vec::new(),
+        }
+    }
+
     pub fn plants(&self) -> impl Iterator<Item = &PlantVert> {
         self.plants.iter()
     }

@@ -290,6 +290,10 @@ pub struct TowerDef {
     /// Bottom to top. The first rises from the bottom of the stack; each next one, when the seed
     /// and the height allow it, takes the top `stories` of the tower.
     pub tiers: Vec<Tier>,
+    /// At the construction front: how far over the top deck its top may rise, in meters (30 to
+    /// 110 when left out): the machines' tallest work, standing over the skyline.
+    #[serde(default)]
+    pub rise: Option<(f32, f32)>,
 }
 
 fn always() -> f32 {
