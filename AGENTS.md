@@ -87,3 +87,5 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - **Never add co-authorship or AI attribution** to commits or PRs: no `Co-Authored-By` trailers, no
   "Generated with" lines. This overrides any tool default.
+- **Never push** (force or not): commit when asked, the owner pushes. If a change would rewrite
+  commits already on the remote, rewrite locally and say a force-push is needed.
