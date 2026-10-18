@@ -77,6 +77,17 @@ stained, the canopy mossy and strewn with leaves, open sky bringing rain.
 - Broad shapes come from a noise texture (`render/noise.rs`), so the wear costs no frame time;
   single pixels (cracks, leaves, glints) are only worked out up close.
 
+## Things left behind
+
+*(Milestone 10, pass 3: `src/world/leftovers.rs`.)* Empty becomes abandoned when things lie where
+they fell. By rule, never by hand: debris at the foot of every wall, every 3 m at the floor's
+`debris` chance (dense in the depths, rare at the construction front) and the biome's
+`littered`: what fell from a tower facade (lumps of concrete, a heap of rubble, bricks, a window
+frame, a panel) or was dropped against a low wall (bags, boxes, papers, a tyre), each turned at
+random, never in a road. Weeds (three to five blades from a crack) at the foot of the walls and
+behind the curbs. Cables sag across the streets between towers facing each other, one to four
+per floor, drawn as short boxes that step like pixels.
+
 ## Light under the decks
 
 *(Milestone 10, pass 1.)* Most of the city lies under a deck. There the haze, not the sky, is the

@@ -111,7 +111,7 @@ vec3 plantLights(vec3 p, vec3 n)
             if (x <= 0.0) continue;
             float q = 0.34 * smoothstep(0.03, 0.13, x) + 0.33 * smoothstep(0.30, 0.40, x)
                     + 0.33 * smoothstep(0.65, 0.75, x);
-            acc += fetchTexel(i * 3 + 1).rgb * q * clamp(facing * 0.5 + 0.6, 0.0, 1.0);
+            acc += fetchTexel(i * 3 + 1).rgb * q * clamp(facing * 0.5 + 0.6, 0.0, 1.0) * mix(1.0, 0.6, wall);
         }
     }
     return acc;

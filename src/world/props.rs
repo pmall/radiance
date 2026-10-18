@@ -43,6 +43,16 @@ pub enum Prop {
     Sofa,
     BedFrame,
     ClayPot,
+    // Debris (`leftovers.rs`).
+    DebrisLumps,
+    DebrisHeap,
+    DebrisSlab,
+    DebrisBricks,
+    DebrisFrame,
+    DebrisPanel,
+    DebrisPipe,
+    DebrisTyre,
+    DebrisPaper,
 }
 
 /// How a prop is loaded.
@@ -87,6 +97,15 @@ const DEFS: &[Def] = &[
     module(Prop::Sofa, "sofa"),
     module(Prop::BedFrame, "bed_frame"),
     module(Prop::ClayPot, "clay_pot"),
+    module(Prop::DebrisLumps, "debris_lumps"),
+    module(Prop::DebrisHeap, "debris_heap"),
+    module(Prop::DebrisSlab, "debris_slab"),
+    module(Prop::DebrisBricks, "debris_bricks"),
+    module(Prop::DebrisFrame, "debris_frame"),
+    module(Prop::DebrisPanel, "debris_panel"),
+    module(Prop::DebrisPipe, "debris_pipe"),
+    module(Prop::DebrisTyre, "debris_tyre"),
+    module(Prop::DebrisPaper, "debris_paper"),
 ];
 
 /// The prop a module of the catalog is drawn as, if it is one: chunks place these instanced
@@ -408,7 +427,8 @@ mod tests {
             assert!(!m.verts.is_empty(), "{:?} has no triangles", d.prop);
             assert!(m.half.x > 0.05 && m.half.z > 0.05, "{:?} is flat", d.prop);
             assert!(
-                (0.1..10.0).contains(&m.half.y),
+                // Debris lies flat: papers are a couple of centimeters thick.
+                (0.005..10.0).contains(&m.half.y),
                 "{:?} is {} m tall",
                 d.prop,
                 m.half.y

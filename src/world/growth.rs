@@ -13,6 +13,7 @@ use glam::{Vec3, vec3};
 use sola_raylib::prelude::Color;
 
 use super::biome::{Climber, Plants, Vine, biome_at, pick_color, pick_species};
+use super::city::LOT;
 use super::design::{MAX_FLOWERS_PER_LOT, MIN_FLOWER_GAP};
 use super::floors;
 use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert};
@@ -398,6 +399,38 @@ impl Builder<'_> {
             }
         }
         Some(pts[SEGS])
+    }
+
+    /// Ground cover: a weed of three to five short blades from a crack at `base`, leaning toward
+    /// `away` (off the wall or curb it grows against). One double-sided triangle per blade.
+    fn weed(&mut self, base: Vec3, away: Vec3) {
+        if self.inside_block(base + Vec3::Y * 0.05, 0.02) {
+            return;
+        }
+        self.new_plant();
+        let color = shade(self.foliage(), self.rng.range(0.7, 1.0));
+        let size = self.rng.range(0.15, 0.4);
+        for _ in 0..self.rng.range_i(3, 6) {
+            let a = self.rng.range(-1.2, 1.2);
+            let side = vec3(-away.z, 0.0, away.x);
+            let lean = (away * a.cos() + side * a.sin()) * self.rng.range(0.2, 0.6);
+            let len = size * self.rng.range(0.6, 1.2);
+            let tip = base + (lean + Vec3::Y) * len;
+            let w = side * self.rng.range(0.025, 0.05);
+            let root = base + side * self.rng.range(-0.06, 0.06);
+            if self.clear(root - w, tip)
+                && self.clear(root + w, tip)
+                && self.clear(root - w, root + w)
+            {
+                self.tri2_uv(
+                    root - w,
+                    root + w,
+                    tip,
+                    color,
+                    [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]],
+                );
+            }
+        }
     }
 
     /// A bush of one of the biome's species (a rosette of arching fronds, a tuft of narrow
@@ -848,7 +881,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
                         let c = &o.aabb;
                         // What hangs under the deck itself does not stop its vines.
                         if c.max.y <= top
-                            && !matches!(o.kind, BlockKind::Under(_))
+                            && !matches!(o.kind, BlockKind::Hung(_))
                             && x > c.min.x - 0.8
                             && x < c.max.x + 0.8
                             && z > c.min.z - 0.8
@@ -916,6 +949,49 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
                     let top = (start + b.rng.range(sp.height.0, sp.height.1)).min(a.max.y - 0.5);
                     b.climber(sp, origin, along, normal, w, start + 0.2, top);
                 }
+            }
+        }
+    }
+    // Ground cover: weeds in the cracks at the foot of the walls and along the curbs, by the
+    // floor's density (`leftovers::wall_feet`, `in_road`).
+    for foot in super::leftovers::wall_feet(seed, lx, lz, blocks) {
+        let dens = super::design::profile(foot.floor).plants;
+        let mut n = foot.len * 0.22 * dens * b.plants.bush_rate.min(1.5);
+        while n > 0.0 {
+            if n >= 1.0 || b.rng.chance(n) {
+                let t = b.rng.range(0.1, foot.len - 0.1);
+                let p = foot.start + foot.along * t + foot.out * b.rng.range(0.04, 0.18);
+                if !super::leftovers::in_road(seed, (lx, lz), foot.floor, p) {
+                    b.weed(p, foot.out);
+                }
+            }
+            n -= 1.0;
+        }
+    }
+    let o = super::city::lot_origin(lx, lz);
+    for f in 0..floors::count() {
+        if f > 0 && super::city::deck(seed, lx, lz, f) == super::city::Deck::None {
+            continue;
+        }
+        let dens = super::design::profile(f).plants;
+        let y = floors::y(f);
+        // Each road along a border: the joint behind its curb, 3.25 m in.
+        for (dir, start, along, inward) in [
+            ((-1, 0), vec3(o.x, y, o.z), Vec3::Z, Vec3::X),
+            ((1, 0), vec3(o.x + LOT, y, o.z), Vec3::Z, Vec3::NEG_X),
+            ((0, -1), vec3(o.x, y, o.z), Vec3::X, Vec3::Z),
+            ((0, 1), vec3(o.x, y, o.z + LOT), Vec3::X, Vec3::NEG_Z),
+        ] {
+            if !super::roads::along(seed, (lx, lz), dir, f) {
+                continue;
+            }
+            let mut n = LOT * 0.12 * dens * b.plants.bush_rate.min(1.5);
+            while n > 0.0 {
+                if n >= 1.0 || b.rng.chance(n) {
+                    let p = start + along * b.rng.range(3.6, LOT - 3.6) + inward * 3.28;
+                    b.weed(p, inward);
+                }
+                n -= 1.0;
             }
         }
     }

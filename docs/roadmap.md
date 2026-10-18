@@ -103,11 +103,15 @@
     2. Light, continued *(done)*: sunbeams through holes and craters (the haze lit where the sun
        reaches air that sees little sky, strongest toward the sun; moonbeams at night); the deck
        undersides as a structure (girders on the lot borders, joists, pipe runs lining up along
-       a row of lots, dead lamps on rods: `city::push_underside`, `BlockKind::Under`) and water
+       a row of lots, dead lamps on rods: `city::push_underside`, `BlockKind::Hung`) and water
        dripping from them (particles, only under a deck); walls facing a flower catch its light
        further off (1.6 times the pool). About 0.6 ms/frame more (8.7 ms at the spawn).
-    3. Things left behind: a scatter of debris by rules (against walls, under facades, never in
-       the road), ground cover along curbs and wall feet, cables sagging across the streets.
+    3. Things left behind *(done)*: debris scattered by rule at the foot of every wall (more
+       under the tower facades: lumps, a rubble heap, bricks, a fallen frame or panel; bags,
+       boxes, papers, a tyre against low walls), never in a road (`world/leftovers.rs`, the
+       floor profiles' `debris`); weeds in the cracks at the wall feet and behind the curbs;
+       cables sagging across the streets between towers facing each other, stepped like pixels.
+       Frame time unchanged (about 8.6 ms at the spawn).
     4. One look, finished: everything still smooth or photo-grained (stairs, steel, the street
        light, deck edges) in pixel art.
     5. Pixel-art plants (maybe two passes): leaves as flat cut-outs in crisp pixels instead of

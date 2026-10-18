@@ -62,7 +62,7 @@ const DETAIL_SIZE: f32 = 3.5;
 fn is_detail(kind: BlockKind, size: Vec3) -> bool {
     matches!(
         kind,
-        BlockKind::Built(_) | BlockKind::Under(_) | BlockKind::Steel
+        BlockKind::Built(_) | BlockKind::Hung(_) | BlockKind::Steel
     ) && size.max_element() <= DETAIL_SIZE
 }
 
@@ -98,7 +98,7 @@ impl WorldMesh {
                     BlockKind::Course => 5.0,
                     BlockKind::Parapet => 6.0,
                     BlockKind::Steel => 13.0,
-                    BlockKind::Built(_) | BlockKind::Under(_) => 15.0,
+                    BlockKind::Built(_) | BlockKind::Hung(_) => 15.0,
                     BlockKind::Prop | BlockKind::Collider => unreachable!(),
                 };
             for (n, corners) in BOX_FACES {
@@ -133,7 +133,7 @@ impl WorldMesh {
                     // meters (billboards: both axes normalized). Horizontal faces: normalized.
                     let along = if n.x != 0.0 { 2 } else { 0 };
                     let c = corners[k];
-                    let loc = if let BlockKind::Built(m) | BlockKind::Under(m) = b.kind {
+                    let loc = if let BlockKind::Built(m) | BlockKind::Hung(m) = b.kind {
                         // Built boxes: their material, painted in world space, and their
                         // height, which bounds the grime at their foot (`wallWear`).
                         [m.index() as f32, size.y]

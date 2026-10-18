@@ -124,4 +124,98 @@
             Box(at: (-0.21, 0.6, -0.22), size: (0.42, 0.25, 0.04), mat: Wood),
         ],
     ),
+    // Debris: what fell and what was dropped, scattered at the foot of the walls by rule
+    // (`world/leftovers.rs`), each on its origin. Lumps of concrete broken off a facade.
+    Module(
+        name: "debris_lumps",
+        parts: [
+            Box(at: (-0.3, 0.0, -0.2), size: (0.36, 0.22, 0.3), mat: Concrete),
+            Box(at: (0.1, 0.0, -0.05), size: (0.24, 0.14, 0.22), mat: StoneDark),
+            Box(at: (-0.1, 0.0, 0.15), size: (0.18, 0.1, 0.16), mat: Concrete),
+            Box(at: (0.28, 0.0, 0.2), size: (0.12, 0.08, 0.1), mat: Concrete),
+            Box(at: (-0.22, 0.22, -0.12), size: (0.16, 0.1, 0.14), mat: Concrete),
+        ],
+    ),
+    // A heap of rubble where a piece of facade came down: stepped like a pile of pixels.
+    Module(
+        name: "debris_heap",
+        parts: [
+            Box(at: (-0.8, 0.0, -0.6), size: (1.6, 0.18, 1.2), mat: Concrete),
+            Box(at: (-0.6, 0.18, -0.45), size: (1.1, 0.16, 0.85), mat: StoneDark),
+            Box(at: (-0.35, 0.34, -0.3), size: (0.65, 0.14, 0.55), mat: Concrete),
+            Box(at: (-0.15, 0.48, -0.15), size: (0.3, 0.1, 0.3), mat: Concrete),
+            Box(at: (0.45, 0.18, 0.1), size: (0.3, 0.12, 0.25), mat: Brick),
+            Box(at: (0.8, 0.0, -0.2), size: (0.3, 0.14, 0.26), mat: Concrete),
+            Box(at: (-0.3, 0.3, 0.2), size: (0.9, 0.03, 0.03), mat: Rust),
+        ],
+    ),
+    // A piece of slab, rebar sticking out of its broken edge.
+    Module(
+        name: "debris_slab",
+        parts: [
+            Box(at: (-0.55, 0.0, -0.35), size: (1.1, 0.14, 0.7), mat: Concrete),
+            Box(at: (-0.3, 0.14, -0.2), size: (0.3, 0.12, 0.25), mat: Concrete),
+            Box(at: (0.55, 0.05, -0.2), size: (0.3, 0.03, 0.03), mat: Rust),
+            Box(at: (0.55, 0.05, 0.1), size: (0.22, 0.03, 0.03), mat: Rust),
+        ],
+    ),
+    // Bricks fallen from a wall, in a heap.
+    Module(
+        name: "debris_bricks",
+        parts: [
+            Box(at: (-0.3, 0.0, -0.15), size: (0.24, 0.07, 0.12), mat: Brick),
+            Box(at: (-0.04, 0.0, -0.2), size: (0.24, 0.07, 0.12), mat: Brick),
+            Box(at: (-0.18, 0.07, -0.12), size: (0.24, 0.07, 0.12), mat: Brick),
+            Box(at: (0.12, 0.0, 0.0), size: (0.12, 0.07, 0.24), mat: Brick),
+            Box(at: (-0.25, 0.0, 0.08), size: (0.12, 0.07, 0.24), mat: Brick),
+            Box(at: (0.2, 0.0, -0.3), size: (0.12, 0.05, 0.1), mat: Brick),
+        ],
+    ),
+    // A window frame fallen flat, a shard of its glass left in the corner.
+    Module(
+        name: "debris_frame",
+        parts: [
+            Box(at: (-0.6, 0.0, -0.5), size: (1.2, 0.07, 0.08), mat: Paint((150, 146, 136))),
+            Box(at: (-0.6, 0.0, 0.42), size: (1.2, 0.07, 0.08), mat: Paint((150, 146, 136))),
+            Box(at: (-0.6, 0.0, -0.42), size: (0.08, 0.07, 0.84), mat: Paint((150, 146, 136))),
+            Box(at: (0.52, 0.0, -0.42), size: (0.08, 0.07, 0.84), mat: Paint((150, 146, 136))),
+            Box(at: (-0.04, 0.0, -0.42), size: (0.06, 0.06, 0.84), mat: Paint((150, 146, 136))),
+            Box(at: (-0.52, 0.0, -0.42), size: (0.3, 0.02, 0.25), mat: Glass),
+        ],
+    ),
+    // A facade panel or a sign's face, fallen flat.
+    Module(
+        name: "debris_panel",
+        parts: [
+            Box(at: (-0.75, 0.0, -0.4), size: (1.5, 0.05, 0.8), mat: Paint((72, 106, 118))),
+            Box(at: (-0.75, 0.05, -0.08), size: (1.5, 0.01, 0.16), mat: Paint((214, 206, 188))),
+        ],
+    ),
+    // A length of rusty pipe and its bracket.
+    Module(
+        name: "debris_pipe",
+        parts: [
+            Box(at: (-0.8, 0.0, -0.07), size: (1.6, 0.14, 0.14), mat: Rust),
+            Box(at: (0.3, 0.0, -0.12), size: (0.08, 0.2, 0.24), mat: Metal),
+        ],
+    ),
+    // An old tyre lying flat.
+    Module(
+        name: "debris_tyre",
+        parts: [
+            Box(at: (-0.32, 0.0, -0.32), size: (0.64, 0.2, 0.16), mat: Paint((28, 28, 30))),
+            Box(at: (-0.32, 0.0, 0.16), size: (0.64, 0.2, 0.16), mat: Paint((28, 28, 30))),
+            Box(at: (-0.32, 0.0, -0.16), size: (0.16, 0.2, 0.32), mat: Paint((28, 28, 30))),
+            Box(at: (0.16, 0.0, -0.16), size: (0.16, 0.2, 0.32), mat: Paint((28, 28, 30))),
+        ],
+    ),
+    // Old newspapers and flyers, flattened by the rain.
+    Module(
+        name: "debris_paper",
+        parts: [
+            Box(at: (-0.3, 0.0, -0.2), size: (0.42, 0.012, 0.3), mat: Paint((196, 190, 172))),
+            Box(at: (0.05, 0.0, 0.0), size: (0.3, 0.018, 0.22), mat: Paint((176, 168, 150))),
+            Box(at: (-0.1, 0.0, 0.22), size: (0.2, 0.015, 0.28), mat: Paint((150, 120, 98))),
+        ],
+    ),
 ]

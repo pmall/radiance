@@ -44,6 +44,9 @@ pub struct FloorProfile {
     /// Chance that a slot for what people left (street furniture, leftovers: `chunks::Rate::Props`)
     /// holds anything.
     pub props: f32,
+    /// Chance that a stretch of 3 m at the foot of a wall has debris (`leftovers::scatter`):
+    /// what fell from the facades, what was dropped.
+    pub debris: f32,
     /// Chance that a block cell (`planner::BLOCK_CELL` lots a side) holds a block chunk on this
     /// floor (a light well, a pocket park).
     pub blocks: f32,
@@ -90,6 +93,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.35,
                 props: 1.0,
+                debris: 0.5,
                 blocks: 0.35,
                 fillers: 0.5,
             },
@@ -104,6 +108,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.3,
                 props: 0.9,
+                debris: 0.45,
                 blocks: 0.35,
                 fillers: 0.5,
             },
@@ -120,6 +125,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.25,
                 props: 0.7,
+                debris: 0.35,
                 blocks: 0.35,
                 fillers: 0.4,
             },
@@ -134,6 +140,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.18,
                 props: 0.4,
+                debris: 0.25,
                 blocks: 0.3,
                 fillers: 0.3,
             },
@@ -150,6 +157,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.12,
                 props: 0.12,
+                debris: 0.12,
                 blocks: 0.25,
                 fillers: 0.15,
             },
@@ -164,6 +172,7 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 },
                 stair: 0.08,
                 props: 0.05,
+                debris: 0.06,
                 blocks: 0.2,
                 fillers: 0.08,
             },
@@ -188,6 +197,7 @@ fn blend(a: &FloorProfile, b: &FloorProfile, t: f32) -> FloorProfile {
         },
         stair: f(a.stair, b.stair),
         props: f(a.props, b.props),
+        debris: f(a.debris, b.debris),
         blocks: f(a.blocks, b.blocks),
         fillers: f(a.fillers, b.fillers),
     }

@@ -454,6 +454,10 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>, dressed
     }
 
     push_chunks(seed, lx, lz, first, out, dressed);
+
+    // Things left behind, by rule: cables across the streets, debris at the foot of the walls.
+    out.extend(super::leftovers::cables(seed, lx, lz));
+    super::leftovers::scatter(seed, lx, lz, &out[first..], &mut dressed.props);
 }
 
 /// Depth of the girders under a deck, and of the joists between them.
@@ -463,7 +467,7 @@ const JOIST: (f32, f32) = (0.7, 0.35);
 /// What hangs under a full deck on `floor` (a stairwell's ring has none, for the flights' head
 /// room): girders along the lot's -x and -z borders (and its +x / +z edges where no deck goes on),
 /// joists every 6 m between them, pipe runs that line up from lot to lot along a row, and now and
-/// then a dead lamp on its rod. Nothing grows on them (`BlockKind::Under`).
+/// then a dead lamp on its rod. Nothing grows on them (`BlockKind::Hung`).
 fn push_underside(seed: u64, lx: i32, lz: i32, floor: usize, out: &mut Vec<Block>) {
     use chunks::Mat;
     let o = lot_origin(lx, lz);
@@ -472,7 +476,7 @@ fn push_underside(seed: u64, lx: i32, lz: i32, floor: usize, out: &mut Vec<Block
         out.push(Block {
             aabb: Aabb { min, max },
             color: mat.color(),
-            kind: BlockKind::Under(mat),
+            kind: BlockKind::Hung(mat),
         });
     };
     let (gd, gw) = GIRDER;
@@ -937,7 +941,7 @@ fn push_chunks(
         .filter(|b| {
             !matches!(
                 b.kind,
-                BlockKind::Floor | BlockKind::Deck | BlockKind::Under(_)
+                BlockKind::Floor | BlockKind::Deck | BlockKind::Hung(_)
             )
         })
         .map(|b| b.aabb)
@@ -1022,7 +1026,7 @@ fn push_chunks(
 /// alone, so the lots they cross can keep clear for them. Each lot pair is decided by the lower lot,
 /// and two big towers facing each other across several lot pairs get the bridges of the first pair
 /// only. Own random stream.
-fn skybridges(seed: u64, lx: i32, lz: i32) -> Vec<Block> {
+pub(super) fn skybridges(seed: u64, lx: i32, lz: i32) -> Vec<Block> {
     static BRIDGES: Memo<Vec<Block>> = OnceLock::new();
     memo(&BRIDGES, seed, lx, lz, || {
         let mut out = Vec::new();
