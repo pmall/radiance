@@ -164,6 +164,8 @@ What the project owner has said so far. Treat as requirements.
   fixed per run but variable (more may come, depending on how hard climbing is).
 - Flowers on benches and chairs must stay rare: too many make it obvious they are human souls.
 - Everything random is random: stairs grow plants and flowers by chance, like any other spot.
+- Bridges never cross each other (footbridges or skybridges); two crossing at one height was
+  reported as a bug after milestone 10 (`docs/roadmap.md`).
 - Implemented as `world/design.rs` (floor profiles), `--report`, O/I switches, `--floors N`
   (see "How the city is generated" in `docs/world.md`).
 

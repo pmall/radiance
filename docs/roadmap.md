@@ -152,9 +152,26 @@
        tiled hall with arched doors under a stepped dome open at its crown, a pool ringed by
        columns, a terrace of basins and lanterns.
 
-    Milestone 10 status: all eight passes have a first version, to be judged by the owner on the
-    reference views (`python3 tools/lookdev.py`, label `grotto8` is the last run). Left for later:
-    the second landmark pass (pass 7) and maybe a second plant pass (pass 5).
+    Milestone 10 status: all eight passes have a first version, judged good by the owner on the
+    reference views (`python3 tools/lookdev.py`, label `grotto8` is the last run). Left to do:
+
+    - **Bug, bridges cross each other** (owner's screenshot, seed 7, D2 at dusk: two footbridges
+      meet at the same height and their railings run through each other). Bridges must never
+      cross at all. Today a gap's footbridge is decided per axis for the whole gap, so an x and a
+      z bridge may both pass over the same hole lot (`city::bridges_through`, which even says "two
+      bridges may cross"); a lot over a hole should carry at most one, and a footbridge should also
+      stay clear of skybridges and of the other floors' bridges where they could touch.
+    - Second landmark pass (pass 7): towers that are not housing beyond the office tower; a tower
+      with a gaping hole or leaning on its neighbor (the tower bodies are single boxes, so this
+      needs new geometry); tall silhouettes above the construction front.
+    - Maybe a second plant pass (pass 5): the flowers' petals in pixel art.
+    - Frame time: about 9.0 ms at the spawn (8.0 ms before pass 2, most of it the sunbeams in the
+      haze); D5 views about 11 ms (7.5 M triangles) anywhere on that floor, not caused by the
+      new chunks. Worth a look before weaker GPUs are tried.
+    - Points to judge over time: how strong the wall wash from flowers is (`WALL_REACH`), the
+      ragged leaf edges, and how the low-rise districts change the feel of the city.
+    - The reference views moved in pass 6 (street-d3 moved, laundry-d1 renamed court-d1, three
+      new views), so labels before `plan6` do not compare one to one on those.
 
 ## Debug and art-iteration tools
 
