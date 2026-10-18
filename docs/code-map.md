@@ -22,48 +22,50 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 
 ## Rule → function
 
-| Rule                                                    | Where                                                                         |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Does a lot have a deck on a floor                       | `city::deck` (final) ← `unpinched` ← `laid` (the plan)                        |
-| Decks never touch by a corner alone                     | `city::pinched`, `opened_corners` (two passes)                                |
-| Which lot borders are roads (network, dead ends cut)    | `roads::network` (per tile, cached `roads::roads`), `roads::ground`           |
-| Where a chunk paves its floor over (no road there)      | `city::paved`                                                                 |
-| Street lights at crossings, curb furniture along roads  | `roads::crossing`, `roads::along`; `If` in `chunks::streets_fit`              |
-| Roads, curbs and markings painted                       | `pavement` (`shaders/scene.fs`) from `roads::bits` (`render/cover.rs`)        |
-| Holes and craters opening floors                        | `planner::hole_at`, `holes_at`, `crater_placement`; `city::opened`            |
-| Which chunk stands where                                | `planner::covering` (areas, subs, blocks, holes, craters, hubs, fillers,      |
-|                                                         | streets); `city::placements` (adds `--chunk` preview)                         |
-| Precedence between chunks on a lot                      | `Placement::rank`, `Placement::outranks`                                      |
-| Whether a chunk stands on a lot (deck, outranked)       | `city::stands_on`                                                             |
-| What gives way (a module and its boxes, together)       | `Pieces::blocked` (one lot), `Pieces::spanning_blocked` (multi-lot            |
-|                                                         | modules, decided once per placement), `city::room`                            |
-| Which lot builds a piece reaching out of its chunk      | `Footprint::owner`                                                            |
-| Towers: where, how tall                                 | `planner::tower_at`, `towers_of_cell`, `tower_stories`                        |
-| Towers: tiers, setbacks, body, walls a bridge can use   | `tower::tiers`, `tower::body`, `tower::solid_top`, `city::tower`              |
-| Towers: units near decks, street parts                  | `tower::build`, `push_units`                                                  |
-| Stairs (one per hub)                                    | `planner::stair_hub`, `hub_of_cell`; `city::stair`                            |
-| Skybridges between towers, decided once per pair        | `city::skybridges`, `push_bridge` (module `skybridge_segment`),               |
-|                                                         | `skybridges_through`                                                          |
-| Footbridges over gaps of 1–2 lots, landings kept clear  | `city::bridges_through`, `landing`, `footbridge_room`, `push_footbridges`     |
-|                                                         | (module `footbridge_span`)                                                    |
-| Per-floor numbers (holes, stairs, fillers, props, POIs) | `design::profile`, `FloorProfile`                                             |
-| Floors, heights, zones                                  | `floors::y`, `floors::zone`, `floors::count`                                  |
-| Per-biome numbers (bridge chance, plant rates)          | `biome::biome_at`, `Biome`                                                    |
-| Per-biome plant species (shapes, foliage, flowers)      | `biome::Plants`, `pick_species`; read in `growth::Builder` (`bush`,           |
-|                                                         | `hanging_vine`, `climber`, `flower`)                                          |
-| Per-biome props (a biome's module restyles a prop)      | `props::Meshes::load`, `props::biome_of`                                      |
-| Per-biome textures (pixel art of materials and units)   | `biome::Biome::textures` (`pixels::Textures`), `pixels::atlas_pixels`;        |
-|                                                         | `atlasTile` (`shaders/scene.fs`) reads the lot's or prop's biome row          |
-| Per-biome tower wall paints                             | `biome::Palette::paints`; `tower::paint`, `facade` (`shaders/scene.fs`)       |
-| Per-biome sky, fog, light, pollen, spores               | `biome::Atmosphere`; `look::Blend` (fades at a border), `Sky::from_cycle`     |
-| Chunk text format, modules, slots, `If`                 | `chunks::Part`, `chunks::expand_in`, `Env`                                    |
-| Props drawn instanced                                   | `props::by_module`, `props::Placed`                                           |
-| Plants and flowers                                      | `growth::grow_lot`                                                            |
-| What hangs under a deck (girders, pipes, dead lamps)    | `city::push_underside` (`BlockKind::Hung`: drawn as built, grows nothing)     |
-| Debris at the wall feet, never in a road                | `leftovers::scatter` (`wall_feet`, `in_road`; `design::FloorProfile::debris`) |
-| Cables across the streets between towers                | `leftovers::cables`, `push_cable` (kept out of skybridges)                    |
-| Weeds at the wall feet and behind the curbs             | `growth::grow_lot` (end), `Builder::weed`                                     |
-| Collisions with what reaches in from the next lot       | `World::colliders_near`, `overhangs` (`world/mod.rs`)                         |
+| Rule                                                    | Where                                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Does a lot have a deck on a floor                       | `city::deck` (final) ← `unpinched` ← `laid` (the plan)                          |
+| Decks never touch by a corner alone                     | `city::pinched`, `opened_corners` (two passes)                                  |
+| Which lot borders are roads (network, dead ends cut)    | `roads::network` (per tile, cached `roads::roads`), `roads::ground`             |
+| Where a chunk paves its floor over (no road there)      | `city::paved`                                                                   |
+| Street lights at crossings, curb furniture along roads  | `roads::crossing`, `roads::along`; `If` in `chunks::streets_fit`                |
+| Roads, curbs and markings painted                       | `pavement` (`shaders/scene.fs`) from `roads::bits` (`render/cover.rs`)          |
+| Holes and craters opening floors                        | `planner::hole_at`, `holes_at`, `crater_placement`; `city::opened`              |
+| Which chunk stands where                                | `planner::covering` (areas, subs, blocks, holes, craters, hubs, fillers,        |
+|                                                         | streets); `city::placements` (adds `--chunk` preview)                           |
+| Precedence between chunks on a lot                      | `Placement::rank`, `Placement::outranks`                                        |
+| Whether a chunk stands on a lot (deck, outranked)       | `city::stands_on`                                                               |
+| What gives way (a module and its boxes, together)       | `Pieces::blocked` (one lot), `Pieces::spanning_blocked` (multi-lot              |
+|                                                         | modules, decided once per placement), `city::room`                              |
+| Which lot builds a piece reaching out of its chunk      | `Footprint::owner`                                                              |
+| Towers: where, how tall                                 | `planner::tower_at`, `towers_of_cell`, `tower_stories`                          |
+| Towers: tiers, setbacks, body, walls a bridge can use   | `tower::tiers`, `tower::body`, `tower::solid_top`, `city::tower`                |
+| Towers: units near decks, street parts                  | `tower::build`, `push_units`                                                    |
+| Stairs (one per hub)                                    | `planner::stair_hub`, `hub_of_cell`; `city::stair`                              |
+| Skybridges between towers, decided once per pair        | `city::skybridges`, `push_bridge` (module `skybridge_segment`),                 |
+|                                                         | `skybridges_through`                                                            |
+| Footbridges over gaps of 1–2 lots, landings kept clear  | `city::bridges_through`, `landing`, `footbridge_room`, `push_footbridges`       |
+|                                                         | (module `footbridge_span`)                                                      |
+| Per-floor numbers (holes, stairs, fillers, props, POIs) | `design::profile`, `FloorProfile`                                               |
+| Low-rise districts (few towers, places, row houses)     | `planner::low_rise` (`design::LOW_RISE`), read in `towers_of_cell`, `filler_at` |
+| Places need room: no tower through their floor          | `planner::block_of_cell_uncached` (`fits`)                                      |
+| Floors, heights, zones                                  | `floors::y`, `floors::zone`, `floors::count`                                    |
+| Per-biome numbers (bridge chance, plant rates)          | `biome::biome_at`, `Biome`                                                      |
+| Per-biome plant species (shapes, foliage, flowers)      | `biome::Plants`, `pick_species`; read in `growth::Builder` (`bush`,             |
+|                                                         | `hanging_vine`, `climber`, `flower`)                                            |
+| Per-biome props (a biome's module restyles a prop)      | `props::Meshes::load`, `props::biome_of`                                        |
+| Per-biome textures (pixel art of materials and units)   | `biome::Biome::textures` (`pixels::Textures`), `pixels::atlas_pixels`;          |
+|                                                         | `atlasTile` (`shaders/scene.fs`) reads the lot's or prop's biome row            |
+| Per-biome tower wall paints                             | `biome::Palette::paints`; `tower::paint`, `facade` (`shaders/scene.fs`)         |
+| Per-biome sky, fog, light, pollen, spores               | `biome::Atmosphere`; `look::Blend` (fades at a border), `Sky::from_cycle`       |
+| Chunk text format, modules, slots, `If`                 | `chunks::Part`, `chunks::expand_in`, `Env`                                      |
+| Props drawn instanced                                   | `props::by_module`, `props::Placed`                                             |
+| Plants and flowers                                      | `growth::grow_lot`                                                              |
+| What hangs under a deck (girders, pipes, dead lamps)    | `city::push_underside` (`BlockKind::Hung`: drawn as built, grows nothing)       |
+| Debris at the wall feet, never in a road                | `leftovers::scatter` (`wall_feet`, `in_road`; `design::FloorProfile::debris`)   |
+| Cables across the streets between towers                | `leftovers::cables`, `push_cable` (kept out of skybridges)                      |
+| Weeds at the wall feet and behind the curbs             | `growth::grow_lot` (end), `Builder::weed`                                       |
+| Collisions with what reaches in from the next lot       | `World::colliders_near`, `overhangs` (`world/mod.rs`)                           |
 
 ## Things to know
 

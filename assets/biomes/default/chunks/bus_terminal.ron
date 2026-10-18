@@ -1,0 +1,28 @@
+// Block: a bus terminal of three lots by two: two long islands of shelters facing the bays, stop
+// signs, a kiosk and benches at the end. The buses never came back.
+Chunk(
+    name: "bus_terminal",
+    size: (3, 2),
+    zones: [Depths, Middle],
+    labels: ["terminal"],
+    weight: 2,
+    ground: Some(Concrete),
+    parts: [
+        Box(at: (8.0, 0.0, 15.0), size: (56.0, 0.18, 4.0), mat: StoneDark),
+        Box(at: (8.0, 0.0, 29.0), size: (56.0, 0.18, 4.0), mat: StoneDark),
+        Repeat(from: (14.0, 0.18, 18.4), step: (11.0, 0.0, 0.0), count: 5, parts: [
+            Module(name: "bus_shelter", turn: 2),
+            Module(name: "stop_sign", at: (3.0, 0.0, -2.8)),
+            Slot(at: (-3.4, 0.0, -2.6), rate: Props, pick: [Some("bin"), Some("trash_bag"), None]),
+        ]),
+        Repeat(from: (14.0, 0.18, 29.6), step: (11.0, 0.0, 0.0), count: 5, parts: [
+            Module(name: "bus_shelter"),
+            Module(name: "stop_sign", at: (3.0, 0.0, 2.8)),
+        ]),
+        Module(name: "kiosk", at: (66.0, 0.0, 40.0), turn: 3),
+        Module(name: "bench", at: (60.0, 0.0, 42.0), turn: 2),
+        Module(name: "tree_bed", at: (6.0, 0.0, 42.0)),
+        Growth(area: ((4.0, 40.0), (8.0, 44.0)), kind: Soil),
+        Slot(at: (36.0, 0.18, 31.0), rate: Poi, pick: [Some("poi_bench")]),
+    ],
+)

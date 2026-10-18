@@ -1,0 +1,25 @@
+// Block: a playground of two lots by two, its rubber tiles cracked: swings with a broken chain, a
+// slide, a sandbox gone to weeds, benches for the parents along the edge, tree beds at the
+// corners.
+Chunk(
+    name: "playground",
+    size: (2, 2),
+    zones: [Depths, Middle],
+    labels: ["playground"],
+    weight: 2,
+    ground: Some(Tile),
+    parts: [
+        Module(name: "swings", at: (16.0, 0.0, 18.0)),
+        Module(name: "slide", at: (32.0, 0.0, 18.0), turn: 3),
+        Module(name: "sandbox", at: (24.0, 0.0, 30.0)),
+        Growth(area: ((22.2, 28.2), (25.8, 31.8)), kind: Soil),
+        Mirror4(center: (24.0, 24.0), parts: [
+            Module(name: "tree_bed", at: (8.0, 0.0, 8.0)),
+            Growth(area: ((6.0, 6.0), (10.0, 10.0)), kind: Soil),
+            Module(name: "bench", at: (24.0, 0.0, 8.0)),
+            Slot(at: (27.0, 0.0, 8.0), pick: [Some("bin"), None]),
+            Module(name: "lamp", at: (14.0, 0.0, 6.0), turn: 0),
+        ]),
+        Slot(at: (36.0, 0.0, 34.0), rate: Poi, pick: [Some("poi_bench")]),
+    ],
+)

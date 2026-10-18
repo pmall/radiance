@@ -1,0 +1,24 @@
+// Block: a small square of two lots by two around a statue of the people who built the first
+// floors, looking up; planters and benches in a ring, lamps, an obelisk on each side.
+Chunk(
+    name: "monument_square",
+    size: (2, 2),
+    zones: [Depths, Middle],
+    labels: ["monument"],
+    weight: 2,
+    ground: Some(Stone),
+    parts: [
+        Module(name: "statue", at: (24.0, 0.0, 24.0)),
+        Mirror4(center: (24.0, 24.0), parts: [
+            Module(name: "bench", at: (24.0, 0.0, 15.0)),
+            Module(name: "planter", at: (19.0, 0.0, 15.0)),
+            Module(name: "planter", at: (29.0, 0.0, 15.0)),
+            Module(name: "lamp", at: (16.0, 0.0, 16.0), turn: 0),
+            Module(name: "tree_bed", at: (7.0, 0.0, 7.0)),
+            Growth(area: ((5.0, 5.0), (9.0, 9.0)), kind: Soil),
+        ]),
+        Mirror2(axis: X, at: 24.0, parts: [
+            Module(name: "obelisk", at: (8.0, 0.0, 24.0)),
+        ]),
+    ],
+)

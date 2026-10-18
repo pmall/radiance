@@ -49,7 +49,7 @@ pub const HUB_CELL: i32 = 6;
 /// Chance that an area cell holds an area.
 const AREA_CHANCE: f32 = 0.6;
 /// Spots a block cell tries before giving up.
-const BLOCK_TRIES: usize = 4;
+const BLOCK_TRIES: usize = 10;
 
 const SALT_AREA: i32 = 20;
 const SALT_HUB: i32 = 21;
@@ -398,7 +398,7 @@ fn block_of_cell(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement>
 }
 
 fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<Placement> {
-    if floor == 0 || floor + 1 >= floors::count() {
+    if floor + 1 >= floors::count() {
         return None;
     }
     let biome = biome_of_cell(seed, cx, cz, BLOCK_CELL);
@@ -407,11 +407,16 @@ fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<P
     if !rng.chance(design::profile(floor).blocks) {
         return None;
     }
+    // The ground floor holds places but no light well: nothing lies under it.
     let pool = pool(&cat, |c| {
-        c.role() == Role::Block && zone_fits(c, floor) && c.size.0.max(c.size.1) <= BLOCK_CELL
+        c.role() == Role::Block
+            && zone_fits(c, floor)
+            && c.size.0.max(c.size.1) <= BLOCK_CELL
+            && (floor > 0 || c.holes.is_empty())
     });
-    let chunk = pick(&pool, &mut rng)?;
     for _ in 0..BLOCK_TRIES {
+        // Another place each try: a big one may not find room where a small one does.
+        let chunk = pick(&pool, &mut rng)?;
         let turn = rng.range_i(0, 4) as u8;
         let size = turned(chunk.size, turn);
         let p = Placement {
@@ -428,9 +433,11 @@ fn block_of_cell_uncached(seed: u64, cx: i32, cz: i32, floor: usize) -> Option<P
             seed: rng.next_u64(),
             stories: 0,
         };
-        // On a deck no hole or crater opens, clear of the hole chunks of its floor.
+        // On a deck no hole or crater opens, clear of the hole chunks of its floor, with no tower
+        // rising through it (a place needs the room).
         let fits = p.lots().all(|(x, z)| {
             !near_start_or_hub(x, z)
+                && city::tower(seed, x, z).is_none_or(|t| t.top() < floors::y(floor) - 1.0)
                 && !city::opened(seed, x, z, floor)
                 && city::crater_at(seed, x, z).is_none()
                 && area_at(seed, x, z).is_none()
@@ -449,7 +456,7 @@ pub fn blocks_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
         return Vec::new();
     }
     let (cx, cz) = (lx.div_euclid(BLOCK_CELL), lz.div_euclid(BLOCK_CELL));
-    (1..floors::count())
+    (0..floors::count())
         .filter_map(|f| block_of_cell(seed, cx, cz, f))
         .filter(|p| p.covers(lx, lz))
         .collect()
@@ -760,6 +767,27 @@ fn hubs_at(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
 
 // Towers.
 
+/// Side, in lots, of the districts that are low-rise or not (`low_rise`).
+pub const DISTRICT: i32 = 6;
+const SALT_DISTRICT: i32 = 29;
+
+/// Whether a lot lies in a low-rise district (`design::LOW_RISE` of them): few towers, so row
+/// houses line its streets and its blocks hold the special places (squares, shrines,
+/// playgrounds...). Never the start's district.
+pub fn low_rise(seed: u64, lx: i32, lz: i32) -> bool {
+    let (dx, dz) = (lx.div_euclid(DISTRICT), lz.div_euclid(DISTRICT));
+    if (dx, dz) == (0, 0)
+        || (dx, dz)
+            == (
+                START_HUB.0.div_euclid(DISTRICT),
+                START_HUB.1.div_euclid(DISTRICT),
+            )
+    {
+        return false;
+    }
+    Rng::new(hash_coords(seed, dx, SALT_DISTRICT, dz)).chance(design::LOW_RISE)
+}
+
 /// Whether a tower may stand on a lot: not in an area or a crater, not on the start's plaza or its
 /// stair lot.
 fn tower_may_stand(seed: u64, lx: i32, lz: i32) -> bool {
@@ -842,7 +870,9 @@ fn towers_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
                 stories: 0,
             };
             p.stories = tower_stories(c, &mut rng);
-            if p.lots().all(|(x, z)| tower_may_stand(seed, x, z)) {
+            if p.lots()
+                .all(|(x, z)| tower_may_stand(seed, x, z) && !low_rise(seed, x, z))
+            {
                 for (i, &(x, z)) in lots.iter().enumerate() {
                     taken[i] = p.covers(x, z);
                 }
@@ -855,7 +885,9 @@ fn towers_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
             continue;
         }
         let mut rng = Rng::new(hash_coords(seed, x, SALT_TOWER + 1, z));
-        if rng.chance(biome::biome_at(seed, x, z).tower_empty) {
+        if rng.chance(biome::biome_at(seed, x, z).tower_empty)
+            || (low_rise(seed, x, z) && !rng.chance(design::LOW_RISE_TOWERS))
+        {
             continue;
         }
         let Some(c) = pick(&small, &mut rng) else {
@@ -916,7 +948,14 @@ fn filler_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) ->
     }
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_FILLER + 64 * floor as i32, lz));
     // Housing and yards at the floor's chance (never by the start), else a vacant lot.
-    let housing = rng.chance(design::profile(floor).fillers) && !near_start_or_hub(lx, lz);
+    // Low-rise districts are built up: row houses, hardly a vacant lot.
+    let fillers = design::profile(floor).fillers;
+    let fillers = if low_rise(seed, lx, lz) {
+        fillers.max(0.9)
+    } else {
+        fillers
+    };
+    let housing = rng.chance(fillers) && !near_start_or_hub(lx, lz);
     let free = city::deck(seed, lx, lz, floor) == city::Deck::Full
         && city::stair(seed, lx, lz).is_none()
         && city::tower(seed, lx, lz).is_none_or(|t| t.top() < floors::y(floor) - 1.0);

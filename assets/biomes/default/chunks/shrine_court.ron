@@ -1,0 +1,30 @@
+// Block: a shrine in a walled court, two lots by two, paved in dark stone: the shrine at the back
+// on its platform, a gate on the path, stone planters along it, old tree beds gone wild on both
+// sides, a bench in the shade.
+Chunk(
+    name: "shrine_court",
+    size: (2, 2),
+    zones: [Depths, Middle],
+    labels: ["shrine"],
+    weight: 3,
+    ground: Some(StoneDark),
+    parts: [
+        Module(name: "shrine", at: (24.0, 0.0, 14.0)),
+        Module(name: "shrine_gate", at: (24.0, 0.0, 34.0)),
+        Growth(area: ((22.0, 20.0), (26.0, 46.0)), kind: Bare),
+        Mirror2(axis: X, at: 24.0, parts: [
+            Repeat(from: (20.5, 0.0, 22.0), step: (0.0, 0.0, 5.0), count: 4, parts: [
+                Module(name: "planter"),
+            ]),
+            Module(name: "tree_bed", at: (10.0, 0.0, 12.0)),
+            Module(name: "tree_bed", at: (10.0, 0.0, 28.0)),
+            Growth(area: ((8.0, 10.0), (12.0, 30.0)), kind: Soil),
+            Module(name: "bench", at: (14.5, 0.0, 38.0), turn: 1),
+            // The court's brick wall, a coping on top, open at the front.
+            Box(at: (4.0, 0.0, 4.0), size: (20.0, 1.6, 0.3), mat: Brick),
+            Box(at: (4.0, 0.0, 4.3), size: (0.3, 1.6, 30.0), mat: Brick),
+            Box(at: (3.95, 1.6, 3.95), size: (20.05, 0.1, 0.4), mat: Concrete),
+            Box(at: (3.95, 1.6, 4.35), size: (0.4, 0.1, 29.95), mat: Concrete),
+        ]),
+    ],
+)

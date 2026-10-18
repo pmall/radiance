@@ -141,12 +141,15 @@ pub enum Part {
     /// The parts, only where the lot holding `at` (x, z; the chunk's first lot's middle when left
     /// out) has a road along each of the `street` sides (`roads.rs`), no deck across each of the
     /// `edge` sides (the deck ends there), and roads crossing or turning at the corner between the
-    /// two `crossing` sides (one along x, one along z).
+    /// two `crossing` sides (one along x, one along z); no road along the `quiet` sides (an alley,
+    /// a back yard).
     If {
         #[serde(default)]
         at: Option<(f32, f32)>,
         #[serde(default)]
         street: Vec<Side>,
+        #[serde(default)]
+        quiet: Vec<Side>,
         #[serde(default)]
         edge: Vec<Side>,
         #[serde(default)]
@@ -1033,13 +1036,14 @@ impl<'a> Expander<'a> {
         }
     }
 
-    /// Whether the lot holding `at` has roads along the `street` sides, no deck across the `edge`
-    /// ones, and roads crossing at the corner between the `crossing` sides (`Part::If`).
+    /// Whether the lot holding `at` has roads along the `street` sides and none along the `quiet`
+    /// ones, no deck across the `edge` ones, and roads crossing at the corner between the
+    /// `crossing` sides (`Part::If`).
     fn streets_fit(
         &self,
         tf: &Tf,
         at: Option<(f32, f32)>,
-        (street, edge, crossing): (&[Side], &[Side], &[Side]),
+        (street, quiet, edge, crossing): (&[Side], &[Side], &[Side], &[Side]),
     ) -> bool {
         let Some(env) = self.env else {
             return true;
@@ -1068,6 +1072,7 @@ impl<'a> Expander<'a> {
             (dx != 0 && dz != 0).then(|| (here.0 + dx.max(0), here.1 + dz.max(0)))
         };
         street.iter().all(|&s| road(s))
+            && quiet.iter().all(|&s| !road(s))
             && edge.iter().all(|&s| !deck_across(s))
             && (crossing.is_empty()
                 || corner().is_some_and(|c| super::roads::crossing(env.seed, c, env.floor)))
@@ -1193,11 +1198,12 @@ impl<'a> Expander<'a> {
                 Part::If {
                     at,
                     street,
+                    quiet,
                     edge,
                     crossing,
                     parts,
                 } => {
-                    if self.streets_fit(tf, *at, (street, edge, crossing)) {
+                    if self.streets_fit(tf, *at, (street, quiet, edge, crossing)) {
                         self.parts(parts, tf, depth);
                     }
                 }

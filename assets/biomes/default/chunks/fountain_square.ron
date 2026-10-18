@@ -1,0 +1,29 @@
+// Block: a square of three lots by three around a dry fountain, paved in stone: tree beds and
+// benches facing the basin on every side, lamps at the corners of the inner ring, a kiosk on two
+// sides, café tables under parasols on the others. Special places are met every few hundred
+// meters on every floor (milestone 10, pass 6).
+Chunk(
+    name: "fountain_square",
+    size: (3, 3),
+    zones: [Depths, Middle],
+    labels: ["square"],
+    weight: 3,
+    ground: Some(Stone),
+    parts: [
+        Module(name: "fountain", at: (36.0, 0.0, 36.0)),
+        Growth(area: ((25.0, 25.0), (47.0, 47.0)), kind: Soil),
+        Mirror4(center: (36.0, 36.0), parts: [
+            Module(name: "bench", at: (31.0, 0.0, 20.5)),
+            Module(name: "bench", at: (41.0, 0.0, 20.5)),
+            Slot(at: (36.0, 0.0, 20.5), pick: [Some("bin"), Some("planter"), None]),
+            Module(name: "lamp", at: (22.0, 0.0, 22.0), turn: 0),
+            Module(name: "tree_bed", at: (12.0, 0.0, 12.0)),
+            Module(name: "tree_bed", at: (24.0, 0.0, 9.0)),
+            Module(name: "tree_bed", at: (48.0, 0.0, 9.0)),
+            Growth(area: ((10.0, 10.0), (14.0, 14.0)), kind: Soil),
+            Slot(at: (9.0, 0.0, 36.0), turn: 1, pick: [Some("kiosk"), Some("cafe_set"), None]),
+            Slot(at: (14.0, 0.0, 26.0), rate: Props, pick: [Some("parasol"), Some("cafe_set"), None]),
+            Slot(at: (58.0, 0.0, 14.0), rate: Poi, pick: [Some("poi_bench"), Some("poi_garden")]),
+        ]),
+    ],
+)

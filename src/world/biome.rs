@@ -285,7 +285,7 @@ pub const DEFAULT: Biome = Biome {
         // under the canopy.
         heights: [[0.42, 0.66, 0.78], [0.95, 0.74, 0.5], [1.0, 0.86, 0.56]],
     },
-    tower_empty: 0.18,
+    tower_empty: 0.3,
     bridge_chance: 0.6,
     textures: pixels::DEFAULT_TEXTURES,
     palette: Palette {
@@ -401,7 +401,7 @@ pub const GROTTO: Biome = Biome {
         // Deep blue at the bottom, teal through the middle, pale aqua-green up high.
         heights: [[0.32, 0.56, 0.86], [0.46, 0.84, 0.86], [0.7, 0.96, 0.84]],
     },
-    tower_empty: 0.25,
+    tower_empty: 0.35,
     bridge_chance: 0.45,
     textures: pixels::GROTTO_TEXTURES,
     palette: Palette {

@@ -1,0 +1,35 @@
+// Block: rooftop greenhouses of the middle floors and the canopy, two lots by two: two glass
+// houses on brick plinths, their panes half gone, raised beds and water tanks between them. The
+// people up here grew their own food.
+Chunk(
+    name: "greenhouse",
+    size: (2, 2),
+    zones: [Middle, Canopy],
+    labels: ["garden"],
+    weight: 3,
+    ground: Some(Concrete),
+    parts: [
+        Mirror2(axis: Z, at: 24.0, parts: [
+            Box(at: (8.0, 0.0, 6.0), size: (32.0, 0.6, 10.0), mat: Brick),
+            Box(at: (8.4, 0.6, 6.4), size: (31.2, 0.3, 9.2), mat: Soil),
+            Growth(area: ((8.4, 6.4), (39.6, 15.6)), kind: Soil),
+            Repeat(from: (8.0, 0.6, 6.0), step: (4.0, 0.0, 0.0), count: 9, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.12, 3.4, 0.12), mat: Metal),
+                Box(at: (0.0, 0.0, 9.88), size: (0.12, 3.4, 0.12), mat: Metal),
+                Box(at: (0.0, 3.4, 0.0), size: (0.12, 1.2, 10.0), mat: Metal),
+            ]),
+            Box(at: (8.0, 4.0, 6.0), size: (32.1, 0.12, 10.0), mat: Metal),
+            Box(at: (8.1, 0.9, 6.02), size: (12.0, 2.5, 0.04), mat: Glass),
+            Box(at: (28.0, 0.9, 6.02), size: (8.0, 2.5, 0.04), mat: Glass),
+            Box(at: (12.0, 4.12, 6.0), size: (8.0, 0.04, 10.0), mat: Glass),
+            Box(at: (28.0, 4.12, 6.0), size: (4.0, 0.04, 10.0), mat: Glass),
+        ]),
+        Module(name: "water_tank", at: (6.0, 0.0, 24.0)),
+        Module(name: "water_tank", at: (42.0, 0.0, 24.0)),
+        Repeat(from: (14.0, 0.0, 22.0), step: (7.0, 0.0, 0.0), count: 3, parts: [
+            Module(name: "planter"),
+            Module(name: "planter", at: (0.0, 0.0, 4.0)),
+        ]),
+        Slot(at: (34.0, 0.0, 24.0), rate: Poi, pick: [Some("poi_garden")]),
+    ],
+)

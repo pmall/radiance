@@ -1,0 +1,24 @@
+// Filler: buildings along the sidewalks. Row houses line every side of the lot with a road, their
+// shops on the sidewalk, set out like a pinwheel so the rows never meet head on; a quiet side gets
+// the backs of houses or stays open as an alley into the courtyard, where a tree bed has gone
+// wild among bins and laundry.
+Chunk(
+    name: "street_front",
+    size: (1, 1),
+    zones: [Depths, Middle],
+    labels: ["housing"],
+    weight: 7,
+    parts: [
+        Mirror4(center: (12.0, 12.0), parts: [
+            If(street: [ZMin], parts: [
+                Module(name: "row_pair", at: (14.5, 0.0, 5.0), turn: 2),
+            ]),
+            If(quiet: [ZMin], parts: [
+                Slot(at: (14.5, 0.0, 5.0), turn: 2, pick: [Some("row_pair_back"), Some("row_pair_back"), None]),
+            ]),
+        ]),
+        Module(name: "tree_bed", at: (12.0, 0.0, 12.0)),
+        Growth(area: ((10.0, 10.0), (14.0, 14.0)), kind: Soil),
+        Slot(at: (10.2, 0.0, 14.0), rate: Props, pick: [Some("bin"), Some("wall_trash"), None]),
+    ],
+)

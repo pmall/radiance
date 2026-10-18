@@ -122,8 +122,15 @@
        a darker rim, a ragged pixel edge cut out of the outer cells; fronds nearly flat
        (`FOLD`); stems in world-space cells. The photo detail layer is gone (`assets/textures`,
        `tools/pack_textures.py`). Frame time unchanged. Possible second pass: flowers' petals.
-    6. The planner: special places on every floor, met every few hundred meters; buildings along
-       the sidewalks with alleys and courtyards; fewer vacant lots.
+    6. The planner *(done)*: low-rise districts (6x6 lots, 40 % of them, `planner::low_rise`,
+       `design::LOW_RISE`) where towers are rare, so the city alternates tower clusters and
+       built-up streets; special places only where no tower rises through their floor, on every
+       floor including D0 (blocks at 70 % per 8x8 cell low down, a new place each try): a
+       fountain square, a shrine court, a playground, a bus terminal, a monument square, an
+       open-air theater, rooftop greenhouses (about one every 280 m on D2); `street_front`, row
+       houses along every street side of a lot in a pinwheel around a courtyard, backs or an
+       alley on the quiet sides (`If(quiet: ..)`); fillers more common (75 % low down, 90 % in
+       low-rise districts). Modules in `assets/modules/places.ron`.
     7. Landmarks (probably two passes): tall silhouettes seen from afar; the old stone city in the
        depths (arches, cobbles, tram tracks, a temple, a market hall), a station, a mall atrium,
        a parking garage, a stadium in the middle; machine structures in the canopy; towers that
@@ -146,8 +153,8 @@ Important, since the purpose is art exploration. Build them alongside the featur
 - Live-tweakable shader and palette parameters, if practical (e.g. shader hot-reload from disk).
   *(shader hot-reload done, F10 forces it; palettes still in `src/render/look.rs`)*
 - Headless frame capture for checking looks: `--time`, `--view`, `--shot`, `--fx` (effect mask). *(done)*
-- Reference views *(done)*: `python3 tools/lookdev.py LABEL` renders eight fixed views (spawn,
-  streets on D0 and D3, a laundry court, the great square, a park, the canopy, the Grotto) at day,
+- Reference views *(done)*: `python3 tools/lookdev.py LABEL` renders nine fixed views (spawn,
+  streets on D0 and D3, a court, the great square, a shrine, a park, the canopy, the Grotto) at day,
   dusk and night into `screenshots/lookdev/LABEL/`, with one sheet per time of day; every look
   change is judged on them, before against after. `--report` lists the places (areas, blocks,
   craters) with a `--view` to stand in each.

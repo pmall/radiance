@@ -65,6 +65,11 @@ pub const CRATER_START: f32 = 0.25;
 /// construction front, rising past the top deck (`chunks::Height`).
 pub const TOWER_HEIGHTS: [f32; 3] = [0.2, 0.68, 0.12];
 
+/// Share of the districts (`planner::DISTRICT` lots a side) that are low-rise: row houses and
+/// special places instead of towers, which stand there only on this share of their lots.
+pub const LOW_RISE: f32 = 0.4;
+pub const LOW_RISE_TOWERS: f32 = 0.06;
+
 /// Most flowers per lot and floor (their lights are what the renderer can afford).
 pub const MAX_FLOWERS_PER_LOT: usize = 24;
 /// Least distance between two flowers, so their petals do not grow into each other.
@@ -94,8 +99,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.35,
                 props: 1.0,
                 debris: 0.5,
-                blocks: 0.35,
-                fillers: 0.5,
+                blocks: 0.7,
+                fillers: 0.75,
             },
             FloorProfile {
                 holes: 0.25,
@@ -109,8 +114,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.3,
                 props: 0.9,
                 debris: 0.45,
-                blocks: 0.35,
-                fillers: 0.5,
+                blocks: 0.7,
+                fillers: 0.75,
             },
         ),
         Zone::Middle => (
@@ -126,8 +131,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.25,
                 props: 0.7,
                 debris: 0.35,
-                blocks: 0.35,
-                fillers: 0.4,
+                blocks: 0.7,
+                fillers: 0.65,
             },
             FloorProfile {
                 holes: 0.9,
@@ -141,8 +146,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.18,
                 props: 0.4,
                 debris: 0.25,
-                blocks: 0.3,
-                fillers: 0.3,
+                blocks: 0.6,
+                fillers: 0.5,
             },
         ),
         Zone::Canopy => (
@@ -158,8 +163,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.12,
                 props: 0.12,
                 debris: 0.12,
-                blocks: 0.25,
-                fillers: 0.15,
+                blocks: 0.45,
+                fillers: 0.3,
             },
             FloorProfile {
                 holes: 0.65,
@@ -173,8 +178,8 @@ const fn zone_profiles(zone: Zone) -> (FloorProfile, FloorProfile) {
                 stair: 0.08,
                 props: 0.05,
                 debris: 0.06,
-                blocks: 0.2,
-                fillers: 0.08,
+                blocks: 0.35,
+                fillers: 0.15,
             },
         ),
     }

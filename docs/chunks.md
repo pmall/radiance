@@ -130,7 +130,9 @@ When the owner wants more content, they ask for a **new biome**, and that biome'
 are written then, in its own folder. The `default` biome is what exists now.
 
 Exception (owner): the visual pass of milestone 10 (`docs/roadmap.md`) may add chunks and props
-to the existing biomes: landmarks, special places, things left behind.
+to the existing biomes: landmarks, special places, things left behind. Added so far: debris props
+(pass 3); `street_front`, `fountain_square`, `shrine_court`, `playground`, `bus_terminal`,
+`monument_square`, `amphitheater`, `greenhouse` and their modules (`places.ron`, pass 6).
 
 ## Biomes
 
@@ -363,8 +365,8 @@ the `default` biome:
   reaching out of the placement is built by the nearest lot it covers. Before, each lot decided
   with its own obstacles, which left crane jibs floating without their mast.
 
-**New vocabulary:** `If(street: [..], edge: [..], crossing: [..], parts)` (by which sides of the
-lot have a road on this floor (`roads.rs`), which have no deck across, and whether roads cross or
+**New vocabulary:** `If(street: [..], quiet: [..], edge: [..], crossing: [..], parts)` (by which sides of the
+lot have a road on this floor (`roads.rs`), which have none (`quiet`), which have no deck across, and whether roads cross or
 turn at the corner between the two `crossing` sides), `Bloom(at)` (a point of interest's flower), slot `rate: Props | Poi` (the floor
 profile's chances and the O / I switches). Modules that are props (`props::by_module`, including
 `street_light`) are placed instanced, drawn within 110 m. A module or slot's boxes stand or give
