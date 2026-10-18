@@ -82,8 +82,10 @@ stained, the canopy mossy and strewn with leaves, open sky bringing rain.
 cut-out drawn as square cells (20 per meter) in its own leaf coordinates, in a few flat tones of
 its color dithered from a dark root to a light tip, with a lighter midrib and a darker rim, its
 edge ragged where cells of the outer columns are cut away (`pixelLeaf` in `shaders/scene.fs`).
-Fronds are nearly flat, with just enough fold for volume. Flowers stay clean and glowing: they are
-the light.
+Fronds are nearly flat, with just enough fold for volume. Flowers stay clean and glowing, since
+they are the light, but in the same cells: each petal is a sprite cut cell by cell to a kite, so
+its outline steps, pale by the bright core, the flower's color further out, a darker rim and a
+pale vein (`pixelPetal`); the core is drawn in world-space cells like the stems.
 
 ## Things left behind
 

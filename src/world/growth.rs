@@ -131,8 +131,6 @@ impl Builder<'_> {
         }
         let (u, v) = axis.any_orthonormal_pair();
         let petals = self.rng.range_i(shape.petals.0, shape.petals.1);
-        // Where a petal is widest, along it: the same share of its length whatever the length.
-        let widest = shape.length / 1.7;
         let spin = self.rng.range(0.0, std::f32::consts::TAU);
         let quads: Vec<[Vec3; 4]> = (0..petals)
             .map(|k| {
@@ -140,12 +138,10 @@ impl Builder<'_> {
                 let radial = u * a.cos() + v * a.sin();
                 let dir = (axis * 0.5 + radial).normalize();
                 let tangent = axis.cross(radial);
-                let (mid, tip) = (
-                    center + dir * radius * 0.95 * widest,
-                    center + dir * radius * shape.length,
-                );
+                let tip = center + dir * radius * shape.length;
                 let w = tangent * radius * shape.width;
-                [center, mid + w, tip, mid - w]
+                // The petal's box: the shader cuts its kite out of it, cell by cell.
+                [center - w, center + w, tip + w, tip - w]
             })
             .collect();
         // A flower whose petals would touch a block is not planted.
@@ -157,9 +153,16 @@ impl Builder<'_> {
             return false;
         }
         let saved = std::mem::replace(&mut self.glow, FLOWER_GLOW);
+        // Petals in pixel art like the leaves (`pixelPetal` in shaders/scene.fs): boxes in leaf
+        // coordinates, the core at the root, the shader cutting a kite widest at `PETAL_WIDEST`
+        // along.
+        let saved_px = self.leaf_px;
+        self.set_leaf(2.0 * radius * shape.width, radius * shape.length);
         for q in &quads {
-            self.quad2(q[0], q[1], q[2], q[3], color);
+            let uv = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+            self.quad2_uv(q[0], q[1], q[2], q[3], color, uv);
         }
+        self.leaf_px = saved_px;
         let core = Color::new(
             ((color.r as u16 + 255) / 2) as u8,
             ((color.g as u16 + 255) / 2) as u8,

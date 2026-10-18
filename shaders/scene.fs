@@ -534,6 +534,33 @@ vec3 pixelLeaf(vec3 base, vec2 uv, float seed)
     return col;
 }
 
+// Petals in pixel art: cells the size of the leaves' in the petal's coordinates (across with the
+// vein at 0.5, along from the core), cut to the petal's kite cell by cell so its outline steps
+// like a sprite; pale by the core, the flower's color further out, a darker rim and tip, a pale
+// vein, the steps dithered. Glowing, so the tones stay few and clean.
+const float PETAL_WIDEST = 0.56;   // along the petal where it is widest (src/world/growth.rs)
+
+vec3 pixelPetal(vec3 base, vec2 uv, float seed)
+{
+    vec2 px = floor(uv / 2.0);
+    vec2 lc = uv - 2.0 * px;
+    vec2 c = floor(clamp(lc, 0.0, 0.999) * px);
+    vec2 cc = (c + 0.5) / px;
+    float u = abs(cc.x - 0.5) * 2.0;
+    // The kite's half width at this point along, and the cells past it dropped.
+    float reach = cc.y < PETAL_WIDEST ? cc.y / PETAL_WIDEST : (1.0 - cc.y) / (1.0 - PETAL_WIDEST);
+    float edge = reach - u;
+    gCut = edge < 0.0;
+    float h = hash12(c + seed * 11.7);
+    float t = cc.y + 0.15 * (h - 0.5);
+    float tone = floor(t * 3.0 + bayer4(c)) / 3.0;
+    vec3 col = mix(mix(base, vec3(1.0), 0.55), base * 0.8, clamp(tone, 0.0, 1.0));
+    col = mix(col, mix(base, vec3(1.0), 0.4), step(u, 0.15) * step(0.1, cc.y) * step(cc.y, 0.7));
+    // The rim: the outermost cells, a step darker.
+    col *= edge < 2.0 / px.x ? 0.72 : 1.0;
+    return col;
+}
+
 // Stems, vines and other plant surfaces without leaf coordinates: world-space cells of the
 // textures' size, each a tone of the plant's color.
 vec3 pixelStem(vec3 base, vec3 p, float seed)
@@ -553,7 +580,7 @@ void main()
     vec3 n = normalize(fragNormal);
     vec3 albedo = pow(fragColor.rgb, vec3(2.2));
     bool textured = (uEffects & FX_TEXTURE) != 0;
-    // Flowers (emissive) stay clean and graphic.
+    // Flowers (emissive) are drawn apart, bright and graphic (`pixelPetal`).
     bool painted = textured && fragColor.a < 0.01;
     int kindCode = int(fragKind + 0.5);
     int kind = kindCode % 16;
@@ -564,6 +591,15 @@ void main()
     vec3 emit = vec3(0.0);
     float open = skyView(fragWorldPos + n * 0.1);
     gOpen = open;
+    if (textured && kind == 1 && !painted) {
+        // A flower: petals in pixel art, the core in cells.
+        if (fragLoc.x >= 0.0) {
+            albedo = pixelPetal(albedo, fragLoc, fragId * 255.0);
+            if (gCut) discard;
+        } else {
+            albedo = pixelStem(albedo, fragWorldPos, fragId * 255.0);
+        }
+    }
     if (painted) {
         float px = max(length(fwidth(fragWorldPos)), 1e-4);
         float fid = fragId * 255.0;

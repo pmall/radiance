@@ -121,7 +121,8 @@
        `pixelLeaf` in `shaders/scene.fs`): flat tones dithered root to tip, a lighter midrib,
        a darker rim, a ragged pixel edge cut out of the outer cells; fronds nearly flat
        (`FOLD`); stems in world-space cells. The photo detail layer is gone (`assets/textures`,
-       `tools/pack_textures.py`). Frame time unchanged. Possible second pass: flowers' petals.
+       `tools/pack_textures.py`). Frame time unchanged. Second pass *(done)*: the flowers' petals
+       as sprites cut to a stepped kite, pale by the core, a darker rim (`pixelPetal`).
     6. The planner *(done)*: low-rise districts (6x6 lots, 40 % of them, `planner::low_rise`,
        `design::LOW_RISE`) where towers are rare, so the city alternates tower clusters and
        built-up streets; special places only where no tower rises through their floor, on every
@@ -167,7 +168,7 @@
       silhouettes above the construction front *(done: `tower_spire`, 180 to 300 m over the top
       deck, and the far skyline: the front's towers drawn out to about a kilometer, past the
       loaded lots, `world/skyline.rs`; about 0.35 ms/frame more at the spawn, 10 ms there)*.
-    - Maybe a second plant pass (pass 5): the flowers' petals in pixel art.
+    - ~~Maybe a second plant pass (pass 5): the flowers' petals in pixel art~~ *(done)*.
     - Frame time: about 9.0 ms at the spawn (8.0 ms before pass 2, most of it the sunbeams in the
       haze); D5 views about 11 ms (7.5 M triangles) anywhere on that floor, not caused by the
       new chunks. Worth a look before weaker GPUs are tried.
