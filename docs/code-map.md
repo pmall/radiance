@@ -84,4 +84,4 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
   `chunks::generation()`, so hot-reloaded chunks invalidate them. A new neighbor-heavy rule should
   go through `memo`, or the tests slow down (they went from 1 s to 14 s without it).
 - **Reproducing a screenshot:** the `.txt` beside it holds the `--view ... --shot` command. Render
-  it before and after a fix; `--bench 300` on the same view gives ms/frame (7–8 ms is usual).
+  it before and after a fix; `--bench 300` on the same view gives ms/frame (5–6 ms is usual).

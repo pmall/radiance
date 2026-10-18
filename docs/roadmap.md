@@ -167,11 +167,14 @@
       neighbor *(done: `tower_leaning`, about one every 400 m at the construction front)*; tall
       silhouettes above the construction front *(done: `tower_spire`, 180 to 300 m over the top
       deck, and the far skyline: the front's towers drawn out to about a kilometer, past the
-      loaded lots, `world/skyline.rs`; about 0.35 ms/frame more at the spawn, 10 ms there)*.
+      loaded lots, `world/skyline.rs`; about 0.35 ms/frame)*.
     - ~~Maybe a second plant pass (pass 5): the flowers' petals in pixel art~~ *(done)*.
-    - Frame time: about 9.0 ms at the spawn (8.0 ms before pass 2, most of it the sunbeams in the
-      haze); D5 views about 11 ms (7.5 M triangles) anywhere on that floor, not caused by the
-      new chunks. Worth a look before weaker GPUs are tried.
+    - ~~Frame time~~ *(done)*: was 9.5 ms at the spawn and about 11 ms on D5. Plants are 95 % of
+      the triangles (6 M of 6.3 M at the spawn) and every lot was drawn whole in the scene and the
+      shadow pass. Now each lot's plants are a mesh of their own, lot meshes are culled to the
+      camera's view and the shadow map's box, and plants cast shadows within 70 m only
+      (`PLANT_SHADOW_REACH`): 5.6 ms at the spawn, 6.3 ms on the D5 stadium view, 3.2 ms on the
+      top deck. What is left: shadows about 1.3 ms, the haze and its sunbeams about 1.1 ms.
     - Points to judge over time: how strong the wall wash from flowers is (`WALL_REACH`), the
       ragged leaf edges, and how the low-rise districts change the feel of the city.
     - The reference views moved in pass 6 (street-d3 moved, laundry-d1 renamed court-d1, three
@@ -200,5 +203,5 @@ Important, since the purpose is art exploration. Build them alongside the featur
 - Screenshots for feedback *(done: P saves to `screenshots/` with a note holding the command that
   renders the same view)*.
 - Record a run to MP4 with the screen and the sound. *(done: V; 1600x900 60 fps H.264 (NVENC when available) with AAC audio, saved in the background to `recordings/`; the overlay stays out of the video)*
-- Frame time benchmark: `--bench N` renders N frames without vsync and prints ms/frame and triangles.
-  *(done; about 3 ms/frame, ~1.4 M tris loaded, on the 3060 from the plaza)*
+- Frame time benchmark: `--bench N` renders N frames without vsync and prints ms/frame and the
+  triangles drawn in view. *(done; about 5.6 ms/frame at the spawn on the 3060)*

@@ -32,7 +32,7 @@ use crate::world::World;
 use cover::CoverMap;
 use lights::LightGrid;
 use look::Sky;
-use mesh::WorldMesh;
+use mesh::{Part, WorldMesh};
 use overlay::Overlay;
 use shader::HotShader;
 use shadow::ShadowMap;
@@ -75,6 +75,9 @@ const PROP_SHADOW_REACH: f32 = 45.0;
 /// camera (to the lot's edge), and cast shadows within the second.
 const DETAIL_REACH: f32 = 110.0;
 const DETAIL_SHADOW_REACH: f32 = 45.0;
+/// Plants (most of the triangles) cast shadows within this horizontal distance of the camera;
+/// further off their shadows are finer than the shadow map's texels show.
+const PLANT_SHADOW_REACH: f32 = 70.0;
 /// How far ahead of the camera the shadow map is centered, in meters.
 const SHADOW_LEAD: f32 = 50.0;
 const RELOAD_POLL: f32 = 0.5;
@@ -101,11 +104,15 @@ pub struct Renderer {
     meshes: HashMap<(i32, i32), WorldMesh>,
     /// Each lot's small boxes, drawn near the camera only.
     details: HashMap<(i32, i32), WorldMesh>,
+    /// Each lot's plants, casting shadows near the camera only.
+    plants: HashMap<(i32, i32), WorldMesh>,
     /// Props of each lot, drawn instanced (`props.rs`).
     lots_props: HashMap<(i32, i32), Vec<crate::world::props::Placed>>,
     prop_meshes: props::PropMeshes,
     /// Prop triangles drawn last frame.
     prop_triangles: i32,
+    /// Lot triangles drawn last frame (those in view).
+    lot_triangles: i32,
     detail_triangles: i32,
     /// Each lot's lights, with their index in the lot (a soul's identity).
     lots_lights: HashMap<(i32, i32), Vec<(usize, Light)>>,
@@ -157,7 +164,21 @@ const fn matrix(m: Mat4) -> ffi::Matrix {
     }
 }
 
-/// The detail meshes of the lots within `reach` of `eye` (horizontally, to the lot's edge).
+/// Whether a box (min, max) may show through the view-projection `vp`: not wholly beyond one of
+/// the planes of its clip space.
+fn in_view(vp: &Mat4, (lo, hi): (Vec3, Vec3)) -> bool {
+    let c: [glam::Vec4; 8] = std::array::from_fn(|i| {
+        let p = vec3(
+            if i & 1 == 0 { lo.x } else { hi.x },
+            if i & 2 == 0 { lo.y } else { hi.y },
+            if i & 4 == 0 { lo.z } else { hi.z },
+        );
+        *vp * p.extend(1.0)
+    });
+    (0..3).all(|a| !c.iter().all(|v| v[a] > v.w) && !c.iter().all(|v| v[a] < -v.w))
+}
+
+/// The meshes of the lots within `reach` of `eye` (horizontally, to the lot's edge).
 fn details_near(
     details: &HashMap<(i32, i32), WorldMesh>,
     eye: Vec3,
@@ -205,11 +226,13 @@ impl Renderer {
             shadow,
             targets: None,
             meshes: HashMap::new(),
+            plants: HashMap::new(),
             details: HashMap::new(),
             lots_props: HashMap::new(),
             prop_meshes,
             prop_triangles: 0,
             detail_triangles: 0,
+            lot_triangles: 0,
             lots_lights: HashMap::new(),
             pulses: HashMap::new(),
             light_grid,
@@ -237,6 +260,7 @@ impl Renderer {
         self.pulses.clear();
         self.meshes.clear();
         self.details.clear();
+        self.plants.clear();
         self.lots_props.clear();
         self.lots_lights.clear();
         self.skyline.clear();
@@ -273,6 +297,7 @@ impl Renderer {
         let live: std::collections::HashSet<_> = world.lots().map(|(k, _)| k).collect();
         self.meshes.retain(|k, _| live.contains(k));
         self.details.retain(|k, _| live.contains(k));
+        self.plants.retain(|k, _| live.contains(k));
         self.lots_props.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
         for (k, lot) in world.lots() {
@@ -283,11 +308,14 @@ impl Renderer {
             self.lots_lights
                 .insert(k, lot.lights().map(|(i, l)| (i, *l)).collect());
             let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
-            if let Some(m) = WorldMesh::build(lot, key, false) {
+            if let Some(m) = WorldMesh::build(lot, key, Part::Architecture) {
                 self.meshes.insert(k, m);
             }
-            if let Some(m) = WorldMesh::build(lot, key, true) {
+            if let Some(m) = WorldMesh::build(lot, key, Part::Detail) {
                 self.details.insert(k, m);
+            }
+            if let Some(m) = WorldMesh::build(lot, key, Part::Plants) {
+                self.plants.insert(k, m);
             }
         }
     }
@@ -384,6 +412,12 @@ impl Renderer {
         let up = Vec3::Y;
         let right = view.dir.cross(up).normalize();
         let cam_up = right.cross(view.dir);
+        let view_vp = glam::camera::rh::proj::opengl::perspective(
+            view.fovy.to_radians(),
+            sw as f32 / sh as f32,
+            NEAR,
+            FAR,
+        ) * glam::camera::rh::view::look_at_mat4(view.pos, view.pos + view.dir, up);
         let camera = ffi::Camera3D {
             position: v3(view.pos),
             target: v3(view.pos + view.dir),
@@ -418,8 +452,13 @@ impl Renderer {
                 },
             );
             let near = details_near(&self.details, view.pos, DETAIL_SHADOW_REACH);
+            let plants = details_near(&self.plants, view.pos, PLANT_SHADOW_REACH);
             light_vp = self.shadow.render(
-                self.meshes.values().chain(near).map(|m| &m.raw),
+                self.meshes
+                    .values()
+                    .chain(near)
+                    .chain(plants)
+                    .map(|m| (&m.raw, m.bounds)),
                 &casters,
                 view.pos + ahead,
                 sky.light_dir,
@@ -476,14 +515,19 @@ impl Renderer {
             // Alpha carries the object id in the normal target: it must not blend.
             ffi::rlDisableColorBlend();
             s.set_i32("uInstanced", 0);
-            let mut detail = 0;
-            for mesh in self.meshes.values() {
+            // Only the lots the camera may see.
+            let (mut drawn, mut detail) = (0, 0);
+            let lots = self.meshes.values().chain(self.plants.values());
+            for mesh in lots.filter(|m| in_view(&view_vp, m.bounds)) {
                 ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
+                drawn += mesh.triangles();
             }
-            for mesh in details_near(&self.details, view.pos, DETAIL_REACH) {
+            let near = details_near(&self.details, view.pos, DETAIL_REACH);
+            for mesh in near.filter(|m| in_view(&view_vp, m.bounds)) {
                 ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
                 detail += mesh.triangles();
             }
+            self.lot_triangles = drawn;
             self.detail_triangles = detail;
             // The far skyline, but not where a loaded lot draws its tower.
             s.set_i32_array("uLoaded", &rows);

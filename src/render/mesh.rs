@@ -12,6 +12,8 @@ const MAX_ELEVATION: u16 = 8191;
 
 pub struct WorldMesh {
     pub raw: ffi::Mesh,
+    /// Its bounding box (min, max), for culling.
+    pub bounds: (Vec3, Vec3),
 }
 
 /// Vertex arrays in raylib's layout; an empty array leaves that attribute out.
@@ -66,10 +68,22 @@ fn is_detail(kind: BlockKind, size: Vec3) -> bool {
     ) && size.max_element() <= DETAIL_SIZE
 }
 
+/// Which of a lot's meshes to build: they are drawn and cast shadows to different distances.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Part {
+    /// Its architecture: everything but the small boxes.
+    Architecture,
+    /// Its small boxes (`is_detail`).
+    Detail,
+    /// Its plants, most of the triangles.
+    Plants,
+}
+
 impl WorldMesh {
-    /// A lot's architecture and plants (`detail` false), or its small boxes (`detail` true); `None`
-    /// if there is nothing. `key` distinguishes lots so outline ids differ between neighbours.
-    pub fn build(lot: &Lot, key: u64, detail: bool) -> Option<Self> {
+    /// One `part` of a lot; `None` if there is nothing. `key` distinguishes lots so outline ids
+    /// differ between neighbours.
+    pub fn build(lot: &Lot, key: u64, part: Part) -> Option<Self> {
+        let detail = part == Part::Detail;
         let mut pos: Vec<f32> = Vec::new();
         let mut nrm: Vec<f32> = Vec::new();
         let mut uv: Vec<f32> = Vec::new();
@@ -79,7 +93,12 @@ impl WorldMesh {
 
         // Material variant of the lot's biome rides in the kind code (16 per variant).
         let variant = lot.variant as f32 * 16.0;
-        for (i, b) in lot.blocks.iter().enumerate() {
+        let blocks = if part == Part::Plants {
+            &lot.blocks[..0]
+        } else {
+            &lot.blocks[..]
+        };
+        for (i, b) in blocks.iter().enumerate() {
             // Prop boxes are only collision; the props draw their own mesh below.
             if matches!(b.kind, BlockKind::Prop | BlockKind::Collider)
                 || is_detail(b.kind, b.aabb.size()) != detail
@@ -149,7 +168,7 @@ impl WorldMesh {
             }
         }
 
-        for v in lot.plants().filter(|_| !detail) {
+        for v in lot.plants().filter(|_| part == Part::Plants) {
             pos.extend_from_slice(&v.pos.to_array());
             nrm.extend_from_slice(&v.normal.to_array());
             // uv.y = 1 marks plant geometry (architecture is 0), read by the scene shader.
@@ -161,6 +180,13 @@ impl WorldMesh {
         if pos.is_empty() {
             return None;
         }
+        let bounds = pos.as_chunks::<3>().0.iter().fold(
+            (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),
+            |(lo, hi), p| {
+                let p = Vec3::from_array(*p);
+                (lo.min(p), hi.max(p))
+            },
+        );
         let raw = MeshData {
             pos,
             nrm,
@@ -169,7 +195,7 @@ impl WorldMesh {
             col,
         }
         .upload();
-        Some(Self { raw })
+        Some(Self { raw, bounds })
     }
 
     pub fn triangles(&self) -> i32 {

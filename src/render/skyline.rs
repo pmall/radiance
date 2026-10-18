@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, channel};
 
 use crate::world::{Lot, skyline};
 
-use super::mesh::WorldMesh;
+use super::mesh::{Part, WorldMesh};
 
 /// How far the player moves, in lots, before the skyline is made again.
 const REMAKE: i32 = 3;
@@ -50,7 +50,7 @@ impl Skyline {
                 .into_iter()
                 .filter_map(|(variant, blocks)| {
                     let key = crate::rng::hash_coords(s, c.0, 0x5c1, c.1) ^ variant as u64;
-                    WorldMesh::build(&Lot::scenery(blocks, variant), key, false)
+                    WorldMesh::build(&Lot::scenery(blocks, variant), key, Part::Architecture)
                 })
                 .collect();
         }

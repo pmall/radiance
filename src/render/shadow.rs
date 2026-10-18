@@ -76,11 +76,12 @@ impl ShadowMap {
         self.material.shader = self.shader.raw;
     }
 
-    /// Renders the mesh into the shadow map, covering an area around `center`.
+    /// Renders the meshes (each with its bounds) into the shadow map, covering an area around
+    /// `center`.
     /// Returns the light view-projection matrix for sampling.
     pub fn render<'a>(
         &mut self,
-        meshes: impl Iterator<Item = &'a ffi::Mesh>,
+        meshes: impl Iterator<Item = (&'a ffi::Mesh, (Vec3, Vec3))>,
         props: &[super::props::Batch],
         center: Vec3,
         light_dir: Vec3,
@@ -131,7 +132,9 @@ impl ShadowMap {
             // Back faces only: closed boxes then never shadow their own lit faces.
             ffi::rlSetCullFace(ffi::rlCullMode::RL_CULL_FACE_FRONT as i32);
             self.shader.set_i32("uInstanced", 0);
-            for mesh in meshes {
+            // Only the meshes in the light's box: the map covers the area around the camera.
+            let vp = proj * view;
+            for (mesh, _) in meshes.filter(|&(_, b)| super::in_view(&vp, b)) {
                 ffi::DrawMesh(*mesh, self.material, IDENTITY);
             }
             self.shader.set_i32("uInstanced", 1);
