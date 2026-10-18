@@ -40,6 +40,15 @@ const SETBACK_FLOOR: f32 = 8.0;
 const MIN_BASE_STORIES: f32 = 12.0;
 
 const SALT_TIERS: u64 = 0x7153;
+const SALT_LEAN: u64 = 0x1ea7;
+
+/// Stories in each step of a leaning tier: it leans in steps, like the cables sag in pixels.
+const LEAN_STEP: usize = 2;
+/// Lowest a leaning tier starts over the top deck, clear of the cables and what stands on it.
+const LEAN_ABOVE: f32 = 16.0;
+/// Widest gap a leaning tier crosses to rest on its neighbor (the facing walls of two towers on
+/// next lots are usually 8 m apart).
+const LEAN_MAX: f32 = 16.0;
 
 /// Local outward normals of the faces, in `Faces::ids` order, and the quarter turn that points a
 /// module's +z (out of its wall) along each.
@@ -64,10 +73,15 @@ pub fn tiers(def: &TowerDef, p: &Placement) -> Vec<(usize, f32, f32)> {
     let mut hi = top;
     for (i, t) in def.tiers.iter().enumerate().skip(1).rev() {
         let (a, b) = t.stories.unwrap_or((4, 8));
-        let n = rng.range_i(a.min(b) as i32, a.max(b) as i32 + 1) as f32;
+        let mut n = rng.range_i(a.min(b) as i32, a.max(b) as i32 + 1) as f32;
         let keep = rng.chance(t.chance);
+        // A leaning tier stays above the top deck, two steps at least.
+        if t.lean {
+            n = n.min(((hi - floors::top() - LEAN_ABOVE) / STORY).floor());
+        }
         let base = hi - n * STORY;
         if keep
+            && (!t.lean || n >= (2 * LEAN_STEP) as f32)
             && base >= floors::y(START) + SETBACK_FLOOR
             && base - floors::bottom() >= MIN_BASE_STORIES * STORY
         {
@@ -170,7 +184,7 @@ pub fn build(cat: &Catalog, p: &Placement, seed: u64) -> Built {
     };
     let tf = transform(p);
     let mut rng = Rng::new(p.seed);
-    let shift = rng.range_i(0, 8) as u8;
+    let shift_paint = rng.range_i(0, 8) as u8;
     let seed_of = |a: i32, b: i32, c: i32| mix64(hash_coords(p.seed, a, b, c));
     // Parts on a floor know it (their rates, which lots have a deck).
     let expand = |parts: &[Part], y: f32, slots: u64| {
@@ -189,31 +203,70 @@ pub fn build(cat: &Catalog, p: &Placement, seed: u64) -> Built {
             vec3(t.at.0, base, t.at.1),
             vec3(t.at.0 + t.size.0, top, t.at.1 + t.size.1),
         );
+        let stories = ((top - base) / STORY).round() as i32;
+        // A leaning tier goes up in steps of `LEAN_STEP` stories, each shifted a little further
+        // (world coordinates), the last by the whole lean.
+        let lean = t.lean.then(|| lean(seed, p, &tf.aabb(min, max))).flatten();
+        let steps = if lean.is_some() {
+            (stories as usize / LEAN_STEP).max(1)
+        } else {
+            1
+        };
+        let step_of = |s: i32| (s as usize / LEAN_STEP).min(steps - 1);
+        let shift = |step: usize| lean.unwrap_or(Vec3::ZERO) * ((step + 1) as f32 / steps as f32);
         if let Some(f) = &t.facade {
             let mut faces = Faces {
                 ids: [0; 4],
-                paint: shift,
+                paint: shift_paint,
             };
             for (fi, (n, _)) in FACES.iter().enumerate() {
                 faces.ids[face_index(tf.dir(*n))] = f.ids[fi];
             }
-            out.add_block(Block {
-                aabb: tf.aabb(min, max),
-                color: super::city::tint(&mut rng, 92, 190),
-                kind: BlockKind::Tower(faces),
-            });
-            push_units(cat, p, &tf, t, f, (base, top), shift, &deck, &mut out);
+            let color = super::city::tint(&mut rng, 92, 190);
+            for step in 0..steps {
+                let lo = base + (step * LEAN_STEP) as f32 * STORY;
+                let hi = if step + 1 == steps {
+                    top
+                } else {
+                    lo + LEAN_STEP as f32 * STORY
+                };
+                let body = tf.aabb(vec3(min.x, lo, min.z), vec3(max.x, hi, max.z));
+                out.add_block(Block {
+                    aabb: Aabb {
+                        min: body.min + shift(step),
+                        max: body.max + shift(step),
+                    },
+                    color,
+                    kind: BlockKind::Tower(faces),
+                });
+            }
+            if lean.is_none() {
+                push_units(cat, p, &tf, t, f, (base, top), shift_paint, &deck, &mut out);
+            }
         }
-        let stories = ((top - base) / STORY).round() as i32;
+        // Parts in world coordinates, moved with the step they stand on.
+        let moved = |mut b: chunks::Built, by: Vec3| {
+            for (a, _) in &mut b.boxes {
+                a.min += by;
+                a.max += by;
+            }
+            for p in &mut b.props {
+                p.pos += by;
+            }
+            for f in &mut b.blooms {
+                *f += by;
+            }
+            b
+        };
         if !t.each_story.is_empty() {
             for s in 0..stories {
                 let b = expand(&t.each_story, base + s as f32 * STORY, seed_of(k, 1, s));
-                out.add(b, None);
+                out.add(moved(b, shift(step_of(s))), None);
             }
         }
         for f in 0..floors::count() {
             let y = floors::y(f);
-            if y < base - 0.01 || y + STORY > top + 0.01 {
+            if y < base - 0.01 || y + STORY > top + 0.01 || lean.is_some() {
                 continue;
             }
             if !t.each_floor.is_empty() {
@@ -224,7 +277,8 @@ pub fn build(cat: &Catalog, p: &Placement, seed: u64) -> Built {
             }
         }
         if !t.roof.is_empty() {
-            out.add(expand(&t.roof, top, seed_of(k, 4, 0)), None);
+            let b = expand(&t.roof, top, seed_of(k, 4, 0));
+            out.add(moved(b, shift(steps - 1)), None);
         }
     }
     // Street parts only where their floor has a deck under them, and nothing inside a body (a
@@ -270,6 +324,92 @@ impl Built {
         by_group(&mut self.blooms, &self.bloom_groups, &keep);
         self.bloom_groups.retain(|&g| keep(g));
     }
+}
+
+/// Whether a placed tower stands crooked: one of its tiers leans on a neighbor (`lean`).
+pub fn leans(cat: &Catalog, p: &Placement, seed: u64) -> bool {
+    let Some(def) = cat.chunks.get(&p.chunk).and_then(|c| c.tower.as_ref()) else {
+        return false;
+    };
+    let tf = transform(p);
+    tiers(def, p).into_iter().any(|(i, base, top)| {
+        let t = &def.tiers[i];
+        let (min, max) = (
+            vec3(t.at.0, base, t.at.1),
+            vec3(t.at.0 + t.size.0, top, t.at.1 + t.size.1),
+        );
+        t.lean && lean(seed, p, &tf.aabb(min, max)).is_some()
+    })
+}
+
+/// Where a leaning tier's top goes (world coordinates), `body` its box standing straight: toward
+/// the facing wall of a neighbor tower whose solid walls reach about as high, by the gap between
+/// them, so its top rests on that wall; the seed picks among the neighbors that qualify. Never
+/// where a skybridge would be in the way. Two towers never lean on each other: the one leaned on
+/// has solid walls past its top, which a leaning tower never has.
+pub fn lean(seed: u64, p: &Placement, body: &Aabb) -> Option<Vec3> {
+    let (ox, oz) = p.origin;
+    let (w, d) = p.size;
+    let around = (ox..ox + w)
+        .flat_map(|x| [((x, oz - 1), Vec3::NEG_Z), ((x, oz + d), Vec3::Z)])
+        .chain((oz..oz + d).flat_map(|z| [((ox - 1, z), Vec3::NEG_X), ((ox + w, z), Vec3::X)]));
+    let mut found: Vec<Vec3> = Vec::new();
+    for ((x, z), dir) in around {
+        let Some(t) = super::city::tower(seed, x, z) else {
+            continue;
+        };
+        let n = Aabb::from_center(t.center, t.size);
+        // The gap between the facing walls, and the stretch of wall they share.
+        let gap = if dir.x != 0.0 {
+            if dir.x > 0.0 {
+                n.min.x - body.max.x
+            } else {
+                body.min.x - n.max.x
+            }
+        } else if dir.z > 0.0 {
+            n.min.z - body.max.z
+        } else {
+            body.min.z - n.max.z
+        };
+        let shared = if dir.x != 0.0 {
+            body.max.z.min(n.max.z) - body.min.z.max(n.min.z)
+        } else {
+            body.max.x.min(n.max.x) - body.min.x.max(n.min.x)
+        };
+        let tall = t.walls_top >= body.max.y - LEAN_STEP as f32 * STORY * 0.5;
+        if (2.0..=LEAN_MAX).contains(&gap) && shared >= 8.0 && tall && !found.contains(&(dir * gap))
+        {
+            found.push(dir * gap);
+        }
+    }
+    // Skybridges stay out of the room the tier leans through.
+    found.retain(|&v| {
+        let swept = Aabb {
+            min: body.min.min(body.min + v),
+            max: body.max.max(body.max + v),
+        };
+        let lot = super::city::LOT;
+        let (x0, x1) = (
+            (swept.min.x / lot).floor() as i32 - 1,
+            (swept.max.x / lot).floor() as i32,
+        );
+        let (z0, z1) = (
+            (swept.min.z / lot).floor() as i32 - 1,
+            (swept.max.z / lot).floor() as i32,
+        );
+        !(z0..=z1).any(|z| {
+            (x0..=x1).any(|x| {
+                super::city::skybridges(seed, x, z)
+                    .iter()
+                    .any(|b| b.aabb.overlaps(&swept))
+            })
+        })
+    });
+    if found.is_empty() {
+        return None;
+    }
+    let mut rng = Rng::new(p.seed ^ SALT_LEAN);
+    Some(found[rng.range_i(0, found.len() as i32) as usize])
 }
 
 /// The units in boxes of a tier's faces, on the street story and the `NEAR_STORIES` above each
@@ -360,5 +500,66 @@ mod tests {
             let expect = (-n).cross(Vec3::Y);
             assert!((right - expect).length() < 1e-5, "{n}: {right} vs {expect}");
         }
+    }
+
+    #[test]
+    fn leaning_towers_rest_on_a_neighbor_and_cross_nothing() {
+        let seed = 1;
+        let inner = |a: &Aabb| Aabb {
+            min: a.min + 0.05,
+            max: a.max - 0.05,
+        };
+        let mut n = 0;
+        for lz in -30..30 {
+            for lx in -30..30 {
+                let Some(p) = super::super::planner::tower_at(seed, lx, lz) else {
+                    continue;
+                };
+                let cat = chunks::catalog(p.biome);
+                if p.origin != (lx, lz) || !leans(&cat, &p, seed) {
+                    continue;
+                }
+                n += 1;
+                let own = super::super::city::tower(seed, lx, lz).unwrap();
+                let own = Aabb::from_center(own.center, own.size);
+                let bodies: Vec<Aabb> = build(&cat, &p, seed)
+                    .blocks
+                    .iter()
+                    .filter(|b| matches!(b.kind, BlockKind::Tower(_)))
+                    .map(|b| b.aabb)
+                    // The leaning steps (skybridges sink their ends into the straight base).
+                    .filter(|b| b.min.y >= floors::top() + LEAN_ABOVE - 0.01)
+                    .collect();
+                let mut touches = false;
+                for z in lz - 2..=lz + 2 {
+                    for x in lx - 2..=lx + 2 {
+                        for b in super::super::city::skybridges(seed, x, z) {
+                            assert!(
+                                !bodies.iter().any(|t| inner(t).overlaps(&b.aabb)),
+                                "the tower leaning at ({lx}, {lz}) runs into a skybridge"
+                            );
+                        }
+                        let Some(t) = super::super::city::tower(seed, x, z) else {
+                            continue;
+                        };
+                        let t = Aabb::from_center(t.center, t.size);
+                        if t.min == own.min && t.max == own.max {
+                            continue;
+                        }
+                        assert!(
+                            !bodies.iter().any(|b| inner(b).overlaps(&t)),
+                            "the tower leaning at ({lx}, {lz}) runs into the one at ({x}, {z})"
+                        );
+                        let near = Aabb {
+                            min: t.min - 0.05,
+                            max: t.max + 0.05,
+                        };
+                        touches |= bodies.iter().any(|b| b.overlaps(&near));
+                    }
+                }
+                assert!(touches, "the tower at ({lx}, {lz}) leans on nothing");
+            }
+        }
+        assert!(n > 2, "only {n} leaning towers");
     }
 }

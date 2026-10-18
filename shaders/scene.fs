@@ -170,12 +170,12 @@ vec3 pal(int slot)
 // The atlas of pixel-art tiles (src/render/pixels.rs): a row per biome, each the chunk materials,
 // the facade units, the city's surfaces and a tile of swatches, 4 m per tile. Drawn from the row
 // of the fragment's biome; `t` is in tiles; crisp pixels up close.
-const vec2 ATLAS = vec2(27.0, 8.0);  // tiles in a row (pixels::COUNT), rows (MAX_BIOMES)
-const float ROAD_TILE = 22.0;        // then sidewalk, roof, deck underside (pixels::SURFACES)
-const float SIDEWALK_TILE = 23.0;
-const float ROOF_TILE = 24.0;
-const float UNDERSIDE_TILE = 25.0;
-const int SWATCH_TILE = 26;
+const vec2 ATLAS = vec2(30.0, 8.0);  // tiles in a row (pixels::COUNT), rows (MAX_BIOMES)
+const float ROAD_TILE = 25.0;        // then sidewalk, roof, deck underside (pixels::SURFACES)
+const float SIDEWALK_TILE = 26.0;
+const float ROOF_TILE = 27.0;
+const float UNDERSIDE_TILE = 28.0;
+const int SWATCH_TILE = 29;
 vec4 atlasTile(float tile, vec2 t)
 {
     vec2 a = (vec2(tile, float(gVariant)) + fract(t)) / ATLAS;
@@ -463,9 +463,9 @@ vec3 built(vec3 base, int mat, vec3 p, vec3 n, float tall, float px)
 // high, each cell the facade unit its tower chunk's elevation writes there (src/render/facades.rs:
 // far tile, tile near a deck, paint), a tile of the atlas (src/render/pixels.rs: window, two
 // windows, caged window, enclosed balcony, air conditioner, boarded, broken, vent, shop shutter,
-// shop window, blank wall). The rows repeat every floor from its street story up. On the street
-// story and the two above it, where a deck meets the wall, the units stand in boxes in front of
-// plain windows (src/world/tower.rs). Abandoned: no window is lit, and now and then a far window
+// shop window, blank wall, curtain wall, curtain wall broken, ribbon window). The rows repeat
+// every floor from its street story up. On the street story and the two above it, where a deck
+// meets the wall, the units stand in boxes in front of plain windows (src/world/tower.rs). Abandoned: no window is lit, and now and then a far window
 // is boarded up or broken. Wall pixels take the tower's color, or the biome's paint the elevation
 // gives (src/world/tower.rs, `paint`). loc = (position along the face, face width).
 const float FACADE_FIRST = 11.0;

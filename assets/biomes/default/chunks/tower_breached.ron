@@ -1,0 +1,83 @@
+// Tower: a slab burst open, 16 x 12 m: a few stories in its middle blown out on one side, the
+// core standing alone with its windows gone, pieces of slab sticking out of it with rebar and
+// rubble, the rest of the tower carried over the gap. Plants take the open stories.
+Chunk(
+    name: "tower_breached",
+    size: (1, 1),
+    labels: ["tower", "landmark"],
+    weight: 1,
+    tower: (
+        heights: [Stack, Front],
+        tiers: [
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                facade: (
+                    front: [
+                        "w  a  w  k",
+                        "c  w  k  w",
+                        "w  x  w  a",
+                        "a  w  c  w",
+                        "w  c  w  x",
+                        "c  w  a  w",
+                        "w  a  w  c",
+                        "l  w  l  w",
+                        "s  S  h  s",
+                    ],
+                    side: [
+                        "w  k  w",
+                        "a  w  a",
+                        "w  x  w",
+                        "c  w  c",
+                        "w  w  a",
+                        "a  w  w",
+                        "w  c  w",
+                        "l  w  l",
+                        "h  -  h",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (4.0, 0.0, 9.0), turn: 3, pick: [Some("fire_escape"), None]),
+                ],
+                streets: [
+                    Slot(at: (12.0, 0.0, 5.0), turn: 2, pick: [Some("rubble"), Some("vacant_debris")]),
+                    Slot(at: (16.0, 0.0, 18.0), turn: 0, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (20.0, 0.0, 12.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+            ),
+            // The breach: the core on the -x half, its windows blown out, and what is left of the
+            // slabs on the open +x half.
+            (
+                at: (4.0, 6.0),
+                size: (8.0, 12.0),
+                stories: (4, 7),
+                facade: (
+                    front: ["k  k", "k  -", "-  k"],
+                    side: ["k  k  -", "k  -  k", "-  k  k"],
+                ),
+                each_story: [
+                    Slot(at: (12.0, 0.35, 6.0), pick: [Some("breach_slab"), Some("breach_ledge"), Some("breach_stub")]),
+                ],
+            ),
+            // Carried over the gap: the rest of the tower, scorched windows over the breach.
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                stories: (6, 14),
+                facade: (
+                    front: ["w  a  w  w", "a  w  c  w", "w  w  a  x", "k  k  k  k"],
+                    side: ["w  a  w", "w  w  c", "x  w  a", "k  k  k"],
+                ),
+                roof: [
+                    Box(at: (4.0, 0.0, 6.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 17.6), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Box(at: (19.6, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Slot(at: (8.0, 0.0, 10.0), pick: [Some("water_tank"), Some("roof_ac")]),
+                    Slot(at: (15.0, 0.0, 14.0), pick: [Some("stair_housing")]),
+                    Slot(at: (14.0, 0.0, 8.0), pick: [Some("antenna"), Some("roof_plant"), None]),
+                ],
+            ),
+        ],
+    ),
+)

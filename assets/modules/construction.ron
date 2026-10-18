@@ -84,4 +84,44 @@
             Box(at: (0.0, 1.2, 1.2), size: (2.0, 1.0, 0.05), mat: Glass),
         ],
     ),
+    // What is left of a story where a tower burst open (`tower_breached`): pieces of its slab
+    // sticking out of the core, 8 m deep along x and 12 m along z from the slot. Three ways a
+    // story broke: a slab with torn tongues and a column standing at the corner; a short ledge
+    // with a piece hanging off it in steps; only a beam stub and the rebar.
+    Module(
+        name: "breach_slab",
+        parts: [
+            Box(at: (0.0, -0.35, 0.0), size: (4.6, 0.35, 12.0), mat: Concrete),
+            Box(at: (4.6, -0.35, 0.0), size: (2.4, 0.35, 4.4), mat: Concrete),
+            Box(at: (4.6, -0.35, 7.6), size: (1.4, 0.35, 2.6), mat: Concrete),
+            Box(at: (7.4, -0.35, 0.2), size: (0.4, 4.0, 0.4), mat: Concrete),
+            Box(at: (7.0, -0.2, 4.4), size: (0.04, 0.04, 1.6), mat: Rust),
+            Box(at: (6.0, -0.2, 7.0), size: (1.4, 0.04, 0.04), mat: Rust),
+            Box(at: (4.6, -0.2, 5.6), size: (1.8, 0.04, 0.04), mat: Rust),
+            Box(at: (1.0, 0.0, 2.0), size: (1.4, 0.4, 1.0), mat: Concrete),
+            Box(at: (2.2, 0.0, 8.5), size: (0.8, 0.3, 0.6), mat: StoneDark),
+        ],
+    ),
+    Module(
+        name: "breach_ledge",
+        parts: [
+            Box(at: (0.0, -0.35, 0.0), size: (2.6, 0.35, 12.0), mat: Concrete),
+            Box(at: (2.6, -1.0, 3.0), size: (2.0, 0.35, 5.0), mat: Concrete),
+            Box(at: (4.6, -1.9, 3.6), size: (1.6, 0.35, 3.8), mat: Concrete),
+            Box(at: (2.6, -0.2, 1.0), size: (1.2, 0.04, 0.04), mat: Rust),
+            Box(at: (2.6, -0.2, 9.4), size: (0.9, 0.04, 0.04), mat: Rust),
+            Box(at: (6.2, -1.8, 4.6), size: (0.9, 0.04, 0.04), mat: Rust),
+            Box(at: (0.6, 0.0, 6.0), size: (1.0, 0.5, 1.2), mat: Concrete),
+        ],
+    ),
+    Module(
+        name: "breach_stub",
+        parts: [
+            Box(at: (0.0, -0.7, 5.8), size: (3.4, 0.7, 0.4), mat: Concrete),
+            Box(at: (0.0, -0.35, 0.0), size: (0.8, 0.35, 12.0), mat: Concrete),
+            Box(at: (3.4, -0.5, 5.9), size: (1.2, 0.04, 0.04), mat: Rust),
+            Box(at: (3.4, -0.3, 6.1), size: (0.9, 0.04, 0.04), mat: Rust),
+            Box(at: (0.8, -0.2, 2.0), size: (1.0, 0.04, 0.04), mat: Rust),
+        ],
+    ),
 ]

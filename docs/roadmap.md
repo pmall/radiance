@@ -160,9 +160,11 @@
       (where an x and a z gap cross, the seed ranks them and the first one wins), and a footbridge
       gives way to a skybridge passing through or less than 6 m over its walkway
       (`city::bridges_through`, test `bridges_never_cross`).
-    - Second landmark pass (pass 7): towers that are not housing beyond the office tower; a tower
-      with a gaping hole or leaning on its neighbor (the tower bodies are single boxes, so this
-      needs new geometry); tall silhouettes above the construction front.
+    - Second landmark pass (pass 7): towers that are not housing *(done: `tower_glass`,
+      `tower_hotel`, `tower_telecom`, with new facade units: curtain walls, broken curtain walls,
+      ribbon windows)*; a tower with a gaping hole *(done: `tower_breached`)* or leaning on its
+      neighbor *(done: `tower_leaning`, about one every 400 m at the construction front)*; tall
+      silhouettes above the construction front.
     - Maybe a second plant pass (pass 5): the flowers' petals in pixel art.
     - Frame time: about 9.0 ms at the spawn (8.0 ms before pass 2, most of it the sunbeams in the
       haze); D5 views about 11 ms (7.5 M triangles) anywhere on that floor, not caused by the

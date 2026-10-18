@@ -325,6 +325,10 @@ pub struct Tier {
     /// Parts on the tier's roof.
     #[serde(default)]
     pub roof: Vec<Part>,
+    /// Upper tiers above the top deck: built leaning in steps until the top rests on the wall of
+    /// a taller neighbor tower, when one faces it (`tower::lean`); straight otherwise.
+    #[serde(default)]
+    pub lean: bool,
 }
 
 /// A tier's facades, written as elevations seen from outside (`docs/chunks.md`, "Towers"): one
@@ -402,6 +406,9 @@ pub const UNITS: &[Unit] = &[
     unit('S', 9, 9, Some("facade_shop")),       // a shop window under an awning
     unit('h', 8, 8, Some("facade_awningless")), // a shop, shutter down
     unit('H', 9, 9, Some("facade_awningless")), // a shop window
+    unit('g', 11, 11, None),                    // a curtain wall, glass from slab to slab
+    unit('G', 12, 12, None),                    // the same, panes fallen out
+    unit('r', 13, 13, None),                    // a ribbon window, glazed edge to edge
 ];
 
 /// Stories of a floor: the elevations hold this many rows once expanded.

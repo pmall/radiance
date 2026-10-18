@@ -5,7 +5,7 @@
 use crate::world::city::LOT;
 use crate::world::planner::{self, Role};
 use crate::world::props::Prop;
-use crate::world::{BlockKind, city, design, floors, growth};
+use crate::world::{BlockKind, chunks, city, design, floors, growth, tower};
 
 pub fn run(seed: u64, radius: i32) {
     let n = floors::count();
@@ -20,6 +20,8 @@ pub fn run(seed: u64, radius: i32) {
     let mut by_name: std::collections::BTreeMap<String, usize> = Default::default();
     // The designed places (areas, blocks, craters) whose corner lies in the scanned square.
     let mut places: Vec<planner::Placement> = Vec::new();
+    // The landmark towers (not housing, broken, leaning), likewise.
+    let mut landmarks: Vec<planner::Placement> = Vec::new();
     // Flowers: plants (stairs apart), plants on stairs, points of interest.
     let mut flowers = vec![[0usize; 3]; n];
     // Props: street furniture, what people left; points of interest.
@@ -56,6 +58,14 @@ pub fn run(seed: u64, radius: i32) {
                 && p.origin == (lx, lz)
             {
                 *by_name.entry(p.chunk.clone()).or_default() += 1;
+                let cat = chunks::catalog(p.biome);
+                if cat
+                    .chunks
+                    .get(&p.chunk)
+                    .is_some_and(|c| c.labels.iter().any(|l| l == "landmark"))
+                {
+                    landmarks.push(p);
+                }
             }
             if let Some(f) = planner::hole_at(seed, lx, lz) {
                 hole_lots[f] += 1;
@@ -210,6 +220,42 @@ pub fn run(seed: u64, radius: i32) {
             p.size.1,
             floors::name(p.floor),
             floors::y(p.floor),
+        );
+    }
+    println!();
+    println!(
+        "Landmark towers, nearest first, with a view from a lot away (the top deck for the \
+         construction front):"
+    );
+    let crooked = landmarks
+        .iter()
+        .filter(|p| tower::leans(&chunks::catalog(p.biome), p, seed))
+        .count();
+    println!(
+        "  ({} landmark towers, {crooked} of them leaning)",
+        landmarks.len()
+    );
+    landmarks.sort_by(|a, b| {
+        let (da, db) = (middle(a), middle(b));
+        (da.0.hypot(da.1)).total_cmp(&db.0.hypot(db.1))
+    });
+    for p in landmarks.iter().take(400) {
+        let (x, z) = middle(p);
+        let top = floors::bottom() + p.stories as f32 * chunks::STORY;
+        let front = top > floors::top();
+        let crooked = tower::leans(&chunks::catalog(p.biome), p, seed);
+        let y = if front {
+            floors::top()
+        } else {
+            floors::y(floors::START)
+        };
+        println!(
+            "  {:<20} {:>3} m{}  --view {:.0},{y:.0},{:.0},45,25",
+            p.chunk,
+            (top - floors::bottom()).round(),
+            if crooked { ", leaning" } else { "" },
+            x + 1.5 * LOT,
+            z + 1.5 * LOT,
         );
     }
 }

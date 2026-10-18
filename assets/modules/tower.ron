@@ -126,4 +126,84 @@
             Box(at: (-4.0, 1.4, 0.1), size: (8.0, 0.1, 0.6), mat: Metal),
         ],
     ),
+    // A helipad on a high roof: a raised deck of steel on legs, a pale ring and the H painted
+    // on it, a low rail round the edge. 10 m across, centered.
+    Module(
+        name: "helipad",
+        parts: [
+            Repeat(from: (-4.0, 0.0, -4.0), step: (8.0, 0.0, 0.0), count: 2, parts: [
+                Repeat(step: (0.0, 0.0, 8.0), count: 2, parts: [
+                    Box(at: (-0.2, 0.0, -0.2), size: (0.4, 1.2, 0.4), mat: Metal),
+                ]),
+            ]),
+            Box(at: (-5.0, 1.2, -5.0), size: (10.0, 0.3, 10.0), mat: Metal),
+            Box(at: (-3.6, 1.5, -3.6), size: (7.2, 0.02, 0.4), mat: Paint((214, 206, 182))),
+            Box(at: (-3.6, 1.5, 3.2), size: (7.2, 0.02, 0.4), mat: Paint((214, 206, 182))),
+            Box(at: (-3.6, 1.5, -3.2), size: (0.4, 0.02, 6.4), mat: Paint((214, 206, 182))),
+            Box(at: (3.2, 1.5, -3.2), size: (0.4, 0.02, 6.4), mat: Paint((214, 206, 182))),
+            Box(at: (-1.4, 1.5, -1.8), size: (0.5, 0.02, 3.6), mat: Paint((220, 180, 60))),
+            Box(at: (0.9, 1.5, -1.8), size: (0.5, 0.02, 3.6), mat: Paint((220, 180, 60))),
+            Box(at: (-0.9, 1.5, -0.25), size: (1.8, 0.02, 0.5), mat: Paint((220, 180, 60))),
+            Box(at: (-5.0, 1.5, -5.0), size: (10.0, 0.5, 0.1), mat: Metal),
+            Box(at: (-5.0, 1.5, 4.9), size: (10.0, 0.5, 0.1), mat: Metal),
+        ],
+    ),
+    // A lattice mast: four steel legs braced every 3 m, a platform half way, a dead beacon on
+    // top. 34 m tall, 3 m across, centered: the telecom tower's spike on the skyline.
+    Module(
+        name: "lattice_mast",
+        parts: [
+            Box(at: (-2.0, 0.0, -2.0), size: (4.0, 0.4, 4.0), mat: Concrete),
+            Repeat(from: (-1.5, 0.4, -1.5), step: (2.8, 0.0, 0.0), count: 2, parts: [
+                Repeat(step: (0.0, 0.0, 2.8), count: 2, parts: [
+                    Box(at: (0.0, 0.0, 0.0), size: (0.2, 34.0, 0.2), mat: Metal),
+                ]),
+            ]),
+            Repeat(from: (-1.5, 3.0, -1.5), step: (0.0, 3.0, 0.0), count: 11, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (3.0, 0.12, 0.12), mat: Metal),
+                Box(at: (0.0, 0.0, 2.8), size: (3.0, 0.12, 0.12), mat: Metal),
+                Box(at: (0.0, 0.0, 0.0), size: (0.12, 0.12, 3.0), mat: Metal),
+                Box(at: (2.8, 0.0, 0.0), size: (0.12, 0.12, 3.0), mat: Metal),
+            ]),
+            Box(at: (-2.2, 16.0, -2.2), size: (4.4, 0.2, 4.4), mat: Rust),
+            Box(at: (-2.2, 16.2, -2.2), size: (4.4, 0.8, 0.08), mat: Rust),
+            Box(at: (-2.2, 16.2, 2.12), size: (4.4, 0.8, 0.08), mat: Rust),
+            Box(at: (1.6, 20.0, -0.6), size: (0.6, 2.4, 1.2), mat: Paint((200, 200, 190))),
+            Box(at: (-2.2, 26.0, -0.6), size: (0.6, 2.4, 1.2), mat: Paint((200, 200, 190))),
+            Box(at: (-0.15, 34.4, -0.15), size: (0.3, 4.0, 0.3), mat: Metal),
+            Box(at: (-0.25, 38.4, -0.25), size: (0.5, 0.5, 0.5), mat: Paint((176, 52, 44))),
+        ],
+    ),
+    // A dish on a wall bracket, its face toward +z and tipped up: a steel arm, a drum of pale
+    // rings (the dish in boxes), a feed rod.
+    Module(
+        name: "wall_dish",
+        parts: [
+            Box(at: (-0.15, 0.0, 0.0), size: (0.3, 0.3, 1.2), mat: Metal),
+            Box(at: (-0.1, -0.8, 0.0), size: (0.2, 0.8, 0.2), mat: Metal),
+            Box(at: (-1.2, -0.6, 1.2), size: (2.4, 1.6, 0.25), mat: Paint((200, 200, 190))),
+            Box(at: (-0.8, -1.0, 1.25), size: (1.6, 2.4, 0.25), mat: Paint((200, 200, 190))),
+            Box(at: (-1.0, -0.8, 1.45), size: (2.0, 2.0, 0.1), mat: Paint((176, 176, 168))),
+            Box(at: (-0.05, 0.15, 1.5), size: (0.1, 0.1, 1.4), mat: Metal),
+        ],
+    ),
+    // A rooftop sign facing +z: letters on a steel frame of posts and braces, each a panel in the
+    // accent color, long unlit. 14 m wide.
+    Module(
+        name: "roof_letters",
+        parts: [
+            Repeat(from: (-6.5, 0.0, -0.1), step: (3.25, 0.0, 0.0), count: 5, parts: [
+                Box(at: (-0.1, 0.0, 0.0), size: (0.2, 6.5, 0.2), mat: Metal),
+                Box(at: (-0.06, 0.0, -1.6), size: (0.12, 0.12, 1.7), mat: Metal),
+            ]),
+            Repeat(from: (-7.0, 1.0, -0.1), step: (0.0, 2.5, 0.0), count: 2, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (14.0, 0.15, 0.15), mat: Metal),
+            ]),
+            Repeat(from: (-6.8, 1.6, 0.12), step: (2.8, 0.0, 0.0), count: 5, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (2.2, 4.6, 0.12), mat: Accent),
+                Box(at: (0.6, 1.0, 0.13), size: (1.0, 0.6, 0.06), mat: Paint((40, 42, 46))),
+                Box(at: (0.6, 2.8, 0.13), size: (1.0, 0.6, 0.06), mat: Paint((40, 42, 46))),
+            ]),
+        ],
+    ),
 ]

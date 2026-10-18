@@ -1,0 +1,71 @@
+// Tower: a slab of the construction front, 16 x 12 m, whose top went crooked: above the top deck
+// it leans in steps until it rests on the wall of a taller neighbor (`tower::lean`), a band of
+// broken windows where it gave; with no neighbor to lean on, it stands straight. Housing below,
+// the machines' work above.
+Chunk(
+    name: "tower_leaning",
+    size: (1, 1),
+    labels: ["tower", "landmark"],
+    weight: 2,
+    tower: (
+        heights: [Front],
+        tiers: [
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                facade: (
+                    front: [
+                        "w  c1 w  a",
+                        "a  c1 w  w",
+                        "w  c1 a  w",
+                        "w  b1 w  c",
+                        "c  b1 w  w",
+                        "w  c1 a  w",
+                        "a  u  w  u",
+                        "l  w  l  w",
+                        "s  H  S  h",
+                    ],
+                    side: [
+                        "v  w  w",
+                        "v  a  w",
+                        "v  w  c",
+                        "v  w  w",
+                        "v  c  a",
+                        "v  w  w",
+                        "v  u  u",
+                        "v  l  w",
+                        "-  h  h",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (4.0, 0.0, 9.0), turn: 3, pick: [Some("fire_escape"), None]),
+                    Slot(at: (12.0, 0.0, 6.0), turn: 2, pick: [Some("blade_sign"), None, None],
+                        accents: [(176, 52, 44), (60, 120, 150), (220, 180, 60)]),
+                ],
+                streets: [
+                    Slot(at: (8.0, 0.0, 6.0), turn: 2, rate: Props, pick: [Some("wall_terrace"), None]),
+                    Slot(at: (20.0, 0.0, 12.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+            ),
+            // The leaning top, cracked where it gave.
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                stories: (8, 16),
+                lean: true,
+                facade: (
+                    front: ["w  a  w  w", "x  w  c  w", "w  k  w  a", "k  k  x  k"],
+                    side: ["v  w  w", "v  k  a", "v  w  k", "k  k  k"],
+                ),
+                roof: [
+                    Box(at: (4.0, 0.0, 6.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 17.6), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Box(at: (19.6, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Slot(at: (8.0, 0.0, 10.0), pick: [Some("water_tank"), Some("roof_ac")]),
+                    Slot(at: (15.0, 0.0, 14.0), pick: [Some("stair_housing")]),
+                ],
+            ),
+        ],
+    ),
+)

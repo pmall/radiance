@@ -4,7 +4,7 @@
 Chunk(
     name: "tower_gutted",
     size: (1, 1),
-    labels: ["tower"],
+    labels: ["tower", "landmark"],
     weight: 1,
     tower: (
         heights: [Old, Stack],

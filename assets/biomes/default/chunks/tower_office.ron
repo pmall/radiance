@@ -4,7 +4,7 @@
 Chunk(
     name: "tower_office",
     size: (1, 1),
-    labels: ["tower"],
+    labels: ["tower", "landmark"],
     weight: 3,
     tower: (
         heights: [Stack, Front],

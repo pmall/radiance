@@ -331,13 +331,21 @@ the `default` biome:
 - **Towers** (role `Tower`, `world/tower.rs`): `tower_slab`, `tower_point`, `tower_wall`,
   `tower_office`, `tower_narrow`, `tower_old` (heights `Old` only), `tower_unfinished` (the
   construction front: a frame of stories and a crane), `tower_twin` (2x1 lots) and `tower_block`
-  (2x2). A tower is `tiers` stacked from the bottom of the stack (a setback takes the top
+  (2x2). Towers that are not housing or not whole (label `landmark`, listed by `--report` with a
+  view): `tower_office`, `tower_glass` (curtain walls, a glass crown, a helipad), `tower_hotel`
+  (ribbon windows, tall signs, its name in letters on the roof), `tower_telecom` (a blank shaft,
+  dishes, a lattice mast), `tower_gutted`, `tower_breached` (a few middle stories blown out on one
+  side: the core alone, slab pieces with rebar, the top carried over the gap) and `tower_leaning`
+  (the construction front: above the top deck its top leans in steps of two stories until it
+  rests on the wall of a taller neighbor, a tier's `lean: true`, `tower::lean`; straight when no
+  neighbor qualifies). A tower is `tiers` stacked from the bottom of the stack (a setback takes the top
   `stories` the seed picks, at its `chance`); each tier has a body painted from its written
   **elevations** and parts `each_story`, `each_floor` (fire escapes, signs), `streets` (what stands
   against its walls, only where a deck is) and `roof`. Elevations are written as seen from outside,
   top story first, street story last, one letter per 4 m bay (`chunks::UNITS`: `w` window, `d`
   two windows, `c` cage, `b` balcony, `a`/`A` air conditioner, `l` laundry, `u` the seed's pick,
-  `x` boarded, `k` broken, `v` vent, `-` blank, `s`/`S`/`h`/`H` shops), a digit after a letter
+  `x` boarded, `k` broken, `v` vent, `-` blank, `s`/`S`/`h`/`H` shops, `g` curtain wall, `G` curtain
+  wall with panes gone, `r` ribbon window), a digit after a letter
   paints the unit in one of the tower's colors. The rows repeat every floor from its street story
   up. The shader reads them from a texture (`render/facades.rs`) instead of rolling units; near a
   deck (the street story and the two above) the units stand in boxes from the same letters. The

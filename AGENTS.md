@@ -73,8 +73,8 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
   them against an earlier label (needs a release build and Pillow).
 - `--chunk NAME` (or `BIOME/NAME`): show one hand-written chunk alone (with `--view`/`--shot`); `--catalog` lists every biome's chunks and modules.
 - `--report [radius]`: print the floor profiles next to what the seed produced (decks, stairs,
-  flowers by source, props by kind) and the places (areas, blocks, craters) with a `--view` to
-  stand in each, then exit. Use it to tune generation. `--floors N` sets the
+  flowers by source, props by kind) and the places (areas, blocks, craters) and landmark towers
+  (not housing, broken, leaning) with a `--view` for each, then exit. Use it to tune generation. `--floors N` sets the
   number of floors; `--no-props` / `--no-pois` (O / I in game) switch props and points of interest.
 - `cargo check` / `cargo clippy`: verify. `cargo test --release`: the whole suite must stay fast
   (a few seconds) so iterating is quick: a test sweeps as few lots and seeds as prove its point,

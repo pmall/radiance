@@ -41,6 +41,8 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Towers: where, how tall                                 | `planner::tower_at`, `towers_of_cell`, `tower_stories`                          |
 | Towers: tiers, setbacks, body, walls a bridge can use   | `tower::tiers`, `tower::body`, `tower::solid_top`, `city::tower`                |
 | Towers: units near decks, street parts                  | `tower::build`, `push_units`                                                    |
+| Towers leaning on a taller neighbor (front only)        | `tower::lean` (which neighbor, how far), `tower::tiers` (`LEAN_ABOVE`),         |
+|                                                         | `tower::build` (steps), `tower::leans` (`--report`)                             |
 | Stairs (one per hub)                                    | `planner::stair_hub`, `hub_of_cell`; `city::stair`                              |
 | Skybridges between towers, decided once per pair        | `city::skybridges`, `push_bridge` (module `skybridge_segment`),                 |
 |                                                         | `skybridges_through`                                                            |

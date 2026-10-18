@@ -21,7 +21,7 @@ pub const TILE: usize = 64;
 /// Chunk materials, in `Mat::index` order.
 pub const MATERIALS: usize = 11;
 /// Tower facade units (`facade_tiles`), after the materials: 4 m bays one story (4 m) high.
-pub const FACADES: usize = 11;
+pub const FACADES: usize = 14;
 /// The city's surfaces (`surface_tiles`), after the facade units: road, sidewalk, roof, deck
 /// underside.
 pub const SURFACES: usize = 4;
@@ -1039,7 +1039,8 @@ fn bars(
 
 /// The facade units, in shader order: window, two narrow windows, caged window, enclosed balcony,
 /// window with an air conditioner, boarded window, broken window, blank wall with a vent and a
-/// pipe, shop shutter, shop window, blank wall.
+/// pipe, shop shutter, shop window, blank wall, curtain wall, curtain wall with panes gone,
+/// ribbon window.
 fn facade_tiles(s: &Textures) -> Vec<Tile> {
     let mut out = Vec::new();
     // 0: a window.
@@ -1185,7 +1186,62 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
     out.push(t);
     // 10: blank wall.
     out.push(facade_wall(s, 200));
+    // 11: a curtain wall, glass from slab to slab, and 12: the same with panes fallen out.
+    out.push(curtain(s, false, 210));
+    out.push(curtain(s, true, 220));
+    // 13: a ribbon window, glazed from edge to edge of the bay so the bays run on as one band.
+    let mut t = facade_wall(s, 230);
+    t.rect((0, 14), (64, 16), |_, _| s.frame[0]);
+    t.rect((0, 16), (64, 40), |x, y| glass_px(s, x, y, false, 231));
+    for x in [0, 16, 32, 48] {
+        t.rect((x, 16), (x + 2, 40), |_, _| s.frame[1]);
+    }
+    t.rect((0, 40), (64, 42), |x, y| {
+        if y == 40 {
+            s.frame[2]
+        } else {
+            ramp(&s.concrete, 0.3, x, y)
+        }
+    });
+    out.push(t);
     out
+}
+
+/// A curtain wall: glass from the slab up in panes 2 m wide, each catching the sky a little
+/// differently, slim mullions and a transom, a spandrel band at the slab (wall, so a paint digit
+/// colors it); `broken` knocks some panes out to the dark floor behind, shards left in the frame.
+fn curtain(s: &Textures, broken: bool, salt: i32) -> Tile {
+    let mut t = facade_wall(s, salt);
+    for pane in 0..4 {
+        let (x0, y0) = ((pane % 2) * 32, if pane < 2 { 0 } else { 18 });
+        let y1 = if pane < 2 { 18 } else { 52 };
+        let shade = hash(pane, 0, salt + 1);
+        let gone = broken && hash(pane, 1, salt + 2) > 0.45;
+        t.rect((x0, y0), (x0 + 32, y1), |x, y| {
+            if gone {
+                // The dark floor behind, the ceiling's edge a line at the top.
+                let v = if y < y0 as usize + 2 { 0.3 } else { 0.05 };
+                return ramp(&s.pane, v, x, y);
+            }
+            let d = (x + 64 - y % 64) % 28;
+            let sheen = if d < 3 { 0.3 } else { 0.0 };
+            let v = 0.25 + 0.5 * shade + 0.15 * (y as f32 / 64.0) + sheen;
+            ramp(&s.pane, v + 0.1 * (noise(x, y, 8, 8, salt + 3) - 0.5), x, y)
+        });
+        if gone {
+            for i in 0..5 {
+                t.set(x0 + 2 + i, y1 - 2 - i, s.pane[3]);
+                t.set(x0 + 29 - i, y0 + 2 + i / 2, s.pane[2]);
+            }
+        }
+    }
+    // Mullions, the transom, and the spandrel over the slab (left as wall, tinted).
+    for x in [0, 31, 63] {
+        t.rect((x, 0), (x + 1, 52), |_, _| s.frame[1]);
+    }
+    t.rect((0, 17), (64, 18), |_, _| s.frame[0]);
+    t.rect((0, 51), (64, 52), |_, _| s.frame[2]);
+    t
 }
 
 /// Unlit sign lettering in the sign band (rows `y0..y0 + 8`): blocky glyphs of dark paint.

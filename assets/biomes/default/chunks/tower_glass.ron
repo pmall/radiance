@@ -1,0 +1,76 @@
+// Tower: a corporate tower, 16 x 16 m, not housing: glass from slab to slab on every face, the
+// spandrels in one color, a band of colored panels every floor, some panes fallen out; a glazed
+// lobby on the street story. Tall ones step back to a glass crown with a helipad on top.
+Chunk(
+    name: "tower_glass",
+    size: (1, 1),
+    labels: ["tower", "landmark"],
+    weight: 2,
+    tower: (
+        heights: [Stack, Front],
+        tiers: [
+            (
+                at: (4.0, 4.0),
+                size: (16.0, 16.0),
+                facade: (
+                    front: [
+                        "g1 g1 G1 g1",
+                        "g1 g1 g1 g1",
+                        "-2 -2 -2 -2",
+                        "g1 G1 g1 g1",
+                        "g1 g1 g1 g1",
+                        "g1 g1 g1 G1",
+                        "g1 g1 g1 g1",
+                        "g1 g1 g1 g1",
+                        "H  H  H  H",
+                    ],
+                    side: [
+                        "g1 g1 g1 g1",
+                        "G1 g1 g1 g1",
+                        "-2 -2 -2 -2",
+                        "g1 g1 g1 g1",
+                        "g1 g1 G1 g1",
+                        "g1 g1 g1 g1",
+                        "g1 G1 g1 g1",
+                        "g1 g1 g1 g1",
+                        "-  H  H  -",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (12.0, 0.0, 4.0), turn: 2, pick: [Some("blade_sign"), None, None],
+                        accents: [(60, 120, 150), (200, 200, 190)]),
+                ],
+                streets: [
+                    Slot(at: (8.0, 0.0, 4.0), turn: 2, rate: Props, pick: [Some("wall_cabinet"), None]),
+                    Slot(at: (4.0, 0.0, 12.0), turn: 3, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (20.0, 0.0, 12.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+                roof: [
+                    Box(at: (4.0, 0.0, 4.0), size: (16.0, 0.6, 0.3), mat: Metal),
+                    Box(at: (4.0, 0.0, 19.7), size: (16.0, 0.6, 0.3), mat: Metal),
+                    Box(at: (4.0, 0.0, 4.3), size: (0.3, 0.6, 15.4), mat: Metal),
+                    Box(at: (19.7, 0.0, 4.3), size: (0.3, 0.6, 15.4), mat: Metal),
+                    Slot(at: (7.0, 0.0, 7.0), pick: [Some("roof_plant"), Some("roof_pipes")]),
+                    Slot(at: (17.0, 0.0, 17.0), pick: [Some("roof_plant"), Some("roof_solar")]),
+                    Slot(at: (17.0, 0.0, 7.0), pick: [Some("stair_housing")]),
+                ],
+            ),
+            // The crown: a slimmer glass top, a band of color under its parapet.
+            (
+                at: (6.0, 6.0),
+                size: (12.0, 12.0),
+                stories: (5, 12),
+                chance: 0.8,
+                facade: (
+                    front: ["-3 -3 -3", "g2 g2 g2", "g2 G2 g2", "g2 g2 g2"],
+                    side: ["-3 -3 -3", "g2 g2 g2", "g2 g2 g2", "G2 g2 g2"],
+                ),
+                roof: [
+                    Box(at: (6.0, 0.0, 6.0), size: (12.0, 0.6, 0.3), mat: Metal),
+                    Box(at: (6.0, 0.0, 17.7), size: (12.0, 0.6, 0.3), mat: Metal),
+                    Slot(at: (12.0, 0.0, 12.0), pick: [Some("helipad"), Some("helipad"), Some("roof_mast")]),
+                ],
+            ),
+        ],
+    ),
+)
