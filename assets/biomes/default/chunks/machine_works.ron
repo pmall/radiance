@@ -1,0 +1,31 @@
+// Area: the machines' works in the canopy, six lots by six: gantries printing facades for the
+// floors to come, arms on their turrets, conveyors carrying prefab panels, stacks of beams and
+// blocks. Nobody ordered them to stop.
+Chunk(
+    name: "machine_works",
+    size: (6, 6),
+    zones: [Canopy],
+    labels: ["machines"],
+    weight: 3,
+    spacing: 40,
+    ground: Some(Concrete),
+    parts: [
+        Module(name: "gantry", at: (20.0, 0.0, 36.0)),
+        Module(name: "gantry", at: (76.0, 0.0, 36.0)),
+        Module(name: "gantry", at: (20.0, 0.0, 108.0)),
+        Module(name: "gantry", at: (76.0, 0.0, 108.0)),
+        Repeat(from: (0.0, 0.0, 72.0), step: (12.0, 0.0, 0.0), count: 12, parts: [
+            Module(name: "conveyor"),
+        ]),
+        Mirror2(axis: Z, at: 72.0, parts: [
+            Module(name: "machine_arm", at: (10.0, 0.0, 60.0)),
+            Module(name: "machine_arm", at: (134.0, 0.0, 60.0)),
+            Module(name: "machine_arm", at: (72.0, 0.0, 62.0), turn: 2),
+            Repeat(from: (30.0, 0.0, 14.0), step: (16.0, 0.0, 0.0), count: 6, parts: [
+                Slot(at: (0.0, 0.0, 0.0), pick: [Some("beam_stack"), Some("block_pallet"), Some("prefab_panel"),
+                    Some("site_cabin"), None],
+                    accents: [(210, 170, 40), (200, 200, 196)]),
+            ]),
+        ]),
+    ],
+)

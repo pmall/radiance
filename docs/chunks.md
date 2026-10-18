@@ -132,7 +132,9 @@ are written then, in its own folder. The `default` biome is what exists now.
 Exception (owner): the visual pass of milestone 10 (`docs/roadmap.md`) may add chunks and props
 to the existing biomes: landmarks, special places, things left behind. Added so far: debris props
 (pass 3); `street_front`, `fountain_square`, `shrine_court`, `playground`, `bus_terminal`,
-`monument_square`, `amphitheater`, `greenhouse` and their modules (`places.ron`, pass 6).
+`monument_square`, `amphitheater`, `greenhouse` and their modules (`places.ron`, pass 6); areas
+`old_quarter`, `station`, `stadium`, `mall`, `machine_works`, the block `parking_garage` and the
+tower `tower_gutted` (`landmarks.ron`, pass 7).
 
 ## Biomes
 

@@ -1,0 +1,44 @@
+// Area: a shopping mall, six lots by six: three galleries of shops around a glass-roofed atrium
+// with a dry fountain, stopped escalators, a closed entrance on every side but one. Inside, the
+// flowers have the light of the roof.
+Chunk(
+    name: "mall",
+    size: (6, 6),
+    zones: [Depths, Middle],
+    labels: ["mall"],
+    weight: 2,
+    spacing: 40,
+    ground: Some(Tile),
+    parts: [
+        Module(name: "fountain", at: (72.0, 0.0, 72.0)),
+        Growth(area: ((61.0, 61.0), (83.0, 83.0)), kind: Soil),
+        Mirror4(center: (72.0, 72.0), parts: [
+            // The outer wall, an entrance in its middle.
+            Box(at: (27.6, 0.0, 27.6), size: (36.4, 24.0, 0.4), mat: Concrete),
+            Box(at: (80.0, 0.0, 27.6), size: (36.0, 24.0, 0.4), mat: Concrete),
+            Box(at: (64.0, 6.0, 27.6), size: (16.0, 18.0, 0.4), mat: Concrete),
+            Box(at: (60.0, 14.0, 27.0), size: (24.0, 5.0, 0.6), mat: Accent),
+            // Shops on the ground floor, galleries above, the roof.
+            Repeat(from: (51.0, 0.0, 38.0), step: (6.0, 0.0, 0.0), count: 8, parts: [
+                Module(name: "shopfront"),
+            ]),
+            Repeat(from: (48.0, 6.0, 48.0), step: (8.0, 0.0, 0.0), count: 6, parts: [
+                Module(name: "gallery_bay"),
+                Module(name: "gallery_bay", at: (0.0, 6.0, 0.0)),
+                Module(name: "gallery_bay", at: (0.0, 12.0, 0.0)),
+            ]),
+            Box(at: (96.0, 5.5, 38.0), size: (10.0, 0.5, 10.0), mat: Tile),
+            Box(at: (96.0, 11.5, 38.0), size: (10.0, 0.5, 10.0), mat: Tile),
+            Box(at: (96.0, 17.5, 38.0), size: (10.0, 0.5, 10.0), mat: Tile),
+            Box(at: (28.0, 24.0, 28.0), size: (68.0, 0.6, 20.0), mat: Concrete),
+            Box(at: (48.0, 24.0, 48.0), size: (48.0, 0.25, 0.6), mat: Metal),
+            Module(name: "escalator", at: (54.0, 0.0, 50.0)),
+            Slot(at: (60.0, 0.0, 56.0), rate: Props, pick: [Some("planter"), Some("bench"), Some("kiosk"), None]),
+        ]),
+        Box(at: (48.0, 24.4, 48.0), size: (48.0, 0.1, 48.0), mat: Glass),
+        Repeat(from: (55.75, 24.3, 48.0), step: (8.0, 0.0, 0.0), count: 5, parts: [
+            Box(at: (0.0, 0.0, 0.0), size: (0.5, 0.5, 48.0), mat: Metal),
+        ]),
+        Slot(at: (80.0, 0.0, 86.0), rate: Poi, pick: [Some("poi_bench"), Some("poi_garden")]),
+    ],
+)

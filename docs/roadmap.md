@@ -131,10 +131,20 @@
        houses along every street side of a lot in a pinwheel around a courtyard, backs or an
        alley on the quiet sides (`If(quiet: ..)`); fillers more common (75 % low down, 90 % in
        low-rise districts). Modules in `assets/modules/places.ron`.
-    7. Landmarks (probably two passes): tall silhouettes seen from afar; the old stone city in the
-       depths (arches, cobbles, tram tracks, a temple, a market hall), a station, a mall atrium,
-       a parking garage, a stadium in the middle; machine structures in the canopy; towers that
-       are not housing, and abandoned ones (a gaping hole, one leaning on its neighbor).
+    7. Landmarks *(first pass done)*: new areas `old_quarter` (the old stone city of the depths:
+       a temple, two avenues with tram lines and poles, arcaded stone buildings, narrow houses
+       around small squares), `station` (a train shed of stepped arches over platforms and
+       tracks, the head building and its clock tower, a forecourt, a freight yard), `stadium`
+       (the middle floors: stands on four sides, roofs, floodlight masts, a scoreboard), `mall`
+       (galleries on three levels around a glass-roofed atrium, stopped escalators) and
+       `machine_works` (the canopy: gantries printing facades, arms, conveyors); the block
+       `parking_garage` (four stories, stepped ramps); the abandoned tower `tower_gutted`
+       (broken and boarded windows, a burnt band, rubble). Modules in
+       `assets/modules/landmarks.ron`. Areas stay one per 32x32-lot cell, so a landmark is met
+       every kilometer or so. Still to do (second pass): towers that are not housing beyond the
+       office tower, a tower with a gaping hole or leaning on its neighbor (needs geometry the
+       tower bodies do not have), tall silhouettes above the construction front. D5 views run
+       about 11 ms/frame (7.5 M tris), as before this pass.
     8. The Grotto: flooded streets, its own street furniture, its landmark (a tiled bathhouse
        dome).
 
@@ -153,8 +163,8 @@ Important, since the purpose is art exploration. Build them alongside the featur
 - Live-tweakable shader and palette parameters, if practical (e.g. shader hot-reload from disk).
   *(shader hot-reload done, F10 forces it; palettes still in `src/render/look.rs`)*
 - Headless frame capture for checking looks: `--time`, `--view`, `--shot`, `--fx` (effect mask). *(done)*
-- Reference views *(done)*: `python3 tools/lookdev.py LABEL` renders nine fixed views (spawn,
-  streets on D0 and D3, a court, the great square, a shrine, a park, the canopy, the Grotto) at day,
+- Reference views *(done)*: `python3 tools/lookdev.py LABEL` renders eleven fixed views (spawn,
+  streets on D0 and D3, a court, the great square, a shrine, the old town, a stadium, a park, the canopy, the Grotto) at day,
   dusk and night into `screenshots/lookdev/LABEL/`, with one sheet per time of day; every look
   change is judged on them, before against after. `--report` lists the places (areas, blocks,
   craters) with a `--view` to stand in each.

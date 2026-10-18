@@ -1,0 +1,30 @@
+// Block: a parking garage of three lots by two, four stories of open slabs on columns and a roof,
+// ramps stepping up in a lane at one end (each story's landing beside it), a barrier and a booth
+// at the entrance. Not a car left.
+Chunk(
+    name: "parking_garage",
+    size: (3, 2),
+    zones: [Depths, Middle],
+    labels: ["garage"],
+    weight: 2,
+    ground: Some(Concrete),
+    parts: [
+        Repeat(from: (4.0, 0.0, 4.0), step: (8.0, 0.0, 0.0), count: 7, parts: [
+            Repeat(step: (0.0, 3.5, 0.0), count: 4, parts: [
+                Module(name: "garage_bay", accent: (200, 160, 40)),
+            ]),
+        ]),
+        Box(at: (59.7, 0.0, 4.0), size: (0.6, 14.0, 0.6), mat: Concrete),
+        Repeat(from: (60.0, 0.0, 4.0), step: (0.0, 3.5, 0.0), count: 4, parts: [
+            Module(name: "garage_ramp"),
+            Box(at: (0.0, 3.1, 4.0), size: (12.0, 0.4, 4.0), mat: Concrete),
+            Box(at: (11.6, 3.5, 4.0), size: (0.4, 1.0, 4.0), mat: Concrete),
+        ]),
+        Box(at: (66.0, 0.0, 30.0), size: (2.0, 2.4, 2.0), mat: Paint((200, 160, 40))),
+        Box(at: (66.4, 1.2, 32.0), size: (1.2, 1.0, 0.05), mat: Glass),
+        Box(at: (62.0, 1.0, 28.8), size: (4.0, 0.12, 0.12), mat: Paint((200, 60, 50))),
+        Slot(at: (40.0, 0.0, 24.0), rate: Props, pick: [Some("wall_trash"), Some("vacant_debris"), None]),
+        Slot(at: (20.0, 3.5, 24.0), rate: Props, pick: [Some("wall_moving"), Some("wall_crates"), None]),
+        Slot(at: (30.0, 14.0, 20.0), rate: Poi, pick: [Some("poi_armchair"), Some("poi_bed")]),
+    ],
+)

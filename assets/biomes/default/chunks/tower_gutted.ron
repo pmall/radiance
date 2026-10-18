@@ -1,0 +1,60 @@
+// Tower: an abandoned slab, 16 x 12 m, given up long before the rest: its windows broken or
+// boarded floor after floor, a gaping band of empty bays where a fire went through, the shops
+// shuttered, rubble at its foot. Old or standing in the stack, never at the construction front.
+Chunk(
+    name: "tower_gutted",
+    size: (1, 1),
+    labels: ["tower"],
+    weight: 1,
+    tower: (
+        heights: [Old, Stack],
+        tiers: [
+            (
+                at: (4.0, 6.0),
+                size: (16.0, 12.0),
+                facade: (
+                    front: [
+                        "k  x  k  w",
+                        "x  k  k  x",
+                        "k  k  k  k",
+                        "k  k  k  k",
+                        "w  x  k  x",
+                        "x  x  w  k",
+                        "k  w  x  x",
+                        "x  k  x  k",
+                        "S  S  S  S",
+                    ],
+                    side: [
+                        "v  k  x",
+                        "v  x  k",
+                        "k  k  k",
+                        "k  k  k",
+                        "v  k  x",
+                        "v  x  x",
+                        "v  k  w",
+                        "v  x  k",
+                        "-  S  S",
+                    ],
+                ),
+                each_floor: [
+                    Slot(at: (4.0, 0.0, 8.0), turn: 3, pick: [Some("fire_escape"), None]),
+                ],
+                streets: [
+                    Slot(at: (12.0, 0.0, 5.0), turn: 2, pick: [Some("rubble"), Some("vacant_debris")]),
+                    Slot(at: (12.0, 0.0, 19.0), turn: 0, pick: [Some("rubble"), None]),
+                    Slot(at: (4.0, 0.0, 13.0), turn: 3, rate: Props, pick: [Some("wall_leftovers")]),
+                    Slot(at: (20.0, 0.0, 10.0), turn: 1, rate: Props, pick: [Some("wall_leftovers")]),
+                ],
+                roof: [
+                    Box(at: (4.0, 0.0, 6.0), size: (16.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 17.6), size: (9.0, 0.9, 0.4), mat: Concrete),
+                    Box(at: (4.0, 0.0, 6.4), size: (0.4, 0.9, 11.2), mat: Concrete),
+                    Slot(at: (12.0, 0.0, 12.0), pick: [Some("stair_housing"), None]),
+                    Slot(at: (16.0, 0.0, 12.0), pick: [Some("rubble"), Some("roof_plant")]),
+                    Slot(at: (12.0, 0.0, 7.2), turn: 2, pick: [Some("billboard"), None],
+                        accents: [(120, 60, 50), (70, 90, 100)]),
+                ],
+            ),
+        ],
+    ),
+)

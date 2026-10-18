@@ -1,0 +1,268 @@
+// Landmarks (milestone 10, pass 7): the pieces of the places that are not housing and that one
+// remembers: the old stone city of the depths (a temple, tram lines), a station with its train
+// shed and clock tower, a stadium, a mall around its atrium, a parking garage, the machines'
+// works in the canopy. Each stands on its origin, its front toward +z.
+[
+    // A temple of the old city: a stepped base 24 x 16 m, eight columns in front of the cella, a
+    // pediment stepped like pixels. Centered on its origin, its steps toward +z.
+    Module(
+        name: "temple",
+        parts: [
+            Box(at: (-13.0, 0.0, -9.0), size: (26.0, 0.6, 18.0), mat: StoneDark),
+            Box(at: (-12.0, 0.6, -8.0), size: (24.0, 0.6, 16.0), mat: Stone),
+            Box(at: (-11.0, 1.2, -7.0), size: (22.0, 0.6, 14.0), mat: Stone),
+            Box(at: (-4.0, 0.0, 9.0), size: (8.0, 0.4, 1.2), mat: StoneDark),
+            Box(at: (-9.0, 1.8, -6.5), size: (18.0, 9.0, 9.0), mat: Stone),
+            Box(at: (-1.5, 1.8, 2.45), size: (3.0, 5.0, 0.1), mat: Paint((40, 34, 30))),
+            Repeat(from: (-9.5, 1.8, 5.5), step: (2.7, 0.0, 0.0), count: 8, parts: [
+                Box(at: (-0.5, 0.0, -0.5), size: (1.0, 0.4, 1.0), mat: StoneDark),
+                Box(at: (-0.35, 0.4, -0.35), size: (0.7, 8.2, 0.7), mat: Stone),
+                Box(at: (-0.5, 8.6, -0.5), size: (1.0, 0.4, 1.0), mat: StoneDark),
+            ]),
+            Box(at: (-11.0, 10.8, -7.0), size: (22.0, 1.0, 14.0), mat: StoneDark),
+            Box(at: (-10.0, 11.8, -7.0), size: (20.0, 1.0, 14.0), mat: Stone),
+            Box(at: (-7.5, 12.8, -7.0), size: (15.0, 1.0, 14.0), mat: Stone),
+            Box(at: (-5.0, 13.8, -7.0), size: (10.0, 1.0, 14.0), mat: Stone),
+            Box(at: (-2.5, 14.8, -7.0), size: (5.0, 1.0, 14.0), mat: StoneDark),
+        ],
+    ),
+    // 24 m of a tram line: two rails on their sleepers, toward +x from the origin, the track's
+    // middle at z = 0.
+    Module(
+        name: "tram_rails",
+        parts: [
+            Box(at: (0.0, 0.0, -0.8), size: (24.0, 0.05, 0.1), mat: Metal),
+            Box(at: (0.0, 0.0, 0.7), size: (24.0, 0.05, 0.1), mat: Metal),
+            Repeat(from: (0.4, 0.0, -1.2), step: (1.2, 0.0, 0.0), count: 20, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.3, 0.02, 2.4), mat: Wood),
+            ]),
+        ],
+    ),
+    // A tram pole with its arm over the tracks toward +z, and 24 m of overhead wire along +x.
+    Module(
+        name: "tram_pole",
+        parts: [
+            Box(at: (-0.15, 0.0, -0.15), size: (0.3, 7.0, 0.3), mat: Metal),
+            Box(at: (-0.1, 6.6, 0.0), size: (0.2, 0.15, 5.0), mat: Metal),
+            Box(at: (0.0, 6.2, 2.98), size: (24.0, 0.04, 0.04), mat: Metal),
+            Box(at: (0.0, 6.2, 4.98), size: (24.0, 0.04, 0.04), mat: Metal),
+        ],
+    ),
+    // A clock tower, 6 m square and 30 m tall: a brick shaft, a clock face on each side stopped at
+    // ten past ten, a stepped stone cap.
+    Module(
+        name: "clock_tower",
+        parts: [
+            Box(at: (-3.5, 0.0, -3.5), size: (7.0, 1.0, 7.0), mat: StoneDark),
+            Box(at: (-3.0, 1.0, -3.0), size: (6.0, 21.0, 6.0), mat: Brick),
+            Box(at: (-3.3, 22.0, -3.3), size: (6.6, 0.5, 6.6), mat: Stone),
+            Box(at: (-3.0, 22.5, -3.0), size: (6.0, 4.5, 6.0), mat: Stone),
+            Mirror4(center: (0.0, 0.0), parts: [
+                Box(at: (-1.8, 23.0, 3.0), size: (3.6, 3.6, 0.1), mat: Paint((222, 214, 190))),
+                Box(at: (-0.08, 24.8, 3.1), size: (0.16, 1.4, 0.05), mat: Paint((30, 30, 30))),
+                Box(at: (-1.1, 24.8, 3.1), size: (1.1, 0.16, 0.05), mat: Paint((30, 30, 30))),
+            ]),
+            Box(at: (-3.3, 27.0, -3.3), size: (6.6, 0.5, 6.6), mat: StoneDark),
+            Box(at: (-2.0, 27.5, -2.0), size: (4.0, 1.5, 4.0), mat: Stone),
+            Box(at: (-0.75, 29.0, -0.75), size: (1.5, 1.6, 1.5), mat: Metal),
+        ],
+    ),
+    // 12 m of a train shed over the tracks, toward +x: steel columns on both sides 40 m apart and an
+    // arched roof stepped in five tiers, glazed in its crown. The shed's middle at z = 0.
+    Module(
+        name: "shed_bay",
+        parts: [
+            Box(at: (0.0, 0.0, -20.0), size: (0.6, 14.0, 0.6), mat: Rust),
+            Box(at: (0.0, 0.0, 19.4), size: (0.6, 14.0, 0.6), mat: Rust),
+            Box(at: (0.0, 14.0, -20.0), size: (12.0, 0.6, 6.0), mat: Metal),
+            Box(at: (0.0, 14.0, 14.0), size: (12.0, 0.6, 6.0), mat: Metal),
+            Box(at: (0.0, 17.0, -14.0), size: (12.0, 0.6, 6.0), mat: Metal),
+            Box(at: (0.0, 17.0, 8.0), size: (12.0, 0.6, 6.0), mat: Metal),
+            Box(at: (0.0, 19.5, -8.0), size: (12.0, 0.5, 5.0), mat: Metal),
+            Box(at: (0.0, 19.5, 3.0), size: (12.0, 0.5, 5.0), mat: Metal),
+            Box(at: (0.0, 21.0, -3.0), size: (12.0, 0.3, 6.0), mat: Glass),
+            Box(at: (0.0, 14.6, -14.6), size: (0.4, 2.4, 0.4), mat: Rust),
+            Box(at: (0.0, 14.6, 14.2), size: (0.4, 2.4, 0.4), mat: Rust),
+            Box(at: (0.0, 17.6, -8.6), size: (0.4, 1.9, 0.4), mat: Rust),
+            Box(at: (0.0, 17.6, 8.2), size: (0.4, 1.9, 0.4), mat: Rust),
+            Box(at: (0.0, 20.0, -3.4), size: (0.4, 1.0, 0.4), mat: Rust),
+            Box(at: (0.0, 20.0, 3.0), size: (0.4, 1.0, 0.4), mat: Rust),
+        ],
+    ),
+    // 12 m of a platform toward +x, 8 m wide, its middle at z = 0: a raised slab, its edge
+    // painted, a bench and a sign between the columns.
+    Module(
+        name: "platform_bay",
+        parts: [
+            Box(at: (0.0, 0.0, -4.0), size: (12.0, 1.0, 8.0), mat: StoneDark),
+            Box(at: (0.0, 1.0, -4.0), size: (12.0, 0.02, 0.4), mat: Paint((200, 170, 60))),
+            Box(at: (0.0, 1.0, 3.6), size: (12.0, 0.02, 0.4), mat: Paint((200, 170, 60))),
+            Box(at: (5.8, 1.0, -0.2), size: (0.4, 5.0, 0.4), mat: Metal),
+            Box(at: (0.0, 6.0, -3.0), size: (12.0, 0.3, 6.0), mat: Metal),
+            Slot(at: (3.0, 1.0, 0.0), pick: [Some("bench"), Some("bench"), Some("kiosk"), None]),
+            Slot(at: (9.0, 1.0, 1.0), rate: Props, pick: [Some("bin"), Some("trash_bag"), None]),
+            Box(at: (8.0, 4.5, -0.05), size: (2.4, 0.8, 0.1), mat: Paint((30, 34, 40))),
+        ],
+    ),
+    // A tier of stadium seats, 12 m along x, rising toward -z: ten steps 1 m deep and 0.6 m
+    // high, the seats in the accent color. Front edge at z = 0.
+    Module(
+        name: "stand_bay",
+        parts: [
+            Repeat(from: (0.0, 0.0, -1.0), step: (0.0, 0.6, -1.0), count: 10, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (12.0, 0.6, 1.0), mat: Concrete),
+                Box(at: (0.0, 0.6, 0.5), size: (12.0, 0.08, 0.4), mat: Accent),
+            ]),
+            Box(at: (0.0, 0.0, -11.0), size: (12.0, 6.0, 1.0), mat: Concrete),
+            Box(at: (0.0, 6.0, -11.0), size: (12.0, 1.2, 0.3), mat: Concrete),
+        ],
+    ),
+    // A stand's roof: two columns at the back, a cantilever slab reaching over the tiers.
+    Module(
+        name: "stand_roof",
+        parts: [
+            Box(at: (0.0, 0.0, -11.5), size: (0.6, 16.0, 0.6), mat: Metal),
+            Box(at: (0.0, 16.0, -12.0), size: (12.0, 0.5, 12.0), mat: Metal),
+            Box(at: (0.0, 15.0, -11.5), size: (12.0, 1.0, 0.4), mat: Metal),
+        ],
+    ),
+    // A floodlight mast: a lattice of four legs, a bank of dead lamps on top facing +z. 30 m.
+    Module(
+        name: "floodlight",
+        parts: [
+            Mirror2(axis: X, at: 0.0, parts: [
+                Mirror2(axis: Z, at: 0.0, parts: [
+                    Box(at: (0.5, 0.0, 0.5), size: (0.3, 28.0, 0.3), mat: Metal),
+                ]),
+            ]),
+            Repeat(from: (-0.8, 2.0, -0.8), step: (0.0, 4.0, 0.0), count: 7, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (1.6, 0.2, 1.6), mat: Metal),
+            ]),
+            Box(at: (-3.0, 28.0, -0.6), size: (6.0, 3.0, 1.2), mat: Metal),
+            Repeat(from: (-2.6, 28.4, 0.6), step: (1.3, 0.0, 0.0), count: 4, parts: [
+                Repeat(step: (0.0, 1.2, 0.0), count: 2, parts: [
+                    Box(at: (0.0, 0.0, 0.0), size: (1.0, 1.0, 0.06), mat: Glass),
+                ]),
+            ]),
+        ],
+    ),
+    // A scoreboard on two legs, its screen dark, 16 x 7 m, facing +z.
+    Module(
+        name: "scoreboard",
+        parts: [
+            Box(at: (-6.0, 0.0, -0.6), size: (0.8, 10.0, 0.8), mat: Metal),
+            Box(at: (5.2, 0.0, -0.6), size: (0.8, 10.0, 0.8), mat: Metal),
+            Box(at: (-8.0, 10.0, -1.0), size: (16.0, 7.0, 1.0), mat: Paint((26, 28, 32))),
+            Box(at: (-7.6, 10.4, 0.0), size: (15.2, 6.2, 0.05), mat: Glass),
+            Box(at: (-8.0, 17.0, -1.0), size: (16.0, 0.6, 1.0), mat: Accent),
+        ],
+    ),
+    // One story of a parking garage, 8 m bay toward +x and 40 m deep (z from 0): a slab, columns,
+    // a low wall at both ends, a painted number.
+    Module(
+        name: "garage_bay",
+        parts: [
+            Box(at: (0.0, 3.1, 0.0), size: (8.0, 0.4, 40.0), mat: Concrete),
+            Box(at: (-0.3, 0.0, 0.0), size: (0.6, 3.1, 0.6), mat: Concrete),
+            Box(at: (-0.3, 0.0, 19.7), size: (0.6, 3.1, 0.6), mat: Concrete),
+            Box(at: (-0.3, 0.0, 39.4), size: (0.6, 3.1, 0.6), mat: Concrete),
+            Box(at: (0.0, 3.5, 0.0), size: (8.0, 1.0, 0.25), mat: Concrete),
+            Box(at: (0.0, 3.5, 39.75), size: (8.0, 1.0, 0.25), mat: Concrete),
+            Box(at: (0.0, 3.6, 39.95), size: (8.0, 0.3, 0.06), mat: Accent),
+        ],
+    ),
+    // A garage ramp up one story (3.5 m) toward +x, 4 m wide: steps of 0.25 m every 0.8 m.
+    Module(
+        name: "garage_ramp",
+        parts: [
+            Repeat(from: (0.0, 0.0, 0.0), step: (0.8, 0.25, 0.0), count: 14, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.8, 0.25, 4.0), mat: Concrete),
+            ]),
+            Box(at: (0.0, 0.0, -0.2), size: (11.2, 1.0, 0.2), mat: Concrete),
+        ],
+    ),
+    // One 8 m bay of a mall gallery overlooking the atrium (+z): its floor slab, a glass balustrade,
+    // a shop front behind, a column, a sign over the shop.
+    Module(
+        name: "gallery_bay",
+        parts: [
+            Box(at: (0.0, -0.5, -10.0), size: (8.0, 0.5, 10.0), mat: Tile),
+            Box(at: (0.0, 0.0, -0.1), size: (8.0, 1.1, 0.06), mat: Glass),
+            Box(at: (0.0, 1.1, -0.15), size: (8.0, 0.08, 0.15), mat: Metal),
+            Box(at: (-0.4, -0.5, -0.8), size: (0.8, 6.0, 0.8), mat: Concrete),
+            Box(at: (0.6, 0.0, -10.0), size: (6.8, 4.0, 0.15), mat: Glass),
+            Box(at: (0.4, 4.0, -10.0), size: (7.2, 1.0, 0.4), mat: Accent),
+            Slot(at: (4.0, 0.0, -5.0), rate: Props, pick: [Some("bench"), Some("planter"), Some("cardboard_box"),
+                None, None]),
+        ],
+    ),
+    // An escalator up one story (6 m) toward +x, stopped: steps 0.25 m high, 0.4 m deep, between
+    // two glass sides.
+    Module(
+        name: "escalator",
+        parts: [
+            Repeat(from: (0.0, 0.0, 0.0), step: (0.4, 0.25, 0.0), count: 24, parts: [
+                Box(at: (0.0, 0.0, 0.0), size: (0.4, 0.25, 1.4), mat: Metal),
+            ]),
+            Box(at: (0.0, 0.25, -0.15), size: (9.6, 1.0, 0.1), mat: Glass),
+            Box(at: (0.0, 0.25, 1.45), size: (9.6, 1.0, 0.1), mat: Glass),
+        ],
+    ),
+    // The machines' gantry: two legs 28 m tall, a beam 48 m along x, a printing head hanging from
+    // it over a facade half printed. Origin at the first leg.
+    Module(
+        name: "gantry",
+        parts: [
+            Box(at: (-1.0, 0.0, -1.0), size: (2.0, 28.0, 2.0), mat: Paint((200, 160, 40))),
+            Box(at: (47.0, 0.0, -1.0), size: (2.0, 28.0, 2.0), mat: Paint((200, 160, 40))),
+            Box(at: (-1.0, 28.0, -1.5), size: (24.0, 2.0, 3.0), mat: Paint((200, 160, 40))),
+            Box(at: (23.0, 28.0, -1.5), size: (26.0, 2.0, 3.0), mat: Paint((200, 160, 40))),
+            Box(at: (18.0, 25.0, -1.0), size: (4.0, 3.0, 2.0), mat: Metal),
+            Box(at: (19.5, 18.0, -0.3), size: (1.0, 7.0, 0.6), mat: Metal),
+            Box(at: (19.0, 16.5, -0.8), size: (2.0, 1.5, 1.6), mat: Rust),
+            Box(at: (4.0, 0.0, -2.0), size: (40.0, 1.0, 4.0), mat: Concrete),
+            Box(at: (4.0, 1.0, -0.5), size: (14.0, 12.0, 1.0), mat: Concrete),
+            Box(at: (18.0, 1.0, -0.5), size: (10.0, 15.5, 1.0), mat: Concrete),
+            Box(at: (28.0, 1.0, -0.5), size: (8.0, 6.0, 1.0), mat: Concrete),
+            Repeat(from: (6.0, 3.0, 0.5), step: (4.0, 0.0, 0.0), count: 3, parts: [
+                Repeat(step: (0.0, 4.0, 0.0), count: 2, parts: [
+                    Box(at: (0.0, 0.0, 0.0), size: (1.6, 2.0, 0.06), mat: Glass),
+                ]),
+            ]),
+        ],
+    ),
+    // A machine arm on its turret: a base, two segments bent down toward +z, a gripper.
+    Module(
+        name: "machine_arm",
+        parts: [
+            Box(at: (-1.5, 0.0, -1.5), size: (3.0, 1.2, 3.0), mat: Metal),
+            Box(at: (-1.0, 1.2, -1.0), size: (2.0, 1.0, 2.0), mat: Paint((200, 160, 40))),
+            Box(at: (-0.5, 2.2, -0.5), size: (1.0, 6.0, 1.0), mat: Paint((200, 160, 40))),
+            Box(at: (-0.5, 7.4, -0.5), size: (1.0, 1.0, 6.0), mat: Paint((200, 160, 40))),
+            Box(at: (-0.4, 4.4, 5.0), size: (0.8, 3.0, 0.8), mat: Metal),
+            Box(at: (-0.7, 3.8, 4.7), size: (1.4, 0.6, 1.4), mat: Rust),
+        ],
+    ),
+    // 12 m of a conveyor along x on legs, prefab panels riding on it.
+    Module(
+        name: "conveyor",
+        parts: [
+            Box(at: (0.0, 1.2, -1.0), size: (12.0, 0.4, 2.0), mat: Metal),
+            Box(at: (1.0, 0.0, -0.9), size: (0.3, 1.2, 0.3), mat: Rust),
+            Box(at: (1.0, 0.0, 0.6), size: (0.3, 1.2, 0.3), mat: Rust),
+            Box(at: (10.7, 0.0, -0.9), size: (0.3, 1.2, 0.3), mat: Rust),
+            Box(at: (10.7, 0.0, 0.6), size: (0.3, 1.2, 0.3), mat: Rust),
+            Slot(at: (4.0, 1.6, 0.0), pick: [Some("prefab_panel"), None]),
+            Slot(at: (9.0, 1.6, 0.0), pick: [Some("prefab_panel"), None]),
+        ],
+    ),
+    // A prefabricated facade panel: a slab of concrete with two windows.
+    Module(
+        name: "prefab_panel",
+        parts: [
+            Box(at: (-1.8, 0.0, -0.8), size: (3.6, 0.3, 1.6), mat: Concrete),
+            Box(at: (-1.2, 0.3, -0.5), size: (0.9, 0.02, 1.0), mat: Glass),
+            Box(at: (0.3, 0.3, -0.5), size: (0.9, 0.02, 1.0), mat: Glass),
+        ],
+    ),
+]
