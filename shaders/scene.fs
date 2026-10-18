@@ -21,7 +21,6 @@ uniform int uShadows;
 uniform float uShadowTexel;
 uniform sampler2D texture2;  // plant light grid (see src/render/lights.rs)
 uniform sampler2D texture4;  // photo detail 2: R roof, G foliage, B rust, A plaster
-uniform sampler2D texture3;  // photo detail: R pavement, G asphalt, B concrete wall, A metal (src/render/surfaces.rs)
 uniform vec3 uGridOrigin;
 uniform vec3 uPalette[8 * 9];    // per biome (src/world/biome.rs, Palette): 8 wall paints, 1 pavement tint
 uniform float uGlow;         // plant emission and light strength for the time of day
@@ -154,12 +153,7 @@ float tfbm(vec2 p)
     return dot(noise4(p).rgb, vec3(0.5, 0.3, 0.2));
 }
 
-// Fine detail from photographs, centered on 1 (R pavement, G asphalt, B concrete wall, A metal).
-vec4 grit(vec2 uv)
-{
-    return texture(texture3, uv) * 2.0;
-}
-
+// Fine detail from photographs, centered on 1 (G foliage), on the plants only.
 vec4 grit2(vec2 uv)
 {
     return texture(texture4, uv) * 2.0;
@@ -434,29 +428,11 @@ vec3 underside(vec3 base, vec3 p, float px)
     return atlasTile(UNDERSIDE_TILE, p.xz / 4.0).rgb * 0.7 * shade;
 }
 
-// Concrete fascia and generic vertical faces: soft blotches and grime streaks.
-vec3 concrete(vec3 base, vec3 p, vec3 n, vec2 loc)
+// Slabs poured a few lots at a time differ a little in shade: the block's color against the
+// usual deck color.
+float deckShade(vec3 base)
 {
-    float u = abs(n.y) < 0.5 ? loc.x : p.x + p.z;
-    vec3 col = base * (0.8 + 0.4 * fbm(vec2(u * 0.7, p.y * 0.5)));
-    col *= grit(vec2(u, p.y) / 2.5).b;
-    float streak = vnoise(vec2(u * 3.0, p.y * 0.12));
-    return col * (1.0 - 0.3 * smoothstep(0.55, 0.9, streak));
-}
-
-// Steel (fire escapes, brackets): painted metal with rust streaks; landings show a grating.
-vec3 steel(vec3 base, vec3 p, vec3 n, float px)
-{
-    vec2 uv = abs(n.y) > 0.5 ? p.xz : vec2(p.x + p.z, p.y);
-    vec3 col = base * (0.8 + 0.4 * fbm(uv * 1.7)) * grit(uv / 0.8).a;
-    float rust = smoothstep(0.55, 0.8, vnoise(vec2(uv.x * 3.0, uv.y * 0.6) + 7.0)) * grit2(uv / 0.9).b;
-    col = mix(col, vec3(0.28, 0.12, 0.05), clamp(rust * 0.5, 0.0, 0.7));
-    if (n.y > 0.5) {
-        vec2 d = abs(fract(uv / 0.12) - 0.5);
-        float bars = 1.0 - smoothstep(0.38, 0.38 + px / 0.12, max(d.x, d.y));
-        col *= 1.0 - 0.45 * bars;
-    }
-    return col;
+    return clamp(dot(base, vec3(0.2126, 0.7152, 0.0722)) / 0.094, 0.6, 1.25);
 }
 
 // Boxes of hand-written chunks (src/world/chunks.rs): the tile of their material (0 stone,
@@ -569,23 +545,22 @@ void main()
         } else if (kind == 2) {
             if (n.y > 0.5) albedo = pavement(albedo, fragWorldPos, px);
             else if (n.y < -0.5) albedo = underside(albedo, fragWorldPos, px);
-            else albedo = concrete(albedo, fragWorldPos, n, fragLoc);
+            // The deck's edge: its concrete fascia, stained like a wall.
+            else albedo = built(albedo, 2, fragWorldPos, n, 1.2, px) * deckShade(albedo);
         } else if (kind == 4) {
-            // Stone steps.
-            vec2 suv = abs(n.y) > 0.5 ? fragWorldPos.xz : vec2(fragWorldPos.x + fragWorldPos.z, fragWorldPos.y);
-            albedo *= (0.8 + 0.4 * fbm(suv * 1.5)) * grit(suv / 1.4).r;
-            if (n.y > 0.5) albedo = groundWear(albedo, fragWorldPos, px, 0.0);
+            // Stair steps and landings: cast concrete, worn on the treads.
+            albedo = built(albedo, 2, fragWorldPos, n, 0.0, px) * deckShade(albedo);
         } else if (kind == 6) {
-            albedo = concrete(albedo, fragWorldPos, n, fragLoc);
+            // The wall between a stair's lanes.
+            albedo = built(albedo, 2, fragWorldPos, n, fragLoc.y, px);
         } else if (kind == 14) {
-            // Props built in code (the street light): worn by the same photo detail as the walls
-            // (same scale), darker at the foot.
-            vec3 an = abs(n);
-            vec2 puv = an.y > 0.6 ? fragWorldPos.xz : (an.x > an.z ? fragWorldPos.zy : fragWorldPos.xy);
-            albedo *= mix(1.0, grit(puv / 3.0).a, 0.45) * (0.85 + 0.3 * fbm(puv * 0.8));
+            // Props built in code (the street light): painted metal in pixel art, mapped by the
+            // face's plane like the boxes, darker at the foot.
+            albedo = built(albedo, 10, fragWorldPos, n, 0.0, px) * 1.35;
             albedo *= mix(0.7, 1.0, smoothstep(0.0, 0.8, aboveFloor(fragWorldPos.y)));
         } else if (kind == 13) {
-            albedo = steel(albedo, fragWorldPos, n, px);
+            // Steel (stair rails, brackets): painted metal in pixel art, rust where it weathers.
+            albedo = built(albedo, 10, fragWorldPos, n, 0.0, px) * 1.35;
         } else if (kind == 15) {
             albedo = built(albedo, int(fragLoc.x + 0.5), fragWorldPos, n, fragLoc.y, px);
         }

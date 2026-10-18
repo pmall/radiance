@@ -33,9 +33,9 @@ across; modern street lights (dead, only flowers glow) at the crossroads.
 
 Working method: get the look as far as possible with code, then add a layer of real photo detail.
 The second layer is `assets/textures/detail.png` (CC0 concrete, asphalt, wall, metal), sampled in the
-scene shader in world space and multiplied over the procedural colors. *(Being replaced: streets,
-sidewalks, roofs and deck undersides are now pixel art like the chunks, see "Wear"; the photo
-detail is left on stairs, steel, the street light and plants until pass 4 of milestone 10.)*
+scene shader in world space and multiplied over the procedural colors. *(Replaced in milestone 10: streets, sidewalks, roofs, deck undersides and edges, stairs, steel
+and the street light are pixel art like the chunks; the photo detail is left on the plants
+only.)*
 
 ### Props and external assets: consistency rules
 

@@ -112,8 +112,10 @@
        floor profiles' `debris`); weeds in the cracks at the wall feet and behind the curbs;
        cables sagging across the streets between towers facing each other, stepped like pixels.
        Frame time unchanged (about 8.6 ms at the spawn).
-    4. One look, finished: everything still smooth or photo-grained (stairs, steel, the street
-       light, deck edges) in pixel art.
+    4. One look, finished *(done)*: stairs, the wall between their lanes, steel (rails,
+       brackets), the street light and the deck edges are drawn from the biome's pixel-art
+       tiles (concrete, paint) like the chunk boxes, worn the same way; the photo detail is left
+       on the plants only, until pass 5.
     5. Pixel-art plants (maybe two passes): leaves as flat cut-outs in crisp pixels instead of
        smooth folded shapes.
     6. The planner: special places on every floor, met every few hundred meters; buildings along
