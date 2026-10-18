@@ -154,14 +154,17 @@
        columns, a terrace of basins and lanterns.
 
     Milestone 10 status: all eight passes have a first version, judged good by the owner on the
-    reference views (`python3 tools/lookdev.py`, label `grotto8` is the last run). Left to do:
+    reference views (`python3 tools/lookdev.py`, label `grotto8`). The points left after them are
+    done too (label `m10done`), to be judged by the owner; only the points to judge over time
+    remain. The new towers change the tower picks, so the city differs from `grotto8` in places
+    (not a look change).
 
     - ~~Bug, bridges cross each other~~ *(fixed)*: owner's screenshot, seed 7, D2 at dusk, two
       footbridges met over lot (-6, -1). A lot over a hole now carries one footbridge at most
       (where an x and a z gap cross, the seed ranks them and the first one wins), and a footbridge
       gives way to a skybridge passing through or less than 6 m over its walkway
       (`city::bridges_through`, test `bridges_never_cross`).
-    - Second landmark pass (pass 7): towers that are not housing *(done: `tower_glass`,
+    - ~~Second landmark pass (pass 7)~~ *(done)*: towers that are not housing *(done: `tower_glass`,
       `tower_hotel`, `tower_telecom`, with new facade units: curtain walls, broken curtain walls,
       ribbon windows)*; a tower with a gaping hole *(done: `tower_breached`)* or leaning on its
       neighbor *(done: `tower_leaning`, about one every 400 m at the construction front)*; tall
