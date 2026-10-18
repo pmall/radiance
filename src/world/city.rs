@@ -1074,16 +1074,21 @@ fn skybridges_through(seed: u64, lx: i32, lz: i32) -> impl Iterator<Item = Aabb>
 const FOOTBRIDGE_MAX: i32 = 2;
 /// Chance that a gap of a footbridge's size gets one, per axis.
 const FOOTBRIDGE_CHANCE: f32 = 0.7;
+/// How far above a footbridge's walkway room a skybridge must pass to cross over it (well clear,
+/// like an overpass, never just over the railings).
+const FOOTBRIDGE_SKY_CLEARANCE: f32 = 6.0;
 /// Half the width of a footbridge (`footbridge_span`), and the clearance kept around it.
 const FOOTBRIDGE_HALF: f32 = 2.0;
 /// How far a footbridge's landing reaches into the deck at each end, kept clear of what stands
 /// there (railings, a house, a tower's wall).
 const BRIDGE_LANDING: f32 = 3.0;
 
-/// The footbridges crossing this lot on a floor, by axis (true: along x). A floor's gaps of one
-/// or two lots between two decks get one now and then, along the lots' middle line, unless a
-/// tower stands in the way or a wall at either end; each axis is decided for the whole gap, so
-/// two bridges may cross. Pure, like the decks.
+/// The footbridges crossing this lot on a floor, by axis (true: along x): one at most, since
+/// bridges never cross. A floor's gaps of one or two lots between two decks get one now and then,
+/// along the lots' middle line (`footbridge_gap`); where an x and a z gap share a lot, only the
+/// one ranked first by the seed may be built, and only if it beats every gap it crosses, so no
+/// two ever meet. Floors are `floors::SPACING` apart, so bridges of two floors never touch. Pure,
+/// like the decks.
 pub fn bridges_through(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
     static BRIDGES: Memo<Vec<Vec<bool>>> = OnceLock::new();
     memo(&BRIDGES, seed, lx, lz, || {
@@ -1097,42 +1102,91 @@ pub fn bridges_through(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
 }
 
 fn bridges_through_uncached(seed: u64, lx: i32, lz: i32, floor: usize) -> Vec<bool> {
-    if floor == 0 || deck(seed, lx, lz, floor) != Deck::None {
-        return Vec::new();
-    }
-    let crosses = |along_x: bool| {
-        let lot = |i: i32| if along_x { (lx + i, lz) } else { (lx, lz + i) };
-        let hole = |i: i32| {
-            let (x, z) = lot(i);
-            deck(seed, x, z, floor) == Deck::None
-        };
-        // The gap's ends: the first decks on each side, within reach.
-        let back = (1..=FOOTBRIDGE_MAX).find(|&i| !hole(-i))?;
-        let ahead = (1..=FOOTBRIDGE_MAX).find(|&i| !hole(i))?;
-        if back + ahead - 1 > FOOTBRIDGE_MAX {
-            return None;
-        }
-        let y = floors::y(floor);
-        // No tower through the gap, and none on the landings.
-        let free = (1 - back..ahead).all(|i| {
-            let (x, z) = lot(i);
-            tower(seed, x, z).is_none_or(|t| t.top() < y - 2.0)
-        });
-        let start = lot(1 - back);
-        let landings = [
-            (lot(-back), landing(start, along_x, false, y)),
-            (lot(ahead), landing(lot(ahead - 1), along_x, true, y)),
-        ];
-        let clear = landings.iter().all(|&((x, z), area)| {
-            tower(seed, x, z).is_none_or(|t| {
-                t.top() < y - 2.0 || !Aabb::from_center(t.center, t.size).overlaps(&area)
-            })
-        });
-        let salt = SALT_FOOTBRIDGE + 64 * floor as i32 + along_x as i32;
-        let mut rng = Rng::new(hash_coords(seed, start.0, salt, start.1));
-        (free && clear && rng.chance(FOOTBRIDGE_CHANCE)).then_some(along_x)
+    let rank = |gap: Gap, along_x: bool| {
+        let salt = SALT_FOOTBRIDGE + 64 * floor as i32 + 2 + along_x as i32;
+        (hash_coords(seed, gap.0.0, salt, gap.0.1), along_x)
     };
-    [true, false].into_iter().filter_map(crosses).collect()
+    [true, false]
+        .into_iter()
+        .filter(|&along_x| {
+            let Some(gap) = footbridge_gap(seed, lx, lz, floor, along_x) else {
+                return false;
+            };
+            let first = rank(gap, along_x);
+            gap_lots(gap, along_x).all(|(x, z)| {
+                footbridge_gap(seed, x, z, floor, !along_x)
+                    .is_none_or(|other| rank(other, !along_x) < first)
+            })
+        })
+        .collect()
+}
+
+/// A footbridge's gap: its first lot (lowest x or z) and its length in lots.
+type Gap = ((i32, i32), i32);
+
+/// The lots a footbridge crosses.
+fn gap_lots(((x, z), len): Gap, along_x: bool) -> impl Iterator<Item = (i32, i32)> {
+    (0..len).map(move |i| if along_x { (x + i, z) } else { (x, z + i) })
+}
+
+/// The gap along one axis through a lot on a floor, if it gets a footbridge before crossings are
+/// settled (`bridges_through`): one or two lots without a deck between two decks, no tower in the
+/// way, none on the landings, no skybridge over or through the walkway, and the seed's say.
+fn footbridge_gap(seed: u64, lx: i32, lz: i32, floor: usize, along_x: bool) -> Option<Gap> {
+    if floor == 0 || deck(seed, lx, lz, floor) != Deck::None {
+        return None;
+    }
+    let lot = |i: i32| if along_x { (lx + i, lz) } else { (lx, lz + i) };
+    let hole = |i: i32| {
+        let (x, z) = lot(i);
+        deck(seed, x, z, floor) == Deck::None
+    };
+    // The gap's ends: the first decks on each side, within reach.
+    let back = (1..=FOOTBRIDGE_MAX).find(|&i| !hole(-i))?;
+    let ahead = (1..=FOOTBRIDGE_MAX).find(|&i| !hole(i))?;
+    let len = back + ahead - 1;
+    if len > FOOTBRIDGE_MAX {
+        return None;
+    }
+    let y = floors::y(floor);
+    let gap = (lot(1 - back), len);
+    // No tower through the gap, and none on the landings.
+    let free =
+        gap_lots(gap, along_x).all(|(x, z)| tower(seed, x, z).is_none_or(|t| t.top() < y - 2.0));
+    let landings = [
+        (lot(-back), landing(gap.0, along_x, false, y)),
+        (lot(ahead), landing(lot(ahead - 1), along_x, true, y)),
+    ];
+    let clear = landings.iter().all(|&((x, z), area)| {
+        tower(seed, x, z).is_none_or(|t| {
+            t.top() < y - 2.0 || !Aabb::from_center(t.center, t.size).overlaps(&area)
+        })
+    });
+    // Skybridges stay out of the walkway and well above it.
+    let under_sky = gap_lots(gap, along_x).any(|(x, z)| {
+        let span = footbridge_span((x, z), along_x, y);
+        let reach = Aabb {
+            min: span.min - vec3(0.0, 1.0, 0.0),
+            max: span.max + vec3(0.0, FOOTBRIDGE_SKY_CLEARANCE, 0.0),
+        };
+        skybridges_through(seed, x, z).any(|b| b.overlaps(&reach))
+    });
+    let salt = SALT_FOOTBRIDGE + 64 * floor as i32 + along_x as i32;
+    let mut rng = Rng::new(hash_coords(seed, gap.0.0, salt, gap.0.1));
+    (free && clear && !under_sky && rng.chance(FOOTBRIDGE_CHANCE)).then_some(gap)
+}
+
+/// The room a footbridge's walkway takes through one lot on floor height `y`: its width with a
+/// margin, from under its girders to head height.
+fn footbridge_span((lx, lz): (i32, i32), along_x: bool, y: f32) -> Aabb {
+    Aabb::from_center(
+        lot_origin(lx, lz) + vec3(LOT * 0.5, y + 0.5, LOT * 0.5),
+        if along_x {
+            vec3(LOT, 3.0, FOOTBRIDGE_HALF * 2.0)
+        } else {
+            vec3(FOOTBRIDGE_HALF * 2.0, 3.0, LOT)
+        },
+    )
 }
 
 /// The deck a footbridge leaving gap lot `(lx, lz)` lands on: `BRIDGE_LANDING` deep into the next lot,
@@ -1166,14 +1220,7 @@ fn footbridge_room(seed: u64, lx: i32, lz: i32) -> Vec<Aabb> {
     for f in 1..floors::count() {
         let y = floors::y(f);
         for along_x in bridges_through(seed, lx, lz, f) {
-            out.push(Aabb::from_center(
-                lot_origin(lx, lz) + vec3(LOT * 0.5, y + 0.5, LOT * 0.5),
-                if along_x {
-                    vec3(LOT, 3.0, FOOTBRIDGE_HALF * 2.0)
-                } else {
-                    vec3(FOOTBRIDGE_HALF * 2.0, 3.0, LOT)
-                },
-            ));
+            out.push(footbridge_span((lx, lz), along_x, y));
         }
         for (dx, dz) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
             let (nx, nz) = (lx + dx, lz + dz);
@@ -1704,5 +1751,33 @@ mod tests {
             }
         }
         assert!(n > 0, "no footbridge at all");
+    }
+
+    #[test]
+    fn bridges_never_cross() {
+        let mut n = 0;
+        for seed in [1, 7] {
+            for f in 1..floors::count() {
+                for lz in -12..12 {
+                    for lx in -12..12 {
+                        let through = bridges_through(seed, lx, lz, f);
+                        assert!(
+                            through.len() <= 1,
+                            "seed {seed}, floor {f}: footbridges cross over ({lx}, {lz})"
+                        );
+                        for &along_x in &through {
+                            n += 1;
+                            let span = footbridge_span((lx, lz), along_x, floors::y(f));
+                            assert!(
+                                !skybridges_through(seed, lx, lz).any(|b| b.overlaps(&span)),
+                                "seed {seed}, floor {f}: a skybridge crosses the footbridge \
+                                 over ({lx}, {lz})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert!(n > 20, "only {n} footbridge spans");
     }
 }

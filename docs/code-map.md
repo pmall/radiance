@@ -44,8 +44,10 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Stairs (one per hub)                                    | `planner::stair_hub`, `hub_of_cell`; `city::stair`                              |
 | Skybridges between towers, decided once per pair        | `city::skybridges`, `push_bridge` (module `skybridge_segment`),                 |
 |                                                         | `skybridges_through`                                                            |
-| Footbridges over gaps of 1–2 lots, landings kept clear  | `city::bridges_through`, `landing`, `footbridge_room`, `push_footbridges`       |
+| Footbridges over gaps of 1–2 lots, landings kept clear  | `city::footbridge_gap`, `landing`, `footbridge_room`, `push_footbridges`        |
 |                                                         | (module `footbridge_span`)                                                      |
+| Bridges never cross (one footbridge per lot, skybridges | `city::bridges_through` (ranks crossing gaps), `footbridge_gap` (`under_sky`)   |
+| clear of footbridges)                                   |                                                                                 |
 | Per-floor numbers (holes, stairs, fillers, props, POIs) | `design::profile`, `FloorProfile`                                               |
 | Low-rise districts (few towers, places, row houses)     | `planner::low_rise` (`design::LOW_RISE`), read in `towers_of_cell`, `filler_at` |
 | Places need room: no tower through their floor          | `planner::block_of_cell_uncached` (`fits`)                                      |

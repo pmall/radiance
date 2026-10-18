@@ -155,12 +155,11 @@
     Milestone 10 status: all eight passes have a first version, judged good by the owner on the
     reference views (`python3 tools/lookdev.py`, label `grotto8` is the last run). Left to do:
 
-    - **Bug, bridges cross each other** (owner's screenshot, seed 7, D2 at dusk: two footbridges
-      meet at the same height and their railings run through each other). Bridges must never
-      cross at all. Today a gap's footbridge is decided per axis for the whole gap, so an x and a
-      z bridge may both pass over the same hole lot (`city::bridges_through`, which even says "two
-      bridges may cross"); a lot over a hole should carry at most one, and a footbridge should also
-      stay clear of skybridges and of the other floors' bridges where they could touch.
+    - ~~Bug, bridges cross each other~~ *(fixed)*: owner's screenshot, seed 7, D2 at dusk, two
+      footbridges met over lot (-6, -1). A lot over a hole now carries one footbridge at most
+      (where an x and a z gap cross, the seed ranks them and the first one wins), and a footbridge
+      gives way to a skybridge passing through or less than 6 m over its walkway
+      (`city::bridges_through`, test `bridges_never_cross`).
     - Second landmark pass (pass 7): towers that are not housing beyond the office tower; a tower
       with a gaping hole or leaning on its neighbor (the tower bodies are single boxes, so this
       needs new geometry); tall silhouettes above the construction front.

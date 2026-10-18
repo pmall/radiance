@@ -79,7 +79,10 @@ city. Values are tuned with the report, then checked in game.
   underneath (vines hang from them). It always lands on a deck at both ends; what stands on a
   landing (a rim's railings, a house) gives way. Gaps line up from floor to floor, so bridges often
   stack across the same shaft. They add ways across a floor, which matters now that stairs are
-  rare.
+  rare. Bridges never cross (owner): where an x and a z gap share a hole lot, the seed ranks the
+  two and only the first may be built, if it beats every gap it crosses; a skybridge passing
+  through or just over a walkway (less than 6 m above it) takes the gap's place; floors are 36 m
+  apart, so bridges of two floors never touch.
 - **No corner contacts:** two decks never meet by a corner alone (owner: unnatural); one of them
   is left open, the seed picking which, unless the plan needs it (a square's, a block's, a stair's
   or a crater's floor). The gap this leaves is often crossed by a footbridge.
