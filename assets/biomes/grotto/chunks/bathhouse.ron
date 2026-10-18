@@ -1,0 +1,26 @@
+// Block, the Grotto's landmark: the public bathhouse of three lots by three, its tiled dome over a
+// pool, a terrace of glazed tiles around it with basins gone green, lanterns, tiled benches, a
+// kiosk of towels and soap by the steps. Only in the Cyan Grotto.
+Chunk(
+    name: "bathhouse",
+    size: (3, 3),
+    zones: [Depths, Middle],
+    labels: ["baths"],
+    weight: 10,
+    ground: Some(Tile),
+    parts: [
+        Module(name: "bath_dome", at: (36.0, 0.0, 36.0)),
+        Growth(area: ((30.0, 30.0), (42.0, 42.0)), kind: Bare),
+        Mirror4(center: (36.0, 36.0), parts: [
+            Module(name: "tree_bed", at: (10.0, 0.0, 10.0)),
+            Growth(area: ((8.0, 8.0), (12.0, 10.0)), kind: Soil),
+            Module(name: "lamp", at: (30.0, 0.0, 58.0)),
+            Module(name: "lamp", at: (42.0, 0.0, 58.0)),
+            Module(name: "bench", at: (24.0, 0.0, 60.0), turn: 2),
+            Module(name: "bench", at: (48.0, 0.0, 60.0), turn: 2),
+            Slot(at: (12.0, 0.0, 36.0), turn: 1, pick: [Some("kiosk"), Some("planter"), None]),
+            Slot(at: (60.0, 0.0, 12.0), rate: Props, pick: [Some("bin"), Some("utility_box"), None]),
+            Slot(at: (36.0, 0.0, 64.0), rate: Poi, pick: [Some("poi_bench"), Some("poi_garden")]),
+        ]),
+    ],
+)

@@ -145,8 +145,16 @@
        office tower, a tower with a gaping hole or leaning on its neighbor (needs geometry the
        tower bodies do not have), tall silhouettes above the construction front. D5 views run
        about 11 ms/frame (7.5 M tris), as before this pass.
-    8. The Grotto: flooded streets, its own street furniture, its landmark (a tiled bathhouse
-       dome).
+    8. The Grotto *(done)*: flooded roads (standing water up to the curbs mirroring the sky and
+       the flowers, `Textures::flooded`) with stepping stones across them (the Grotto's own
+       `street_plain`); its own tiled tree beds, lanterns, kiosks, fountains and drinking
+       fountains (`grotto/modules/places.ron`); its landmark, the `bathhouse` (3x3 block): a
+       tiled hall with arched doors under a stepped dome open at its crown, a pool ringed by
+       columns, a terrace of basins and lanterns.
+
+    Milestone 10 status: all eight passes have a first version, to be judged by the owner on the
+    reference views (`python3 tools/lookdev.py`, label `grotto8` is the last run). Left for later:
+    the second landmark pass (pass 7) and maybe a second plant pass (pass 5).
 
 ## Debug and art-iteration tools
 

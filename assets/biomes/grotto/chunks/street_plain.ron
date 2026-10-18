@@ -1,0 +1,38 @@
+// Street of the Cyan Grotto: as the default one (below), its roads flooded, so stepping stones
+// cross them in the middle of every side with a road, the furniture its own tiled set.
+//
+// Street: the plain street around a lot, on every lot and floor no area, block or hub designs
+// (around its tower or its filler). A street light at the lot's -x/-z corner where roads cross or
+// turn there, its arm over the crossing: the planner never turns a street, so there is one at
+// every crossing, all alike. Benches, bins, planters and cabinets behind the curbs (a road takes
+// the 3 m along its edge), facing the road, at the floor's props chance; now and then a flower in
+// a human place. Only along the sides with a road (`roads.rs`): elsewhere the sidewalk stays
+// empty.
+Chunk(
+    name: "street_plain",
+    size: (1, 1),
+    zones: [Depths, Middle],
+    labels: ["street"],
+    parts: [
+        If(crossing: [XMin, ZMin], parts: [
+            Module(name: "street_light", at: (3.5, 0.0, 3.5), turn: 2),
+        ]),
+        Mirror4(center: (12.0, 12.0), parts: [
+            If(street: [ZMin], parts: [
+                Slot(at: (8.0, 0.0, 3.8), turn: 2, rate: Props, pick: [Some("bench"),
+                    Some("curb_bench_bin"), Some("bin"), Some("planter"), None, None, None]),
+                Slot(at: (16.5, 0.0, 3.8), turn: 2, rate: Props, pick: [Some("bench"), Some("bin"),
+                    Some("utility_box"), Some("planter"), None, None, None, None]),
+            ]),
+        ]),
+        Mirror4(center: (12.0, 12.0), parts: [
+            If(street: [ZMin], parts: [
+                Module(name: "stepping_stones", at: (14.0, 0.0, 3.0)),
+            ]),
+        ]),
+        If(street: [ZMin], parts: [
+            Slot(at: (12.0, 0.0, 4.0), turn: 2, rate: Poi, pick: [Some("poi_bench"),
+                Some("poi_armchair"), Some("poi_garden"), Some("poi_bed")]),
+        ]),
+    ],
+)

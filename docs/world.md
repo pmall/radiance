@@ -180,11 +180,17 @@ and a folder `assets/biomes/<name>/`. Between them, a biome sets:
   art with them; `tower::paint` gives the same color to the units near the decks) and the tint of
   its pavement; uploaded as a uniform array and picked per lot by the biome's index in `BIOMES`.
 - **Its city numbers:** how often a lot has no tower, how often towers get a bridge.
+- **Its water:** `Textures::flooded`, the share of its roads under standing water.
 
 Biomes now: `default` (the original city, Neon Garden in `docs/biome-ideas.md`) and `grotto` (Cyan
 Grotto, about a third of the zones: its own plants, atmosphere, palette, textures and street
 furniture in `assets/biomes/grotto/modules/props.ron`, the default chunks for its places; seed 1
-has a zone two lots behind the spawn).
+has a zone two lots behind the spawn). Since milestone 10, pass 8, its roads are flooded
+(`Textures::flooded`: standing water up to the curbs, `pavement` in `shaders/scene.fs`) with
+stepping stones across them (its own `street_plain`), its tree beds, lamps, kiosks, fountains and
+drinking fountains are tiled (`grotto/modules/places.ron`, winning over the shared modules of those
+names), and its landmark is the `bathhouse`, a tiled stepped dome over a pool (a block, common
+there).
 
 **Adding one** (only when the owner asks, `docs/chunks.md`, "Catalog rule"): its `Biome` const and
 its entry in `BIOMES`, its folder; then `cargo test --release` (`biomes_fit_the_renderer_and_the_zones`

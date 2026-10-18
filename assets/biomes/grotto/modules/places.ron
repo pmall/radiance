@@ -1,0 +1,99 @@
+// Cyan Grotto's versions of the shared street and square pieces (`assets/modules/`), in glazed
+// tiles and teal paint, and the pieces of its landmark, the bathhouse (milestone 10, pass 8).
+// A module here wins over the shared one of its name in the grotto's chunks.
+[
+    // A tree bed: a basin of glazed tiles, water at one end, soil at the other.
+    Module(
+        name: "tree_bed",
+        parts: [
+            Box(at: (-2.0, 0.0, -2.0), size: (4.0, 0.6, 0.3), mat: Tile),
+            Box(at: (-2.0, 0.0, 1.7), size: (4.0, 0.6, 0.3), mat: Tile),
+            Box(at: (-2.0, 0.0, -1.7), size: (0.3, 0.6, 3.4), mat: Tile),
+            Box(at: (1.7, 0.0, -1.7), size: (0.3, 0.6, 3.4), mat: Tile),
+            Box(at: (-1.7, 0.0, -1.7), size: (3.4, 0.4, 2.2), mat: Soil),
+            Box(at: (-1.7, 0.0, 0.5), size: (3.4, 0.3, 1.2), mat: Glass),
+        ],
+    ),
+    // A lantern on a tiled post, its glass dark.
+    Module(
+        name: "lamp",
+        parts: [
+            Box(at: (-0.3, 0.0, -0.3), size: (0.6, 1.0, 0.6), mat: Tile),
+            Box(at: (-0.08, 1.0, -0.08), size: (0.16, 3.0, 0.16), mat: Metal),
+            Box(at: (-0.35, 4.0, -0.35), size: (0.7, 0.1, 0.7), mat: Metal),
+            Box(at: (-0.28, 4.1, -0.28), size: (0.56, 0.7, 0.56), mat: Glass),
+            Box(at: (-0.38, 4.8, -0.38), size: (0.76, 0.15, 0.76), mat: Paint((40, 112, 118))),
+            Box(at: (-0.12, 4.95, -0.12), size: (0.24, 0.2, 0.24), mat: Metal),
+        ],
+    ),
+    // A towel and soap kiosk of the baths, tiled, its shutter down.
+    Module(
+        name: "kiosk",
+        parts: [
+            Box(at: (-2.0, 0.0, -1.5), size: (4.0, 2.75, 3.0), mat: Tile),
+            Box(at: (-1.75, 0.9, 1.5), size: (3.5, 1.5, 0.05), mat: Metal),
+            Box(at: (-2.0, 0.85, 1.5), size: (4.0, 0.1, 0.4), mat: Paint((40, 112, 118))),
+            Box(at: (-2.25, 2.75, -1.75), size: (4.5, 0.25, 4.25), mat: Paint((36, 96, 104))),
+            Box(at: (-1.5, 3.0, 1.25), size: (3.0, 0.75, 0.15), mat: Paint((214, 206, 188))),
+        ],
+    ),
+    // A fountain of the baths: a wide tiled basin still holding water, a stepped tiled pedestal,
+    // a bowl. 24 m across like the shared one.
+    Module(
+        name: "fountain",
+        parts: [
+            Mirror4(center: (0.0, 0.0), parts: [
+                Box(at: (-12.0, 0.0, 11.4), size: (23.4, 0.7, 0.6), mat: Tile),
+            ]),
+            Box(at: (-11.4, 0.0, -11.4), size: (22.8, 0.4, 22.8), mat: Glass),
+            Box(at: (-3.0, 0.0, -3.0), size: (6.0, 1.0, 6.0), mat: Tile),
+            Box(at: (-2.0, 1.0, -2.0), size: (4.0, 1.0, 4.0), mat: Tile),
+            Box(at: (-0.6, 2.0, -0.6), size: (1.2, 3.5, 1.2), mat: Tile),
+            Box(at: (-2.2, 5.5, -2.2), size: (4.4, 0.4, 4.4), mat: Paint((40, 112, 118))),
+        ],
+    ),
+    // Stepping stones across a flooded road, 3 m (half a road, from the curb toward -z).
+    Module(
+        name: "stepping_stones",
+        parts: [
+            Box(at: (-0.35, 0.0, -0.75), size: (0.7, 0.18, 0.6), mat: StoneDark),
+            Box(at: (-0.25, 0.0, -1.75), size: (0.6, 0.18, 0.6), mat: StoneDark),
+            Box(at: (-0.4, 0.0, -2.8), size: (0.7, 0.18, 0.55), mat: StoneDark),
+        ],
+    ),
+    // The bathhouse dome, centered on its origin: a tiled hall 30 m square with an arched door on
+    // every side, a cornice, a stepped dome of glazed tiles open at its crown to the haze, a
+    // lantern on top. Inside, a pool ringed by columns. The steps of the dome are the pixels of
+    // its curve.
+    Module(
+        name: "bath_dome",
+        parts: [
+            Box(at: (-17.0, 0.0, -17.0), size: (34.0, 0.6, 34.0), mat: StoneDark),
+            Mirror4(center: (0.0, 0.0), parts: [
+                Box(at: (-15.0, 0.6, 14.0), size: (13.0, 10.0, 1.0), mat: Tile),
+                Box(at: (2.0, 0.6, 14.0), size: (12.0, 10.0, 1.0), mat: Tile),
+                Box(at: (-2.0, 6.6, 14.0), size: (4.0, 4.0, 1.0), mat: Tile),
+                Box(at: (-2.5, 6.2, 14.9), size: (5.0, 0.4, 0.4), mat: Paint((40, 112, 118))),
+                Box(at: (-2.0, 0.0, 17.0), size: (4.0, 0.3, 1.0), mat: StoneDark),
+                Box(at: (-16.0, 10.6, 14.0), size: (31.0, 0.8, 2.0), mat: Paint((36, 96, 104))),
+                // The dome: square rings stepping in as a quarter circle of radius 15.
+                Box(at: (-14.9, 11.4, 13.3), size: (28.2, 1.6, 1.6), mat: Tile),
+                Box(at: (-14.5, 13.0, 12.9), size: (27.4, 1.6, 1.6), mat: Tile),
+                Box(at: (-13.9, 14.6, 12.3), size: (26.2, 1.6, 1.6), mat: Tile),
+                Box(at: (-13.0, 16.2, 11.4), size: (24.4, 1.6, 1.6), mat: Paint((40, 112, 118))),
+                Box(at: (-11.7, 17.8, 10.1), size: (21.8, 1.6, 1.6), mat: Tile),
+                Box(at: (-9.9, 19.4, 8.3), size: (18.2, 1.6, 1.6), mat: Tile),
+                Box(at: (-7.3, 21.0, 5.7), size: (13.0, 1.6, 1.6), mat: Tile),
+                Box(at: (-4.0, 22.6, 2.4), size: (6.4, 1.0, 1.6), mat: Paint((40, 112, 118))),
+                // Columns around the pool.
+                Box(at: (-6.4, 0.6, 6.0), size: (0.8, 9.0, 0.8), mat: Stone),
+                Box(at: (5.6, 0.6, 6.0), size: (0.8, 9.0, 0.8), mat: Stone),
+                Box(at: (-8.0, 0.6, 7.0), size: (15.0, 0.5, 1.0), mat: Tile),
+            ]),
+            Box(at: (-7.0, 0.6, -7.0), size: (14.0, 0.25, 14.0), mat: Glass),
+            Box(at: (-1.5, 23.6, -1.5), size: (3.0, 2.0, 3.0), mat: Metal),
+            Box(at: (-1.2, 24.0, -1.2), size: (2.4, 1.4, 2.4), mat: Glass),
+            Box(at: (-0.5, 25.6, -0.5), size: (1.0, 1.2, 1.0), mat: Paint((170, 130, 60))),
+        ],
+    ),
+]

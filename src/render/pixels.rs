@@ -99,6 +99,8 @@ pub struct Textures {
     pub dusty: f32,
     pub littered: f32,
     pub puddled: f32,
+    /// Share of the roads under standing water, up to the curbs (the Grotto's flooded streets).
+    pub flooded: f32,
 }
 
 /// How a road is surfaced.
@@ -260,6 +262,7 @@ pub const DEFAULT_TEXTURES: Textures = Textures {
     dusty: 0.6,
     littered: 0.5,
     puddled: 0.35,
+    flooded: 0.0,
 };
 
 /// Cyan Grotto: an old bathhouse district gone cold and wet. Pale limestone and basalt setts with
@@ -397,6 +400,7 @@ pub const GROTTO_TEXTURES: Textures = Textures {
     dusty: 0.15,
     littered: 0.3,
     puddled: 0.9,
+    flooded: 0.8,
 };
 
 /// 4x4 ordered dither thresholds, in 0..1.
@@ -1375,8 +1379,8 @@ fn swatches(s: &Textures) -> Tile {
     t
 }
 
-/// Every biome's wear amounts for the shader (`uWear`): two vec3s a biome, (moss, damp, dust)
-/// and (litter, puddles, lane markings), unused biomes zero.
+/// Every biome's wear amounts for the shader (`uWear`): three vec3s a biome, (moss, damp, dust)
+/// (litter, puddles, lane markings) and (flooded, 0, 0), unused biomes zero.
 pub fn wear_uniform() -> Vec<f32> {
     let mut v: Vec<f32> = BIOMES
         .iter()
@@ -1384,10 +1388,12 @@ pub fn wear_uniform() -> Vec<f32> {
         .flat_map(|b| {
             let s = &b.textures;
             let markings = matches!(s.road, Road::Asphalt) as u8 as f32;
-            [s.mossy, s.damp, s.dusty, s.littered, s.puddled, markings]
+            [
+                s.mossy, s.damp, s.dusty, s.littered, s.puddled, markings, s.flooded, 0.0, 0.0,
+            ]
         })
         .collect();
-    v.resize(MAX_BIOMES * 6, 0.0);
+    v.resize(MAX_BIOMES * 9, 0.0);
     v
 }
 
