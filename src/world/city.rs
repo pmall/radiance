@@ -40,6 +40,7 @@ const SALT_DECK_TINT: i32 = 11;
 const SALT_CHUNK: i32 = 13;
 const SALT_PINCH: i32 = 17;
 const SALT_FOOTBRIDGE: i32 = 19;
+const SALT_UNDERSIDE: i32 = 23;
 
 /// Side, in lots, of the squares whose slabs share a tint on a floor (poured together).
 const POUR: i32 = 3;
@@ -419,6 +420,7 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>, dressed
         if kind == Deck::Ring {
             push_ring_deck(mid, y, well(seed, lx, lz), color, out);
         } else {
+            push_underside(seed, lx, lz, f, out);
             out.push(Block {
                 kind: BlockKind::Deck,
                 aabb: Aabb::from_center(
@@ -452,6 +454,144 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>, dressed
     }
 
     push_chunks(seed, lx, lz, first, out, dressed);
+}
+
+/// Depth of the girders under a deck, and of the joists between them.
+const GIRDER: (f32, f32) = (1.4, 0.8);
+const JOIST: (f32, f32) = (0.7, 0.35);
+
+/// What hangs under a full deck on `floor` (a stairwell's ring has none, for the flights' head
+/// room): girders along the lot's -x and -z borders (and its +x / +z edges where no deck goes on),
+/// joists every 6 m between them, pipe runs that line up from lot to lot along a row, and now and
+/// then a dead lamp on its rod. Nothing grows on them (`BlockKind::Under`).
+fn push_underside(seed: u64, lx: i32, lz: i32, floor: usize, out: &mut Vec<Block>) {
+    use chunks::Mat;
+    let o = lot_origin(lx, lz);
+    let top = floors::y(floor) - DECK_THICKNESS;
+    let mut put = |min: Vec3, max: Vec3, mat: Mat| {
+        out.push(Block {
+            aabb: Aabb { min, max },
+            color: mat.color(),
+            kind: BlockKind::Under(mat),
+        });
+    };
+    let (gd, gw) = GIRDER;
+    let g = top - gd;
+    put(
+        vec3(o.x, g, o.z),
+        vec3(o.x + LOT, top, o.z + gw),
+        Mat::Concrete,
+    );
+    put(
+        vec3(o.x, g, o.z + gw),
+        vec3(o.x + gw, top, o.z + LOT),
+        Mat::Concrete,
+    );
+    if deck(seed, lx + 1, lz, floor) == Deck::None {
+        put(
+            vec3(o.x + LOT - gw, g, o.z + gw),
+            vec3(o.x + LOT, top, o.z + LOT),
+            Mat::Concrete,
+        );
+    }
+    if deck(seed, lx, lz + 1, floor) == Deck::None {
+        put(
+            vec3(o.x + gw, g, o.z + LOT - gw),
+            vec3(o.x + LOT, top, o.z + LOT),
+            Mat::Concrete,
+        );
+    }
+    // Joists one way or the other, by the pour the slab belongs to.
+    let (px, pz) = (lx.div_euclid(POUR), lz.div_euclid(POUR));
+    let mut rng = Rng::new(hash_coords(
+        seed,
+        px * 16 + floor as i32,
+        SALT_UNDERSIDE,
+        pz,
+    ));
+    let (jd, jw) = JOIST;
+    let along_x = rng.chance(0.5);
+    for k in 1..4 {
+        let t = k as f32 * 6.0 - jw * 0.5;
+        if along_x {
+            put(
+                vec3(o.x + gw, top - jd, o.z + t),
+                vec3(o.x + LOT, top, o.z + t + jw),
+                Mat::Concrete,
+            );
+        } else {
+            put(
+                vec3(o.x + t, top - jd, o.z + gw),
+                vec3(o.x + t + jw, top, o.z + LOT),
+                Mat::Concrete,
+            );
+        }
+    }
+    // Pipes: a run along x shared by every lot of the row (and one along z by the column), under
+    // the joists, two or three side by side.
+    let pipe_y = top - jd;
+    for (run_x, line) in [(true, lz), (false, lx)] {
+        let mut r = Rng::new(hash_coords(
+            seed,
+            line,
+            SALT_UNDERSIDE + 1,
+            floor as i32 * 2 + run_x as i32,
+        ));
+        if !r.chance(0.3) {
+            continue;
+        }
+        let at = r.range(3.0, LOT - 4.0).round();
+        let count = r.range_i(2, 4);
+        let mat = if r.chance(0.5) { Mat::Rust } else { Mat::Metal };
+        for i in 0..count {
+            let d = if i == 2 { 0.2 } else { 0.32 };
+            let (c, y) = (at + i as f32 * 0.42, pipe_y - d);
+            if run_x {
+                put(
+                    vec3(o.x, y, o.z + c),
+                    vec3(o.x + LOT, pipe_y, o.z + c + d),
+                    mat,
+                );
+            } else {
+                put(
+                    vec3(o.x + c, y, o.z),
+                    vec3(o.x + c + d, pipe_y, o.z + LOT),
+                    mat,
+                );
+            }
+        }
+    }
+    // A dead lamp over the street, hanging from a girder's corner.
+    let mut r = Rng::new(hash_coords(
+        seed,
+        lx,
+        SALT_UNDERSIDE + 2,
+        lz * 16 + floor as i32,
+    ));
+    if r.chance(0.45) {
+        let (x, z) = (o.x + r.range(4.0, 8.0), o.z + r.range(4.0, 8.0));
+        let (x, z) = if r.chance(0.5) {
+            (x, o.z + 3.0)
+        } else {
+            (o.x + 3.0, z)
+        };
+        let drop = r.range(1.2, 3.0);
+        put(
+            vec3(x - 0.04, top - drop, z - 0.04),
+            vec3(x + 0.04, top, z + 0.04),
+            Mat::Metal,
+        );
+        put(
+            vec3(x - 0.35, top - drop - 0.22, z - 0.2),
+            vec3(x + 0.35, top - drop, z + 0.2),
+            Mat::Metal,
+        );
+        put(
+            vec3(x - 0.3, top - drop - 0.26, z - 0.16),
+            vec3(x + 0.3, top - drop - 0.22, z + 0.16),
+            Mat::Glass,
+        );
+    }
 }
 
 /// The lots a placement covers: corner lot and size.
@@ -794,7 +934,12 @@ fn push_chunks(
 ) {
     let mut obstacles: Vec<Aabb> = out[first..]
         .iter()
-        .filter(|b| !matches!(b.kind, BlockKind::Floor | BlockKind::Deck))
+        .filter(|b| {
+            !matches!(
+                b.kind,
+                BlockKind::Floor | BlockKind::Deck | BlockKind::Under(_)
+            )
+        })
         .map(|b| b.aabb)
         .collect();
     obstacles.extend(dressed.props.iter().map(|p| p.aabb()));

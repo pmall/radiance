@@ -79,6 +79,7 @@ const int LW = 256;
 const int MAX_LIGHTS = 512;
 const ivec3 GRID = ivec3(32, 16, 32);
 const float CELL = 6.0;
+const float WALL_REACH = 1.6;  // lights.rs bins each light this much further for the walls
 
 vec4 fetchTexel(int i)
 {
@@ -103,12 +104,14 @@ vec3 plantLights(vec3 p, vec3 n)
             if (p.y < band.x - 0.1 || p.y > band.y + 0.1) continue;
             vec3 d = a.xyz - p;
             float dist = length(d);
-            float x = 1.0 - dist / a.w;
+            float facing = dot(n, d / max(dist, 1e-3));
+            // Walls facing a flower catch its light further off, a softer wash up the wall.
+            float wall = (1.0 - abs(n.y)) * smoothstep(0.1, 0.6, facing);
+            float x = 1.0 - dist / (a.w * mix(1.0, WALL_REACH, wall));
             if (x <= 0.0) continue;
             float q = 0.34 * smoothstep(0.03, 0.13, x) + 0.33 * smoothstep(0.30, 0.40, x)
                     + 0.33 * smoothstep(0.65, 0.75, x);
-            float facing = clamp(dot(n, d / max(dist, 1e-3)) * 0.5 + 0.6, 0.0, 1.0);
-            acc += fetchTexel(i * 3 + 1).rgb * q * facing;
+            acc += fetchTexel(i * 3 + 1).rgb * q * clamp(facing * 0.5 + 0.6, 0.0, 1.0);
         }
     }
     return acc;

@@ -16,6 +16,8 @@ pub const MAX_LIGHTS: usize = 512;
 const SLOTS: usize = 8;
 const GRID: [usize; 3] = [32, 16, 32];
 const CELL: f32 = 6.0;
+/// How much further a light reaches the walls facing it (`plantLights` in shaders/scene.fs).
+const WALL_REACH: f32 = 1.6;
 const LIGHT_TEXELS: usize = MAX_LIGHTS * 3;
 const GRID_CELLS: usize = GRID[0] * GRID[1] * GRID[2];
 const TEXELS: usize = LIGHT_TEXELS + GRID_CELLS * 2;
@@ -74,8 +76,9 @@ impl LightGrid {
             self.pixels[t + 4..t + 8].copy_from_slice(&[l.color.x, l.color.y, l.color.z, 0.0]);
             self.pixels[t + 8..t + 12].copy_from_slice(&[l.y_lo, l.y_hi, 0.0, 0.0]);
 
-            let lo = ((l.pos - Vec3::splat(l.radius) - self.origin) / CELL).floor();
-            let hi = ((l.pos + Vec3::splat(l.radius) - self.origin) / CELL).floor();
+            let reach = Vec3::splat(l.radius * WALL_REACH);
+            let lo = ((l.pos - reach - self.origin) / CELL).floor();
+            let hi = ((l.pos + reach - self.origin) / CELL).floor();
             let range = |axis: usize| {
                 let (a, b) = (
                     lo[axis].max(0.0) as i32,

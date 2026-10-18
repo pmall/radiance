@@ -100,8 +100,12 @@
        as silhouettes; the flowers' colors in the night haze; the eye adapting under the decks;
        particles and halos as pixel specks; no outline across two lots of one deck. Frame time
        unchanged (the wear reads a noise texture).
-    2. Light, continued: stronger sunbeams through holes and craters, the deck undersides as a
-       structure (beams, pipes, dead lamps, drips), flower light on walls.
+    2. Light, continued *(done)*: sunbeams through holes and craters (the haze lit where the sun
+       reaches air that sees little sky, strongest toward the sun; moonbeams at night); the deck
+       undersides as a structure (girders on the lot borders, joists, pipe runs lining up along
+       a row of lots, dead lamps on rods: `city::push_underside`, `BlockKind::Under`) and water
+       dripping from them (particles, only under a deck); walls facing a flower catch its light
+       further off (1.6 times the pool). About 0.6 ms/frame more (8.7 ms at the spawn).
     3. Things left behind: a scatter of debris by rules (against walls, under facades, never in
        the road), ground cover along curbs and wall feet, cables sagging across the streets.
     4. One look, finished: everything still smooth or photo-grained (stairs, steel, the street

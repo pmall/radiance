@@ -124,17 +124,19 @@ float fogAmount(vec3 dir, float dist)
 }
 
 // Light the fog gets along a view ray: x = share of it with open sky above, y = share in the
-// sun. A few samples along the ray, so openings in the floors show as shafts and beams.
-vec2 fogLight(vec3 dir, float dist)
+// sun, z = share in a beam: sun reaching air that sees little sky, through a hole or a crater
+// into the floors below. Samples along the ray, so openings in the floors show as shafts.
+vec3 fogLight(vec3 dir, float dist)
 {
-    const int N = 12;
+    const int N = 16;
     // Interleaved gradient noise: a different sample offset per pixel, hidden by the grain.
     float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-    float reach = min(dist, 600.0);
-    vec2 acc = vec2(0.0);
+    float reach = min(dist, 420.0);
+    vec3 acc = vec3(0.0);
     for (int i = 0; i < N; i++) {
         vec3 q = uCamPos + dir * reach * (float(i) + jitter) / float(N);
-        acc += vec2(skyView(q), skyVis(q, uLightDir));
+        float v = skyView(q), s = skyVis(q, uLightDir);
+        acc += vec3(v, s, s * (1.0 - v) * (1.0 - v));
     }
     return acc / float(N);
 }
@@ -142,15 +144,20 @@ vec2 fogLight(vec3 dir, float dist)
 // Fog color along a view ray of length dist, f = its fog amount. Fog sinks into darkness under
 // the decks, where little light gets down; where the sun gets through, it lights the fog as beams.
 const float DEEP_FOG = 0.3;   // brightness of the haze where no sky reaches, against the open fog
+float gBeam = 0.0;            // light of the sunbeams along the ray (fogColor), added over the fog
 
 vec3 fogColor(vec3 dir, float dist, float f)
 {
     float c = max(dot(dir, uLightDir), 0.0);
-    vec2 fl = fogLight(dir, dist);
+    vec3 fl = fogLight(dir, dist);
     // Under the decks the haze takes the hue of the floor (cold depths, warm middle, gold
     // canopy), brighter than the shaded walls in it, so they stand as silhouettes.
     vec3 deep = heightHue(uCamPos.y) * luma(uFog) * DEEP_FOG + uGlowHaze * 0.04;
     vec3 col = mix(deep, uFog, fl.x) + uDisk * uFogGlow * (0.1 + 0.2 * c * c + 0.3 * pow(c, 6.0)) * fl.y;
+    // Sunbeams through the openings: light scattered by the haze along the lit stretch of the
+    // ray, strongest looking toward the sun, against the dark under the decks.
+    float lit = fl.z * min(dist, 420.0);
+    gBeam = (1.0 - exp(-lit * 0.02)) * (0.35 + 0.65 * c * c + 1.2 * pow(c, 8.0));
     // Far fog blends into the sky behind it so silhouettes melt into the horizon.
     return mix(col, mix(deep, sky(dir), fl.x), smoothstep(0.4, 1.0, f));
 }
@@ -169,7 +176,10 @@ void main()
         // Past the loaded city, a ray that would run into the floors above ends in their dark
         // fog, not in the sky. Level rays only see the sky from out in the open.
         float clear = dir.y < 0.02 ? step(0.9, skyView(uCamPos)) : skyVis(uCamPos, dir);
-        if ((uEffects & FX_FOG) != 0 && clear < 1.0) col = fogColor(dir, 600.0, 1.0);
+        if ((uEffects & FX_FOG) != 0 && clear < 1.0) {
+            col = fogColor(dir, 600.0, 1.0);
+            col += uDisk * uFogGlow * gBeam * 0.45;
+        }
     } else {
         col = texture(texture0, uv).rgb;
         float z = linearDepth(rawDepth);
@@ -213,6 +223,7 @@ void main()
             float dist = z / dot(dir, uCamFwd);
             float f = fogAmount(dir, dist);
             col = mix(col, fogColor(dir, dist, f), f);
+            col += uDisk * uFogGlow * gBeam * 0.45;
         }
     }
 

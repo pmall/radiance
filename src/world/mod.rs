@@ -98,6 +98,9 @@ pub enum BlockKind {
     Prop,
     /// A box of a hand-written chunk (`chunks.rs`), in its material.
     Built(chunks::Mat),
+    /// What hangs under a deck (`city::push_underside`): girders, joists, pipes, dead lamps. Drawn
+    /// like `Built`; nothing grows on it.
+    Under(chunks::Mat),
     /// Collision only: the part of a big chunk box that reaches into this lot from the lot that
     /// owns and draws it.
     Collider,

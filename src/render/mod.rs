@@ -550,6 +550,11 @@ impl Renderer {
             p.set_f32("uDepthK", depth_k);
             p.set_vec3("uMote", mote);
             p.set_vec3_array("uSpores", &spores);
+            // Drips fall from the decks the cover map knows.
+            p.set_vec2("uCoverOrigin", cover_origin);
+            p.set_f32_array("uFloorY", &cover::floor_uniform());
+            p.set_i32("uFloorCount", crate::world::floors::count() as i32);
+            unsafe { (*self.particles.material.maps.add(2)).texture = self.cover.texture };
             self.halos
                 .shader
                 .set_i32("uCount", self.lights_in_use as i32);

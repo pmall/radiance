@@ -20,7 +20,8 @@ pub fn new() -> Overlay {
             rng.range_i(0, 256) as u8,
             rng.range_i(0, 256) as u8,
             rng.range_i(0, 256) as u8,
-            255,
+            // A few are drips (`drip` in shaders/particles.vs).
+            rng.range_i(0, 256) as u8,
         ];
         for c in QUAD {
             m.pos.extend_from_slice(&[c[0], c[1], 0.0]);

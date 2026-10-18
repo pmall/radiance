@@ -89,6 +89,14 @@ flowers around the eye, faint where there are few, so walls still stand out in t
 the decks the eye adapts a little (the image opens up by a third). Particles are specks of a few
 screen pixels and halos have hard steps and a dithered glow, like the textures.
 
+*(Pass 2.)* Where the sun gets through a hole or a crater into the floors below, it lights the
+haze as beams: the shafts are the haze in the sun that sees little sky (`fogLight` in
+`shaders/post.fs`), brightest looking toward the sun, and the moon makes faint ones at night. The
+deck overhead is a structure, not a flat ceiling: girders along the lot borders, joists between,
+pipe runs from lot to lot, dead lamps on their rods, water dripping to the floor. A flower lights
+the wall it faces further off than the ground around it (a wash up the wall), so the walls show
+where the flowers are.
+
 ## Reference views
 
 Every look change is judged on the same images: `python3 tools/lookdev.py LABEL` renders eight

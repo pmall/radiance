@@ -846,7 +846,9 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
                     let pad = Vec3::new(0.8, 0.0, 0.8);
                     b.solids.any(at - pad, at + pad, |o| {
                         let c = &o.aabb;
+                        // What hangs under the deck itself does not stop its vines.
                         if c.max.y <= top
+                            && !matches!(o.kind, BlockKind::Under(_))
                             && x > c.min.x - 0.8
                             && x < c.max.x + 0.8
                             && z > c.min.z - 0.8

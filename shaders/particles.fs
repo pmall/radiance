@@ -41,5 +41,8 @@ void main()
     // Spores belong to the night and the depths; motes are the daytime pollen haze.
     float vis = mix(1.0 - 0.6 * uGlow, glow, spore);
     float fade = exp(-fragViewZ * 0.012);
+    // Drips: pale water catching the haze.
+    col = mix(col, vec3(0.42, 0.5, 0.55), fragData.w);
+    vis = mix(vis, 0.55, fragData.w);
     finalColor = vec4(col, a * fragData.x * vis * fade * 0.85);
 }
