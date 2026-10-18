@@ -116,8 +116,12 @@
        brackets), the street light and the deck edges are drawn from the biome's pixel-art
        tiles (concrete, paint) like the chunk boxes, worn the same way; the photo detail is left
        on the plants only, until pass 5.
-    5. Pixel-art plants (maybe two passes): leaves as flat cut-outs in crisp pixels instead of
-       smooth folded shapes.
+    5. Pixel-art plants *(first pass done)*: every leaf, frond and blade is a sprite of square
+       cells (20 per meter) in its leaf coordinates, which carry its size (`growth::set_leaf`,
+       `pixelLeaf` in `shaders/scene.fs`): flat tones dithered root to tip, a lighter midrib,
+       a darker rim, a ragged pixel edge cut out of the outer cells; fronds nearly flat
+       (`FOLD`); stems in world-space cells. The photo detail layer is gone (`assets/textures`,
+       `tools/pack_textures.py`). Frame time unchanged. Possible second pass: flowers' petals.
     6. The planner: special places on every floor, met every few hundred meters; buildings along
        the sidewalks with alleys and courtyards; fewer vacant lots.
     7. Landmarks (probably two passes): tall silhouettes seen from afar; the old stone city in the

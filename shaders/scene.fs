@@ -20,7 +20,6 @@ uniform mat4 uLightVP;
 uniform int uShadows;
 uniform float uShadowTexel;
 uniform sampler2D texture2;  // plant light grid (see src/render/lights.rs)
-uniform sampler2D texture4;  // photo detail 2: R roof, G foliage, B rust, A plaster
 uniform vec3 uGridOrigin;
 uniform vec3 uPalette[8 * 9];    // per biome (src/world/biome.rs, Palette): 8 wall paints, 1 pavement tint
 uniform float uGlow;         // plant emission and light strength for the time of day
@@ -153,11 +152,6 @@ float tfbm(vec2 p)
     return dot(noise4(p).rgb, vec3(0.5, 0.3, 0.2));
 }
 
-// Fine detail from photographs, centered on 1 (G foliage), on the plants only.
-vec4 grit2(vec2 uv)
-{
-    return texture(texture4, uv) * 2.0;
-}
 
 // 1 inside a box of half-size `h` centered on the origin, antialiased over `aa` meters.
 float boxMask(vec2 q, vec2 h, float aa)
@@ -490,27 +484,42 @@ vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid, int elev, int shift)
     return mix(c.rgb, c.rgb / 0.44 * tint, c.a);
 }
 
-// Leaf and frond painting from leaf coordinates (across with the midrib at 0.5, along from the
-// root): lighter midrib, side veins slanting toward the tip, darker root, lighter edge and tip.
-vec3 leaf(vec3 base, vec2 lc)
+// Plants in pixel art. A leaf, frond or blade is a sprite of square cells (20 per meter) in its
+// leaf coordinates (across with the midrib at 0.5, along from the root): flat colors in a few tones
+// of the plant's color, dithered like the textures, darker at the root, a lighter midrib, a
+// darker rim, and a ragged edge where cells of the outer columns are cut away, so it reads as
+// a flat cut-out with a pixel silhouette. `seed` varies the pattern per plant.
+bool gCut = false;   // the fragment falls in a cut-away cell (discarded in main)
+
+vec3 pixelLeaf(vec3 base, vec2 uv, float seed)
 {
-    float u = abs(lc.x - 0.5) * 2.0;
-    float aa = max(fwidth(u), 1e-3);
-    float rib = 1.0 - smoothstep(0.04, 0.04 + aa * 1.5, u);
-    float slant = lc.y * 7.0 - u * 1.6;
-    float veins = (1.0 - smoothstep(0.03, 0.03 + fwidth(slant) * 1.5, abs(fract(slant) - 0.5)))
-                * (1.0 - smoothstep(0.75, 1.0, u)) * step(0.1, lc.y) * step(0.12, u);
-    vec3 col = base * mix(0.62, 1.15, smoothstep(0.0, 0.8, lc.y)) * (1.0 + 0.18 * u * u);
-    col = mix(col, base * 1.55, rib * 0.7);
-    col = mix(col, base * 1.3, veins * 0.35);
+    // The leaf's size in pixels rides in the coordinates (src/world/growth.rs, set_leaf).
+    vec2 px = floor(uv / 2.0);
+    vec2 lc = uv - 2.0 * px;
+    vec2 c = floor(clamp(lc, 0.0, 0.999) * px);
+    vec2 cc = (c + 0.5) / px;
+    float u = abs(cc.x - 0.5) * 2.0;
+    float h = hash12(c + seed * 17.31);
+    // Ragged edge: outer cells dropped at random, more toward the tip (fewer on narrow blades).
+    float outer = step(1.0 - 2.02 / px.x, u);
+    gCut = outer > 0.5 && h < (0.25 + 0.5 * cc.y * cc.y) * min(1.0, (px.x - 2.0) / 3.0);
+    // Tones: dark at the root to light at the tip, steps dithered on the cells.
+    float t = 0.15 + 0.75 * cc.y + 0.25 * (h - 0.5);
+    float tone = floor(t * 4.0 + bayer4(c)) / 4.0;
+    vec3 col = base * mix(0.55, 1.2, clamp(tone, 0.0, 1.0));
+    // Midrib a step lighter, the rim a step darker.
+    col = mix(col, base * 1.45, step(u, 0.2) * step(0.12, cc.y) * 0.8);
+    col *= 1.0 - 0.25 * outer;
     return col;
 }
 
-// Painted foliage: soft blotches of two greens, finer brush flecks.
-float paintPlant(vec3 p)
+// Stems, vines and other plant surfaces without leaf coordinates: world-space cells of the
+// textures' size, each a tone of the plant's color.
+vec3 pixelStem(vec3 base, vec3 p, float seed)
 {
-    float m = 0.6 * vnoise(p.xz * 2.2 + p.y * 1.7) + 0.4 * vnoise(p.xy * 7.0 + p.z * 5.0);
-    return 0.78 + 0.44 * m;
+    vec3 c = floor(p * 16.0);
+    float h = hash12(c.xz + c.y * 7.13 + seed);
+    return base * mix(0.75, 1.15, floor(h * 3.0) / 2.0);
 }
 
 void main()
@@ -534,8 +543,12 @@ void main()
         float fid = fragId * 255.0;
         bool vertical = abs(n.y) < 0.5;
         if (kind == 1) {
-            albedo *= paintPlant(fragWorldPos) * mix(1.0, grit2(fragWorldPos.xz * 1.3 + fragWorldPos.y * 0.7).g, 0.6);
-            if (fragLoc.x >= 0.0) albedo = leaf(albedo, fragLoc);
+            if (fragLoc.x >= 0.0) {
+                albedo = pixelLeaf(albedo, fragLoc, fid);
+                if (gCut) discard;
+            } else {
+                albedo = pixelStem(albedo, fragWorldPos, fid);
+            }
         } else if (kind == 0) {
             if (vertical)
                 albedo = wallWear(facade(albedo, fragWorldPos, n, fragLoc, fid, elevation, paintShift),

@@ -183,10 +183,6 @@ impl Renderer {
         // Map slot 2 is bound to `texture2`: the plant light grid.
         let light_grid = LightGrid::new();
         unsafe { (*material.maps.add(2)).texture = light_grid.texture };
-        // Map slots 3 and 4 are the photographic detail textures, samplers `texture3`/`texture4`.
-        for (slot, texture) in surfaces::SLOTS.into_iter().zip(surfaces::load()) {
-            unsafe { (*material.maps.add(slot)).texture = texture };
-        }
         let cover = CoverMap::new();
         unsafe { (*material.maps.add(cover::SLOT)).texture = cover.texture };
         let prop_meshes = props::PropMeshes::new();

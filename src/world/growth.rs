@@ -25,6 +25,9 @@ const SALT_GROWTH: i32 = 3;
 const FLOWER_GLOW: u8 = 235;
 
 /// Blocks smaller than this on both horizontal axes (stair steps, parapets) stay bare.
+/// How far a frond's midrib rises over its edges, relative to its width: nearly flat, a cut-out
+/// in pixel art (`pixelLeaf` in shaders/scene.fs) with just enough fold to keep its volume.
+const FOLD: f32 = 0.06;
 const MIN_HOST: f32 = 3.5;
 /// Towers at least this tall get wall climbers.
 const MIN_WALL: f32 = 6.0;
@@ -58,9 +61,23 @@ struct Builder<'a> {
     /// Bushes leave out the fronds that would run into a block instead of keeping clear of every
     /// block (on stairs: they spill down the flight, between the rails and the wall).
     trim: bool,
+    /// Size of the leaf being drawn in pixels of the plants' pixel art, across and along
+    /// (`set_leaf`).
+    leaf_px: (f32, f32),
 }
 
+/// Pixels per meter of the plants' pixel art (`pixelLeaf` in shaders/scene.fs).
+const LEAF_PX_PER_M: f32 = 20.0;
+
 impl Builder<'_> {
+    /// The leaf drawn next is `width` across at its widest and `len` long (meters).
+    fn set_leaf(&mut self, width: f32, len: f32) {
+        self.leaf_px = (
+            (width * LEAF_PX_PER_M).round().max(3.0),
+            (len * LEAF_PX_PER_M).round().max(4.0),
+        );
+    }
+
     /// Starts a new plant: its own outline id, so it reads separately from its host.
     fn new_plant(&mut self) {
         self.id = 1 + (mix64(self.rng.next_u64()) % 255) as u8;
@@ -187,6 +204,12 @@ impl Builder<'_> {
 
     fn tri_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color, uv: [[f32; 2]; 3]) {
         for (p, uv) in [a, b, c].into_iter().zip(uv) {
+            // Leaf coordinates carry the leaf's size in pixels (`PlantVert::uv`).
+            let uv = if uv[0] >= 0.0 {
+                [uv[0] + 2.0 * self.leaf_px.0, uv[1] + 2.0 * self.leaf_px.1]
+            } else {
+                uv
+            };
             self.out.push(PlantVert {
                 pos: p,
                 normal: n,
@@ -278,6 +301,7 @@ impl Builder<'_> {
         {
             return;
         }
+        self.set_leaf(size * width * 2.0, size);
         self.quad2_uv(
             base,
             mid + side,
@@ -372,8 +396,8 @@ impl Builder<'_> {
             // The edges of its triangles, as drawn below.
             for i in 0..SEGS {
                 let (w0, w1) = (width(i), width(i + 1));
-                let m0 = pts[i] + Vec3::Y * w0 * 0.15;
-                let m1 = pts[i + 1] + Vec3::Y * w1 * 0.15;
+                let m0 = pts[i] + Vec3::Y * w0 * FOLD;
+                let m1 = pts[i + 1] + Vec3::Y * w1 * FOLD;
                 for s in [-0.5, 0.5] {
                     let (e0, e1) = (pts[i] + side * w0 * s, pts[i + 1] + side * w1 * s);
                     let edges = [(e0, m0), (m0, m1), (e0, m1), (m1, e1), (e0, e1)];
@@ -383,11 +407,12 @@ impl Builder<'_> {
                 }
             }
         }
+        self.set_leaf((0..=SEGS).map(width).fold(0.0, f32::max), len);
         for i in 0..SEGS {
             let (w0, w1) = (width(i), width(i + 1));
             let (m0, m1) = (
-                pts[i] + Vec3::Y * w0 * 0.15,
-                pts[i + 1] + Vec3::Y * w1 * 0.15,
+                pts[i] + Vec3::Y * w0 * FOLD,
+                pts[i + 1] + Vec3::Y * w1 * FOLD,
             );
             let c = shade(color, 0.65 + 0.5 * (i as f32 + 0.5) / SEGS as f32);
             let (t0, t1) = (i as f32 / SEGS as f32, (i + 1) as f32 / SEGS as f32);
@@ -422,6 +447,7 @@ impl Builder<'_> {
                 && self.clear(root + w, tip)
                 && self.clear(root - w, root + w)
             {
+                self.set_leaf(w.length() * 2.0, len);
                 self.tri2_uv(
                     root - w,
                     root + w,
@@ -782,6 +808,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         solids: &solids,
         min_gap: MIN_FLOWER_GAP,
         trim: false,
+        leaf_px: (3.0, 4.0),
     };
 
     // Flowers of the points of interest: in an armchair, on a bench, in a pot (`chunks::Part::Bloom`).

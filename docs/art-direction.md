@@ -31,11 +31,10 @@ roofs with a parapet, machinery (air conditioners with fans, vents, solar arrays
 antenna masts and backlit billboards, all real blocks (`src/world/roof.rs`) so rooftops can be run
 across; modern street lights (dead, only flowers glow) at the crossroads.
 
-Working method: get the look as far as possible with code, then add a layer of real photo detail.
-The second layer is `assets/textures/detail.png` (CC0 concrete, asphalt, wall, metal), sampled in the
-scene shader in world space and multiplied over the procedural colors. *(Replaced in milestone 10: streets, sidewalks, roofs, deck undersides and edges, stairs, steel
-and the street light are pixel art like the chunks; the photo detail is left on the plants
-only.)*
+Working method, at first: get the look as far as possible with code, then add a layer of real
+photo detail (CC0 concrete, asphalt, wall, metal and foliage, packed in `assets/textures/`). Retired
+in milestone 10: every surface is now the biome's pixel art (`render/pixels.rs`), the plants
+included (pass 5), and the photos and their packing tool are gone (git history keeps them).
 
 ### Props and external assets: consistency rules
 
@@ -76,6 +75,15 @@ stained, the canopy mossy and strewn with leaves, open sky bringing rain.
   the chunk materials, so the street and the square share one style.
 - Broad shapes come from a noise texture (`render/noise.rs`), so the wear costs no frame time;
   single pixels (cracks, leaves, glints) are only worked out up close.
+
+## Plants in pixel art
+
+*(Milestone 10, pass 5.)* Plants share the pixels of the city: a leaf, frond or blade is a flat
+cut-out drawn as square cells (20 per meter) in its own leaf coordinates, in a few flat tones of
+its color dithered from a dark root to a light tip, with a lighter midrib and a darker rim, its
+edge ragged where cells of the outer columns are cut away (`pixelLeaf` in `shaders/scene.fs`).
+Fronds are nearly flat, with just enough fold for volume. Flowers stay clean and glowing: they are
+the light.
 
 ## Things left behind
 
