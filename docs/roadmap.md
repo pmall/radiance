@@ -44,9 +44,14 @@
      moved up as the city rose). See `docs/lore.md`.
    - Biomes *(groundwork done: a biome sets its places, props, plants and sky; second biome: Cyan
      Grotto)*: see `docs/world.md` ("Biomes") and `docs/biome-ideas.md`.
-   - Per-biome textures *(next, owner)*: each biome its own pixel art for the materials
+   - Per-biome textures *(done, owner)*: each biome its own pixel art for the materials
      (concrete, brick, tile, metal, wood, glass...) and the facade units (windows, balconies,
-     shops), not only its own colors: today `render/pixels.rs` draws one atlas for every biome.
+     shops), not only its own colors: `render/pixels.rs` draws a row of the atlas per biome from
+     its `Textures` (shades, patterns, wear), and the tower wall paints are the biome's. The Cyan
+     Grotto's: an old bathhouse district gone cold and wet (`docs/world.md`, "Biomes").
+   - Biomes through the floors *(possible future development, owner; not started)*: each biome
+     stays a column but can look different in the depths, the middle and the canopy, the default
+     city included (`docs/world.md`, "Biomes", "Not yet").
    - Candidates from the *Last Radiance* brainstorm *(not started)*: sunlight craters, light-network
      veins, older architecture deep and machine intrusion high, set dressing, flowers in human
      places, melodic-gradient guidance. See "What the prototype can take now" in

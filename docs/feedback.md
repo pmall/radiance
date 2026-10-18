@@ -133,10 +133,18 @@ What the project owner has said so far. Treat as requirements.
   can wait. Done: a biome's modules restyle the props of their names, its plants are species
   lists (bushes, vines, climbers, flower shape), and its atmosphere (sky, fog, light, grading,
   pollen, spores) follows the player, fading over a few seconds at a border.
-- Per-biome textures go on the roadmap, not done now (`docs/roadmap.md`).
+- Per-biome textures go on the roadmap, not done now (`docs/roadmap.md`). Then asked for: done,
+  each biome draws its own pixel art for the materials and facade units, and its own tower wall
+  paints; the grotto's is an old bathhouse district gone cold and wet (to be judged by the owner,
+  seed 1).
 - "Show me another biome than the default one": Cyan Grotto added from `docs/biome-ideas.md`
   (cyan flowers, ferns and vine curtains, teal sky and fog, tiled props); its places are still the
   default chunks. To be judged by the owner (seed 1: two lots behind the spawn).
+- Biomes and height (possible future development, not to build yet): keep each biome a column
+  through every floor, but let it evolve by section (depths, middle, canopy), for a vertical
+  evolution with consistency. A biome does not have to evolve, but it is better for the game's
+  consistency; the default city is one biome like the others and should evolve the same way.
+  Plan: `docs/world.md`, "Biomes", "Not yet".
 
 ## How to work on generation (owner's direction)
 

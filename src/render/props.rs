@@ -101,20 +101,21 @@ pub fn triangles(batches: &[Batch]) -> i32 {
 }
 
 /// One prop's mesh, in the scene shader's vertex layout: uv.y is the material code (15 for chunk
-/// materials in pixel art, with the material in uv2.x; 14 for plain props; the outline id comes
-/// from the instance).
+/// materials in pixel art, with the material in uv2.x; 14 for plain props), its biome's variant
+/// above it (16 per variant, as in `mesh.rs`); the outline id comes from the instance.
 fn upload(prop: &PropMesh) -> ffi::Mesh {
+    let variant = prop.biome as f32 * 16.0;
     let mut m = MeshData::default();
     for v in &prop.verts {
         m.pos.extend_from_slice(&v.pos.to_array());
         m.nrm.extend_from_slice(&v.normal.to_array());
         match v.mat {
             Some(mat) => {
-                m.uv.extend_from_slice(&[0.0, 15.0]);
+                m.uv.extend_from_slice(&[0.0, variant + 15.0]);
                 m.uv2.extend_from_slice(&[mat as f32, 0.0]);
             }
             None => {
-                m.uv.extend_from_slice(&[0.0, 14.0]);
+                m.uv.extend_from_slice(&[0.0, variant + 14.0]);
                 m.uv2.extend_from_slice(&[-1.0, -1.0]);
             }
         }

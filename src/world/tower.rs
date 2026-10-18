@@ -8,6 +8,7 @@
 
 use glam::{Vec3, vec3};
 
+use super::biome::{self, Biome};
 use super::chunks::{self, Catalog, Part, STORY, Tf, TowerDef};
 use super::floors::{self, START};
 use super::planner::Placement;
@@ -18,19 +19,6 @@ use crate::rng::{Rng, hash_coords, mix64};
 /// Stories over a deck whose units stand in boxes; the shader paints the others.
 pub const NEAR_STORIES: usize = 2;
 
-/// The facade paints (sRGB) a written elevation's digits 1 to 7 pick from, shifted per tower
-/// (`Faces::paint`). Mirrored as `FACADE_PAINT` in `shaders/scene.fs`.
-pub const PAINT: [(u8, u8, u8); 8] = [
-    (150, 60, 48),
-    (96, 130, 70),
-    (200, 186, 150),
-    (60, 120, 118),
-    (190, 140, 60),
-    (180, 110, 110),
-    (80, 100, 130),
-    (170, 90, 50),
-];
-
 /// What the renderer paints a tower body's walls with: the elevation of each face (toward +x,
 /// -x, +z, -z; ids into `chunks::Catalogs::elevations`) and the tower's shift of the paints.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -39,9 +27,11 @@ pub struct Faces {
     pub paint: u8,
 }
 
-/// The paint of a written digit on a tower (`d` 1 to 7).
-pub fn paint(d: u8, shift: u8) -> (u8, u8, u8) {
-    PAINT[((d + shift) % 8) as usize]
+/// The paint of a written digit on a tower (`d` 1 to 7) in a biome (`Palette::paints`, which the
+/// shader tints the walls with too).
+pub fn paint(biome: &Biome, d: u8, shift: u8) -> (u8, u8, u8) {
+    let [r, g, b] = biome.palette.paints[((d + shift) % 8) as usize];
+    (r, g, b)
 }
 
 /// Lowest a setback may start: well above the start floor, so a tier never ends in the depths.
@@ -335,10 +325,12 @@ fn push_units(
                         fl as i32,
                         row as i32,
                     ));
+                    let biome = biome::named(p.biome);
                     let accent = if digit > 0 {
-                        paint(digit, shift)
+                        paint(biome, digit, shift)
                     } else {
-                        PAINT[(seed % 8) as usize]
+                        let [r, g, b] = biome.palette.paints[(seed % 8) as usize];
+                        (r, g, b)
                     };
                     let part = Part::Module {
                         name: name.to_string(),

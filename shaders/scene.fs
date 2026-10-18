@@ -23,10 +23,10 @@ uniform sampler2D texture2;  // plant light grid (see src/render/lights.rs)
 uniform sampler2D texture4;  // photo detail 2: R roof, G foliage, B rust, A plaster
 uniform sampler2D texture3;  // photo detail: R pavement, G asphalt, B concrete wall, A metal (src/render/surfaces.rs)
 uniform vec3 uGridOrigin;
-uniform vec3 uPalette[8 * 17];   // per biome: 3 neon, 4 windows, 4 accents, 5 signs, 1 tint
+uniform vec3 uPalette[8 * 9];    // per biome (src/world/biome.rs, Palette): 8 wall paints, 1 pavement tint
 uniform float uGlow;         // plant emission and light strength for the time of day
 uniform sampler2D texture5;  // cover map
-uniform sampler2D texture10; // chunk materials in pixel art (src/render/pixels.rs)
+uniform sampler2D texture10; // chunk materials and facade units in pixel art, a row per biome (src/render/pixels.rs)
 uniform sampler2D texture6;  // tower elevations (src/render/facades.rs)
 #define COVER_TEX texture5
 
@@ -159,7 +159,7 @@ int gVariant = 0;   // palette (biome) of the fragment's lot, set in main()
 
 vec3 pal(int slot)
 {
-    return uPalette[gVariant * 17 + slot];
+    return uPalette[gVariant * 9 + slot];
 }
 
 // Whether the lot holding xz has a deck on the floor whose walking surface is at height y.
@@ -202,7 +202,7 @@ vec3 pavement(vec3 base, vec3 p, float px)
     vec2 f = fract(g);
     float dj = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * 4.0;
     float joint = (1.0 - smoothstep(0.02, 0.05 + px, dj)) * (1.0 - street);
-    vec3 walk = base * pal(16) * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
+    vec3 walk = base * pal(8) * (0.82 + 0.24 * hash12(sid)) * (0.8 + 0.4 * fbm(uv * 0.07));
     walk *= mix(1.0, grit(uv / 2.4).r, 0.85) * mix(1.0, grit2(uv / 5.7).a, 0.4);
     // Road: dark asphalt.
     vec3 road = base * 0.5 * (0.85 + 0.3 * fbm(uv * 0.12)) * mix(1.0, grit(uv / 1.7).g, 0.9);
@@ -294,15 +294,16 @@ vec3 steel(vec3 base, vec3 p, vec3 n, float px)
     return col;
 }
 
-// The atlas of pixel-art tiles (src/render/pixels.rs): the chunk materials, then the facade
-// units, 4 m per tile. `t` is in tiles; crisp pixels up close.
-const float ATLAS_TILES = 22.0;
+// The atlas of pixel-art tiles (src/render/pixels.rs): a row per biome, each the chunk materials
+// then the facade units, 4 m per tile. Drawn from the row of the fragment's biome; `t` is in
+// tiles; crisp pixels up close.
+const vec2 ATLAS = vec2(22.0, 8.0);  // tiles in a row (pixels::COUNT), rows (MAX_BIOMES)
 vec4 atlasTile(float tile, vec2 t)
 {
-    vec2 a = (vec2(tile, 0.0) + fract(t)) / vec2(ATLAS_TILES, 1.0);
+    vec2 a = (vec2(tile, float(gVariant)) + fract(t)) / ATLAS;
     // Gradients of the unwrapped coordinates, so the tile seams never pick a blurry mip level.
-    vec2 dx = dFdx(t) / vec2(ATLAS_TILES, 1.0);
-    vec2 dy = dFdy(t) / vec2(ATLAS_TILES, 1.0);
+    vec2 dx = dFdx(t) / ATLAS;
+    vec2 dy = dFdy(t) / ATLAS;
     vec4 c = textureGrad(texture10, a, dx, dy);
     return vec4(pow(c.rgb, vec3(2.2)), c.a);
 }
@@ -325,13 +326,9 @@ vec3 built(vec3 base, int mat, vec3 p, vec3 n)
 // shop window, blank wall). The rows repeat every floor from its street story up. On the street
 // story and the two above it, where a deck meets the wall, the units stand in boxes in front of
 // plain windows (src/world/tower.rs). Abandoned: no window is lit, and now and then a far window
-// is boarded up or broken. Wall pixels take the tower's color, or the paint the elevation gives.
-// loc = (position along the face, face width).
+// is boarded up or broken. Wall pixels take the tower's color, or the biome's paint the elevation
+// gives (src/world/tower.rs, `paint`). loc = (position along the face, face width).
 const float FACADE_FIRST = 11.0;
-// Mirrored in src/world/tower.rs (PAINT).
-const vec3 FACADE_PAINT[8] = vec3[8](
-    vec3(150, 60, 48), vec3(96, 130, 70), vec3(200, 186, 150), vec3(60, 120, 118),
-    vec3(190, 140, 60), vec3(180, 110, 110), vec3(80, 100, 130), vec3(170, 90, 50));
 
 vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid, int elev, int shift)
 {
@@ -358,7 +355,7 @@ vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid, int elev, int shift)
         tile = r < 0.04 ? 5.0 : r < 0.07 ? 6.0 : tile;
     }
     vec4 c = atlasTile(FACADE_FIRST + tile, t);
-    vec3 tint = e.b == 0 ? base : pow(FACADE_PAINT[(e.b + shift) % 8] / 255.0, vec3(2.2));
+    vec3 tint = e.b == 0 ? base : pal((e.b + shift) % 8);
     return mix(c.rgb, c.rgb / 0.44 * tint, c.a);
 }
 

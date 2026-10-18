@@ -15,7 +15,7 @@ pub mod look;
 mod mesh;
 mod overlay;
 mod particles;
-mod pixels;
+pub mod pixels;
 mod props;
 mod shader;
 mod shadow;

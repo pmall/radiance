@@ -5,12 +5,15 @@ Inspiration only, except Cyan Grotto (implemented, see below). The machinery is 
 plant and flower density, bush/vine/climber rates, and city parameters. Size is the typical zone
 size relative to the others.
 
-Palettes, plant mix, city parameters, plant species, props and per-biome sky and fog are all
-settings now; new kinds of plants and per-biome textures are the expensive part.
+Palettes, plant mix, city parameters, plant species, props, per-biome sky and fog and per-biome
+textures (shades, patterns and wear of the pixel art) are all settings now; new kinds of plants and
+new kinds of texture patterns are the expensive part.
 
 From the brainstorm (`docs/game-ideas.md`): the height band should set the broad ecology (sparse
 and fungal deep, dense and flowering near the sun), with some biomes only above or below a given
-level. The rainbow biome is extremely rare, possibly unique per city, and in the story it is where
+level. The owner's direction instead: every biome stays a column through all floors and can evolve
+by section (depths, middle, canopy), the default city included (`docs/world.md`, "Biomes", "Not
+yet"). The rainbow biome is extremely rare, possibly unique per city, and in the story it is where
 the flowers' faintest melody leads.
 
 ## Ideas
@@ -30,7 +33,11 @@ bridges. Most common and mid-sized, the baseline the others contrast with.
   white flowers; low ferns and moss tufts, curtains of leafy vines three times as common, few
   climbers; a teal fog and sky at every hour (`look::GROTTO_LOOKS`, a cold teal sunset); tiled
   benches, bins, planters and street lights; a third of the zones, more empty lots, fewer
-  bridges. Its places are still the default chunks (`include: ["default"]`).
+  bridges. Its places are still the default chunks (`include: ["default"]`), drawn in its own
+  textures (`pixels::GROTTO_TEXTURES`): pale limestone and basalt setts with moss in the joints,
+  glazed teal bricks, a mosaic of aqua and white tiles, verdigris for rust, silvered driftwood,
+  tiled towers in teals and bone white with round-headed windows misted over, algae running down
+  from the ledges.
 
 ### 3. Magenta Bloom
 

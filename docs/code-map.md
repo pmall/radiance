@@ -50,6 +50,9 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Per-biome plant species (shapes, foliage, flowers)      | `biome::Plants`, `pick_species`; read in `growth::Builder` (`bush`,       |
 |                                                         | `hanging_vine`, `climber`, `flower`)                                      |
 | Per-biome props (a biome's module restyles a prop)      | `props::Meshes::load`, `props::biome_of`                                  |
+| Per-biome textures (pixel art of materials and units)   | `biome::Biome::textures` (`pixels::Textures`), `pixels::atlas_pixels`;    |
+|                                                         | `atlasTile` (`shaders/scene.fs`) reads the lot's or prop's biome row      |
+| Per-biome tower wall paints                             | `biome::Palette::paints`; `tower::paint`, `facade` (`shaders/scene.fs`)   |
 | Per-biome sky, fog, light, pollen, spores               | `biome::Atmosphere`; `look::Blend` (fades at a border), `Sky::from_cycle` |
 | Chunk text format, modules, slots, `If`                 | `chunks::Part`, `chunks::expand_in`, `Env`                                |
 | Props drawn instanced                                   | `props::by_module`, `props::Placed`                                       |

@@ -5,7 +5,8 @@
 //!
 //! Each biome builds its props from its own catalog: a biome whose folder has a module of a
 //! prop's name (`bench`, or `street_light`, which then replaces the built one) gets its own
-//! version of that prop, the other biomes keep theirs. Identical versions share one mesh.
+//! version of that prop, the other biomes keep theirs. Each biome's props are drawn in its own
+//! pixel art (`render/pixels.rs`), so every biome has meshes of its own, even for shared props.
 //!
 //! The seed decides what goes where; the renderer draws every prop of a kind in one instanced call
 //! per mesh (`src/render/props.rs`), and they get the same shading, outlines, fog, shadows and
@@ -104,6 +105,8 @@ pub struct PropMesh {
     pub pole: Option<f32>,
     /// Where the mesh's origin (the footprint's center, on the floor) lies in its module.
     pub base: Vec3,
+    /// The biome whose pixel art it is drawn in (`biome::variant_of`).
+    pub biome: u8,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -137,9 +140,9 @@ fn module_verts(cat: &Catalog, name: &str) -> Option<Vec<PropVert>> {
     Some(verts)
 }
 
-/// A prop's mesh as a catalog builds it: from its module there, else (for the props built here)
-/// from code, else empty.
-fn build(d: &Def, cat: &Catalog) -> PropMesh {
+/// A prop's mesh as a catalog builds it, for biome `biome`: from its module there, else (for the
+/// props built here) from code, else empty.
+fn build(d: &Def, cat: &Catalog, biome: u8) -> PropMesh {
     let raw = module_verts(cat, d.name)
         .or_else(|| d.built.map(|build| build()))
         .unwrap_or_else(|| {
@@ -168,10 +171,11 @@ fn build(d: &Def, cat: &Catalog) -> PropMesh {
         half: vec3(size.x * 0.5, size.y, size.z * 0.5),
         pole: d.pole,
         base,
+        biome,
     }
 }
 
-/// Every biome's props: the distinct meshes, and which one each (prop, biome) uses.
+/// Every biome's props: their meshes, and which one each (prop, biome) uses.
 pub struct Meshes {
     pub list: Vec<PropMesh>,
     of: HashMap<(Prop, u8), usize>,
@@ -187,16 +191,8 @@ impl Meshes {
         for i in 0..count {
             let cat = catalog(i);
             for d in DEFS {
-                let mesh = build(d, &cat);
-                let same = m
-                    .list
-                    .iter()
-                    .position(|o| o.verts == mesh.verts && o.pole == mesh.pole);
-                let index = same.unwrap_or_else(|| {
-                    m.list.push(mesh);
-                    m.list.len() - 1
-                });
-                m.of.insert((d.prop, i as u8), index);
+                m.of.insert((d.prop, i as u8), m.list.len());
+                m.list.push(build(d, &cat, i as u8));
             }
         }
         m
@@ -443,10 +439,10 @@ mod tests {
         let m = Meshes::load(2, |i| if i == 0 { default.clone() } else { own.clone() });
         for d in DEFS {
             let restyled = matches!(d.prop, Prop::Bench | Prop::StreetLight);
-            let (a, b) = (m.index(d.prop, 0), m.index(d.prop, 1));
-            assert_eq!(a != b, restyled, "{:?}", d.prop);
+            let (a, b) = (&m.list[m.index(d.prop, 0)], &m.list[m.index(d.prop, 1)]);
+            assert_eq!(a.verts != b.verts, restyled, "{:?}", d.prop);
+            assert_eq!((a.biome, b.biome), (0, 1), "drawn in its biome's pixel art");
         }
-        assert_eq!(m.list.len(), DEFS.len() + 2, "the other props share a mesh");
         assert_eq!(m.list[m.index(Prop::Bench, 1)].half, vec3(1.0, 1.0, 0.5));
     }
 }

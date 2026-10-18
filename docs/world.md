@@ -150,7 +150,7 @@ and a folder `assets/biomes/<name>/`. Between them, a biome sets:
   skybridges are built from its modules too (`footbridge_span`, `skybridge_segment`).
 - **Its props:** a module in its folder named like a prop (`bench`, `bin`, `sofa`...) replaces that
   prop in its zones; `street_light` replaces the street light built in code (`world/props.rs`).
-  Props it does not write stay as the shared ones; identical versions share one mesh.
+  Props it does not write stay as the shared ones, drawn in its own textures (below).
 - **Its plants** (`Plants`): flower and foliage colors, how many bushes, vines and climbers, and
   their shapes: each kind is a weighted list of species (`Bush`, `Vine`, `Climber`: sizes, blade
   counts and widths, droop, sway, leaves, branching), plus the flowers' shape and light
@@ -160,35 +160,66 @@ and a folder `assets/biomes/<name>/`. Between them, a biome sets:
   day and dusk (`Looks`, in `render/look.rs`), and the colors of pollen and spores. The sky is
   drawn in the atmosphere of the player's biome and fades into the next one's over 4 seconds
   when they cross a border (`look::Blend`).
-- **Its colors** (`Palette`): neon, lit-window light, facade accent panels, billboard colors, wall
-  tint; uploaded as a uniform array and picked per lot by the biome's index in `BIOMES`.
+- **Its textures** (`Textures`, in `render/pixels.rs`): its own pixel art for every chunk material
+  and facade unit, one row of the atlas per biome, so the same chunk reads differently from one
+  biome to the next. A biome sets the shades of each material (stone, concrete, brick, tile,
+  metal and what it corrodes to, wood, glass, soil, moss, window frames and panes, laundry), the
+  patterns that come in several kinds (slabs or setts, plain or glazed bricks, tile size and how
+  much tiles differ, plaster or tiled tower walls, square or round-headed windows) and the wear
+  (how corroded metal is, moss in joints and on ledges, damp: tide marks, algae running down,
+  misted glass). The default set is the original city's; start a new one from
+  `..DEFAULT_TEXTURES`. Lot meshes and props carry their biome, so a prop is drawn in the pixel
+  art of the zone it stands in.
+- **Its colors** (`Palette`): the eight paints of its tower walls (the shader tints the walls' pixel
+  art with them; `tower::paint` gives the same color to the units near the decks) and the tint of
+  its pavement; uploaded as a uniform array and picked per lot by the biome's index in `BIOMES`.
 - **Its city numbers:** how often a lot has no tower, how often towers get a bridge.
 
 Biomes now: `default` (the original city, Neon Garden in `docs/biome-ideas.md`) and `grotto` (Cyan
-Grotto, about a third of the zones: its own plants, atmosphere, palette and street furniture in
-`assets/biomes/grotto/modules/props.ron`, the default chunks for its places; seed 1 has a zone two
-lots behind the spawn).
+Grotto, about a third of the zones: its own plants, atmosphere, palette, textures and street
+furniture in `assets/biomes/grotto/modules/props.ron`, the default chunks for its places; seed 1
+has a zone two lots behind the spawn).
 
 **Adding one** (only when the owner asks, `docs/chunks.md`, "Catalog rule"): its `Biome` const and
 its entry in `BIOMES`, its folder; then `cargo test --release` (`biomes_fit_the_renderer_and_the_zones`
 checks the limits below and sane plant ranges, `every_biome_has_zones_and_the_spawn_is_default`
-the zones), `--catalog` (load errors), `--report` (where its chunks land), and shots: `--chunk
+the zones, `every_biome_draws_its_own_tiles` its textures), `--catalog` (load errors), `--report` (where its chunks land), and shots: `--chunk
 BIOME/NAME` shows a chunk in its biome's whole look; look at its zones and a border at several
 `--time`s, with the overlay (it names the biome under the player).
 
 **Not yet:**
 
+- Biomes through the floors *(possible future development, owner; not started)*: a biome's zone
+  stays a column through every floor (same map on every floor, so the city stays consistent), but
+  the biome can look different in each of the three sections of the stack, the depths, the middle
+  and the canopy (`floors::Zone`), for a vertical evolution: the grotto flooded and choked with
+  algae deep down, its bathhouse district in the middle, bleached and salt-crusted near the top.
+  A biome does not have to evolve, but it is better for the game's consistency that most do, the
+  default city included (it is one biome like the others: older architecture deep, brick and
+  stone and heavy rust, newer up high). Shape agreed so far:
+  - A section only overrides what differs from the biome's base (textures, wall paints, sky and
+    fog, plant species and colors); a biome without overrides looks the same at every height.
+    Plant density already follows the floor profiles, and a biome's chunks can already be kept to
+    sections (`zones`).
+  - The switch happens at the decks between sections, where the player cannot see across; the
+    sky fades as at a zone border (`look::Blend`) when they take a stair into another section.
+  - Towers crossing a section line change pixel art at that floor (the shader knows each pixel's
+    height): an older base under newer stories, as the machines kept building.
+  - The renderer needs room for up to three looks per biome: atlas rows, palettes and the mesh's
+    material code (see the limits below).
 - New kinds of plants: species vary bushes, vines and climbers widely, but a mushroom or a tree is
   new code in `world/growth.rs`, written with the biome that needs it.
-- Textures *(planned, owner; `docs/roadmap.md`)*: the pixel art of the materials and facade units
-  (`render/pixels.rs`) is the same in every biome; only the colors change.
 - Tower heights come from the floor (`design::TOWER_HEIGHTS`), not the biome.
 - Biome settings are Rust constants: editing one takes a rebuild (chunks and modules hot-reload).
 - Borders *(can wait, owner)*: palette, plants and density flip at the zone line, and the far side
   of a border is drawn in the player's own atmosphere; an area, block or hub picked in one biome
   is colored lot by lot, so it can change colors at the border.
-- At most 8 biomes: the shader's palette (`MAX_BIOMES`, `uPalette` in `shaders/scene.fs`); the
-  mesh's material code has room for 16.
+- Textures are drawn by code from a biome's settings: a new kind of pattern (a new window shape,
+  a new paving) is new code in `render/pixels.rs`, written with the biome that needs it. The
+  pavement of the streets (`pavement` in `shaders/scene.fs`) is not pixel art and only takes the
+  biome's tint.
+- At most 8 biomes: the shader's palette and the atlas's rows (`MAX_BIOMES`, `uPalette` and
+  `ATLAS` in `shaders/scene.fs`); the mesh's material code has room for 16.
 - More biomes, including a rare "rainbow" one with every flower color, and the grotto's own chunks.
 
 ## Set dressing (history: replaced by street, filler and tower chunks, `docs/chunks.md`)

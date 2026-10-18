@@ -15,13 +15,14 @@
 //!
 //! To add a biome: define a `Biome` const (start from `DEFAULT` with `..DEFAULT`), add it to
 //! `BIOMES`, and give it a folder of chunks (or none: it then draws from `default`). Everything
-//! that varies per biome lives in `Biome` (its plants, its sky and fog, its palette) or in its
-//! folder (chunks, modules, props), so generation code never matches on a biome's name.
+//! that varies per biome lives in `Biome` (its plants, its sky and fog, its textures and palette)
+//! or in its folder (chunks, modules, props), so generation code never matches on a biome's name.
 //!
 //! Not done yet: blending across zone borders (palette and density fade, discrete choices flip).
 
 use super::city;
 use crate::render::look::{self, Looks};
+use crate::render::pixels::{self, Textures};
 use crate::rng::{Rng, hash_coords};
 
 const SALT_BIOME: i32 = 4;
@@ -29,36 +30,30 @@ const SALT_BIOME: i32 = 4;
 /// Side, in lots, of the grid cell holding one zone site. Typical zones span about twice this.
 pub const SITE_LOTS: i32 = 6;
 
-/// Colors the scene shader uses for a biome's architecture (linear RGB). Index in `BIOMES` selects
-/// the palette (`render` uploads them all as one uniform array).
+/// Colors the scene shader uses for a biome's architecture. Index in `BIOMES` selects the palette
+/// (`render` uploads them all as one uniform array).
 pub struct Palette {
-    /// Neon strips over storefronts and vertical signs.
-    pub neon: [[f32; 3]; 3],
-    /// Light of lit windows: warm white, cool white, then two rarer tints.
-    pub windows: [[f32; 3]; 4],
-    /// Colored cladding panels on facades.
-    pub accents: [[f32; 3]; 4],
-    /// Billboard backgrounds.
-    pub signs: [[f32; 3]; 5],
-    /// Multiplies the base color of facades and pavement.
+    /// The paints of tower walls (sRGB): a written elevation's digits pick one, shifted per tower
+    /// (`tower::paint`), and the shader tints the walls' pixel art with it.
+    pub paints: [[u8; 3]; 8],
+    /// Multiplies the base color of the pavement (linear RGB).
     pub tint: [f32; 3],
 }
 
 /// Vec3 entries per biome in the palette uniform.
-pub const PALETTE_VEC3S: usize = 3 + 4 + 4 + 5 + 1;
-/// Most biomes the shader's palette array has room for.
+pub const PALETTE_VEC3S: usize = 8 + 1;
+/// Most biomes the shader's palette array and the pixel-art atlas have room for.
 pub const MAX_BIOMES: usize = 8;
 
 impl Palette {
+    /// Linear RGB, paints first.
     fn flat(&self) -> impl Iterator<Item = f32> + '_ {
-        self.neon
+        let linear = |c: &[u8; 3]| c.map(|v| (v as f32 / 255.0).powf(2.2));
+        self.paints
             .iter()
-            .chain(&self.windows)
-            .chain(&self.accents)
-            .chain(&self.signs)
-            .chain(std::iter::once(&self.tint))
+            .map(linear)
+            .chain(std::iter::once(self.tint))
             .flatten()
-            .copied()
     }
 }
 
@@ -176,6 +171,8 @@ pub struct Biome {
 
     pub plants: Plants,
     pub atmosphere: Atmosphere,
+    /// How its materials and facade units are drawn: its own row of pixel art.
+    pub textures: Textures,
 
     /// Chance that a lot holds no tower.
     pub tower_empty: f32,
@@ -283,26 +280,17 @@ pub const DEFAULT: Biome = Biome {
     },
     tower_empty: 0.18,
     bridge_chance: 0.6,
+    textures: pixels::DEFAULT_TEXTURES,
     palette: Palette {
-        neon: [[0.1, 0.9, 1.0], [1.0, 0.2, 0.75], [1.0, 0.65, 0.2]],
-        windows: [
-            [1.0, 0.84, 0.58],
-            [0.72, 0.86, 1.0],
-            [0.45, 0.9, 0.95],
-            [1.0, 0.45, 0.7],
-        ],
-        accents: [
-            [0.75, 0.22, 0.03],
-            [0.85, 0.6, 0.04],
-            [0.04, 0.4, 0.45],
-            [0.8, 0.8, 0.78],
-        ],
-        signs: [
-            [0.9, 0.62, 0.04],
-            [0.9, 0.3, 0.05],
-            [0.05, 0.55, 0.7],
-            [0.75, 0.1, 0.45],
-            [0.85, 0.85, 0.82],
+        paints: [
+            [150, 60, 48],
+            [96, 130, 70],
+            [200, 186, 150],
+            [60, 120, 118],
+            [190, 140, 60],
+            [180, 110, 110],
+            [80, 100, 130],
+            [170, 90, 50],
         ],
         tint: [1.0, 1.0, 1.0],
     },
@@ -406,26 +394,18 @@ pub const GROTTO: Biome = Biome {
     },
     tower_empty: 0.25,
     bridge_chance: 0.45,
+    textures: pixels::GROTTO_TEXTURES,
     palette: Palette {
-        neon: [[0.1, 0.95, 0.95], [0.3, 0.6, 1.0], [0.8, 1.0, 1.0]],
-        windows: [
-            [0.75, 0.95, 1.0],
-            [0.6, 0.85, 1.0],
-            [0.45, 0.95, 0.9],
-            [0.8, 0.9, 1.0],
-        ],
-        accents: [
-            [0.05, 0.35, 0.42],
-            [0.12, 0.5, 0.55],
-            [0.06, 0.22, 0.35],
-            [0.75, 0.82, 0.82],
-        ],
-        signs: [
-            [0.05, 0.5, 0.6],
-            [0.1, 0.3, 0.55],
-            [0.6, 0.85, 0.85],
-            [0.05, 0.65, 0.6],
-            [0.85, 0.9, 0.9],
+        // Tiled walls gone cold: teals, aquas, bone white, slate.
+        paints: [
+            [78, 128, 132],
+            [150, 184, 180],
+            [198, 208, 200],
+            [70, 98, 124],
+            [104, 146, 126],
+            [168, 192, 200],
+            [52, 104, 112],
+            [126, 136, 150],
         ],
         tint: [0.86, 0.96, 1.0],
     },
@@ -454,14 +434,16 @@ pub fn palette_uniform() -> Vec<f32> {
     v
 }
 
+/// The biome of that name (its folder, a catalog's `biome`), or the default one.
+pub fn named(name: &str) -> &'static Biome {
+    BIOMES.iter().find(|b| b.name == name).unwrap_or(&&DEFAULT)
+}
+
 /// The biome of a lot.
 pub fn biome_at(seed: u64, lx: i32, lz: i32) -> &'static Biome {
     // A chunk shown alone (`--chunk BIOME/NAME`) stands in its biome: its plants, props and sky.
     if let Some(p) = super::chunks::preview() {
-        return BIOMES
-            .iter()
-            .find(|b| b.name == p.biome)
-            .unwrap_or(&&DEFAULT);
+        return named(p.biome);
     }
     // The plaza around spawn is always the default biome.
     if city::is_plaza(lx, lz) {

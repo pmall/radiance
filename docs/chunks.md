@@ -235,7 +235,8 @@ Roofs and the construction front follow the same idea with their own modules.
 - First version: each placed chunk is built into its lot meshes like today. If the box count gets
   heavy, modules (and later whole chunk variants) are built once and drawn instanced, as the
   props already are (`src/render/props.rs`).
-- Pixel textures go into one atlas, sampled with nearest filtering.
+- Pixel textures go into one atlas, a row per biome (each biome its own pixel art, `docs/world.md`,
+  "Biomes"), sampled with nearest filtering.
 
 ## Tools
 
