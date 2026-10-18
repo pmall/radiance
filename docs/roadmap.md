@@ -146,9 +146,7 @@
        office tower, a tower with a gaping hole or leaning on its neighbor (needs geometry the
        tower bodies do not have), tall silhouettes above the construction front. D5 views run
        about 11 ms/frame (7.5 M tris), as before this pass.
-    8. The Grotto *(done)*: flooded roads (standing water up to the curbs mirroring the sky and
-       the flowers, `Textures::flooded`) with stepping stones across them (the Grotto's own
-       `street_plain`); its own tiled tree beds, lanterns, kiosks, fountains and drinking
+    8. The Grotto *(done)*: its own tiled tree beds, lanterns, kiosks, fountains and drinking
        fountains (`grotto/modules/places.ron`); its landmark, the `bathhouse` (3x3 block): a
        tiled hall with arched doors under a stepped dome open at its crown, a pool ringed by
        columns, a terrace of basins and lanterns.

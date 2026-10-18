@@ -52,15 +52,6 @@
             Box(at: (-2.2, 5.5, -2.2), size: (4.4, 0.4, 4.4), mat: Paint((40, 112, 118))),
         ],
     ),
-    // Stepping stones across a flooded road, 3 m (half a road, from the curb toward -z).
-    Module(
-        name: "stepping_stones",
-        parts: [
-            Box(at: (-0.35, 0.0, -0.75), size: (0.7, 0.18, 0.6), mat: StoneDark),
-            Box(at: (-0.25, 0.0, -1.75), size: (0.6, 0.18, 0.6), mat: StoneDark),
-            Box(at: (-0.4, 0.0, -2.8), size: (0.7, 0.18, 0.55), mat: StoneDark),
-        ],
-    ),
     // The bathhouse dome, centered on its origin: a tiled hall 30 m square with an arched door on
     // every side, a cornice, a stepped dome of glazed tiles open at its crown to the haze, a
     // lantern on top. Inside, a pool ringed by columns. The steps of the dome are the pixels of

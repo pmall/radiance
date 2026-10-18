@@ -37,6 +37,10 @@ What the project owner has said so far. Treat as requirements.
 - Textures: existing assets are welcome, there is no need to code everything procedurally.
 - Outlines are black ink, at every hour and in every biome (they were a per-look tint that the
   grading lifted to a grey violet). Fog still fades the far ones.
+- The Grotto's flooded streets were judged very bad (flat grey slabs, then dark voids, water over
+  half a road) and removed with their stepping stones: "if you can't implement it then it is
+  probably a bad idea". Standing water stays to puddles, and never mirrors wholly (the ground
+  shows through), or it reads as a flat slab of sky.
 
 - Guidance: the flowers' melodic gradient (`docs/guidance-ideas.md`, option 6).
 - Props and points of interest will need free external assets; the project agent owns the rules

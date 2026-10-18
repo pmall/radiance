@@ -33,7 +33,7 @@ uniform sampler2D texture5;  // cover map
 uniform sampler2D texture10; // chunk materials and facade units in pixel art, a row per biome (src/render/pixels.rs)
 uniform sampler2D texture6;  // tower elevations (src/render/facades.rs)
 uniform sampler2D texture0;  // noise (src/render/noise.rs): value noise of 1, 2, 4, 8 cells per unit
-uniform vec3 uWear[3 * 8];   // per biome (src/render/pixels.rs, wear_uniform): (moss, damp, dust), (litter, puddles, markings), (flooded, -, -)
+uniform vec3 uWear[2 * 8];   // per biome (src/render/pixels.rs, wear_uniform): (moss, damp, dust), (litter, puddles, markings)
 uniform vec3 uCamPos;
 #define COVER_TEX texture5
 
@@ -243,7 +243,7 @@ float gOpen = 1.0;  // share of the sky the fragment sees (main)
 
 vec3 groundWear(vec3 col, vec3 p, float px, float edge)
 {
-    vec3 w0 = uWear[gVariant * 3], w1 = uWear[gVariant * 3 + 1];
+    vec3 w0 = uWear[gVariant * 2], w1 = uWear[gVariant * 2 + 1];
     vec2 q = floor(p.xz * 16.0);
     vec2 c = (q + 0.5) / 16.0;
     float fine = fineAt(px);
@@ -305,7 +305,7 @@ vec3 groundWear(vec3 col, vec3 p, float px, float edge)
 // of low things, and only tall walls streak).
 vec3 wallWear(vec3 col, vec3 p, vec3 n, float u, float tall, float px)
 {
-    vec3 w0 = uWear[gVariant * 3];
+    vec3 w0 = uWear[gVariant * 2];
     vec2 q = floor(vec2(u, p.y) * 16.0);
     float fine = fineAt(px);
     float x = (q.x + 0.5) / 16.0;
@@ -401,7 +401,7 @@ vec3 pavement(vec3 base, vec3 p, float px)
 
     // Lane markings on asphalt: dashed yellow center lines, white edge lines, outside the
     // crossings (on through where a road just goes on), mostly worn away.
-    if (uWear[gVariant * 3 + 1].z > 0.5) {
+    if (uWear[gVariant * 2 + 1].z > 0.5) {
         float keep = step(0.5, 0.75 * vnoise(uv * 0.9 + 4.0) + 0.25 * hash12(floor(uv * 16.0)));
         float ix = sv * max(step(3.4, ad.y), meet * (1.0 - across));
         float iz = sh * max(step(3.4, ad.x), meet * (1.0 - across));
@@ -414,19 +414,6 @@ vec3 pavement(vec3 base, vec3 p, float px)
     }
     col = groundWear(col, p, px, gutter);
 
-    // Flooded streets: standing water over the road up to the curbs, a dry hump here and there,
-    // a dark wet line where it meets the stone.
-    float flooded = uWear[gVariant * 3 + 2].x;
-    if (flooded > 0.0) {
-        float fine = fineAt(px);
-        vec2 q = floor(p.xz * 16.0);
-        float n = dot(noise4(uv * 0.07 + 31.0).rgb, vec3(0.5, 0.3, 0.2));
-        float sheet = street * dither(smoothstep(0.0, 0.05, flooded - n), q, fine);
-        float edge = street * (1.0 - smoothstep(0.25, 0.45, d)) * (1.0 - sheet);
-        col *= 1.0 - 0.35 * edge;
-        col = mix(col, swatch(3, 0.1 + 0.25 * noise4(uv * 0.5).g), sheet);
-        gWet = max(gWet, sheet);
-    }
     return col;
 }
 
@@ -667,10 +654,12 @@ void main()
     vec3 flowers = plantLights(fragWorldPos, n);
     vec3 lit = albedo * (ambient * grad + uLight * direct + flowers * glow);
     lit += albedo * fragColor.a * glow * 2.5;
-    // Standing water mirrors the sky, the flowers' light and the sun, more so at grazing angles.
+    // Standing water mirrors the sky, the flowers' light and the sun, more so at grazing angles,
+    // never wholly: the ground under it still shows, or the water turns into one flat slab of
+    // reflected sky.
     if (gWet > 0.0) {
         vec3 v = normalize(fragWorldPos - uCamPos);
-        float fres = 0.1 + 0.9 * pow(1.0 - clamp(-dot(v, n), 0.0, 1.0), 5.0);
+        float fres = 0.05 + 0.4 * pow(1.0 - clamp(-dot(v, n), 0.0, 1.0), 5.0);
         vec3 r = reflect(v, n);
         vec3 mirror = mix(uAmbientGround, uAmbientSky, 0.8) * mix(0.15, 1.0, open) * 1.3
                     + flowers * glow * 0.7
