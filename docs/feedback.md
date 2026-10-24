@@ -160,6 +160,9 @@ What the project owner has said so far. Treat as requirements.
   (special places met often, landmarks, buildings along the streets), biomes recognizable at a
   glance. New chunks and props are allowed for this pass (an exception to the catalog rule); the
   order is the agent's call. Plan and status: `docs/roadmap.md`, milestone 10.
+- After milestone 10 (owner): "changes are good", but the texture pixels were too big, "looks too
+  much like minecraft": smaller pixels, less blocky, more illustrated. The pixel art went from 16
+  to 32 pixels per meter (textures, wear, plants), the patterns kept at their sizes in meters.
 
 ## How to work on generation (owner's direction)
 

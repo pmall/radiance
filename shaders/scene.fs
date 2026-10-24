@@ -194,7 +194,7 @@ vec4 atlasTile(float tile, vec2 t)
 
 
 // ---- Wear: what time did to the city ----
-// Drawn over every surface on the textures' pixel grid (16 pixels per meter), dithered like them,
+// Drawn over every surface on the textures' pixel grid (32 pixels per meter), dithered like them,
 // in the biome's swatches and by its amounts (src/render/pixels.rs, Textures), and by the floor:
 // the depths dusty and stained, the canopy mossy and strewn with leaves; open sky brings rain.
 
@@ -205,7 +205,7 @@ float gWet = 0.0;   // standing water at the fragment (groundWear), for the ligh
 vec3 swatch(int row, float t)
 {
     int i = clamp(int(t * 4.0 + 0.5), 0, 4);
-    vec3 c = texelFetch(texture10, ivec2(SWATCH_TILE * 64 + i, gVariant * 64 + row), 0).rgb;
+    vec3 c = texelFetch(texture10, ivec2(SWATCH_TILE * 128 + i, gVariant * 128 + row), 0).rgb;
     return pow(c, vec3(2.2));
 }
 
@@ -232,7 +232,7 @@ float dither(float a, vec2 q, float fine)
 // How far single pixels can be drawn: 1 up close, 0 once a screen pixel spans two texels.
 float fineAt(float px)
 {
-    return 1.0 - smoothstep(0.06, 0.13, px);
+    return 1.0 - smoothstep(0.03, 0.065, px);
 }
 
 // Ground: damp stains, long cracks with weeds, dust and sand in drifts, moss in patches, dead
@@ -244,8 +244,8 @@ float gOpen = 1.0;  // share of the sky the fragment sees (main)
 vec3 groundWear(vec3 col, vec3 p, float px, float edge)
 {
     vec3 w0 = uWear[gVariant * 2], w1 = uWear[gVariant * 2 + 1];
-    vec2 q = floor(p.xz * 16.0);
-    vec2 c = (q + 0.5) / 16.0;
+    vec2 q = floor(p.xz * 32.0);
+    vec2 c = (q + 0.5) / 32.0;
     float fine = fineAt(px);
     float h = stack01(p.y);
     float open = gOpen;
@@ -293,7 +293,7 @@ vec3 groundWear(vec3 col, vec3 p, float px, float edge)
         float ln = smoothstep(0.45, 0.9, noise4(c * 0.45 + 13.0).r) * 0.035 + edge * 0.3;
         float leaf = step(hash12(lq + 0.71), lit * ln) * fine * (1.0 - pool);
         col = mix(col, swatch(1, 0.8 * hash12(lq + 3.7)), leaf);
-        float glint = step(hash12(q + 9.1), 0.0015 * w0.z * (1.0 - h)) * fine * (1.0 - pool);
+        float glint = step(hash12(q + 9.1), 0.0005 * w0.z * (1.0 - h)) * fine * (1.0 - pool);
         col = mix(col, vec3(0.55, 0.62, 0.66), glint);
     }
     return col;
@@ -306,10 +306,10 @@ vec3 groundWear(vec3 col, vec3 p, float px, float edge)
 vec3 wallWear(vec3 col, vec3 p, vec3 n, float u, float tall, float px)
 {
     vec3 w0 = uWear[gVariant * 2];
-    vec2 q = floor(vec2(u, p.y) * 16.0);
+    vec2 q = floor(vec2(u, p.y) * 32.0);
     float fine = fineAt(px);
-    float x = (q.x + 0.5) / 16.0;
-    float y = aboveFloor((q.y + 0.5) / 16.0);
+    float x = (q.x + 0.5) / 32.0;
+    float y = aboveFloor((q.y + 0.5) / 32.0);
 
     // The foot: a ragged band, darker toward the ground.
     float foot = (0.25 + 0.4 * vnoise(vec2(x * 0.9, 3.0)) + 0.12 * vnoise(vec2(x * 7.0, 1.0)))
@@ -361,7 +361,7 @@ float deckAt(vec2 xz, float y)
 // short of it, at a curb. Masks are taken at the texel's center so their edges are pixels too.
 vec3 pavement(vec3 base, vec3 p, float px)
 {
-    vec2 uv = (floor(p.xz * 16.0) + 0.5) / 16.0;
+    vec2 uv = (floor(p.xz * 32.0) + 0.5) / 32.0;
     vec2 corner = round(uv / LOT);
     vec2 off = uv - corner * LOT;  // from the nearest corner
     vec2 ad = abs(off);
@@ -402,7 +402,7 @@ vec3 pavement(vec3 base, vec3 p, float px)
     // Lane markings on asphalt: dashed yellow center lines, white edge lines, outside the
     // crossings (on through where a road just goes on), mostly worn away.
     if (uWear[gVariant * 2 + 1].z > 0.5) {
-        float keep = step(0.5, 0.75 * vnoise(uv * 0.9 + 4.0) + 0.25 * hash12(floor(uv * 16.0)));
+        float keep = step(0.5, 0.75 * vnoise(uv * 0.9 + 4.0) + 0.25 * hash12(floor(uv * 32.0)));
         float ix = sv * max(step(3.4, ad.y), meet * (1.0 - across));
         float iz = sh * max(step(3.4, ad.x), meet * (1.0 - across));
         float dashZ = step(0.5, fract(uv.y / 3.0)) * step(ad.x, 0.07) * ix;
@@ -492,7 +492,7 @@ vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid, int elev, int shift)
     return mix(c.rgb, c.rgb / 0.44 * tint, c.a);
 }
 
-// Plants in pixel art. A leaf, frond or blade is a sprite of square cells (20 per meter) in its
+// Plants in pixel art. A leaf, frond or blade is a sprite of square cells (32 per meter) in its
 // leaf coordinates (across with the midrib at 0.5, along from the root): flat colors in a few tones
 // of the plant's color, dithered like the textures, darker at the root, a lighter midrib, a
 // darker rim, and a ragged edge where cells of the outer columns are cut away, so it reads as
@@ -552,7 +552,7 @@ vec3 pixelPetal(vec3 base, vec2 uv, float seed)
 // textures' size, each a tone of the plant's color.
 vec3 pixelStem(vec3 base, vec3 p, float seed)
 {
-    vec3 c = floor(p * 16.0);
+    vec3 c = floor(p * 32.0);
     float h = hash12(c.xz + c.y * 7.13 + seed);
     return base * mix(0.75, 1.15, floor(h * 3.0) / 2.0);
 }

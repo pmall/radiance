@@ -67,7 +67,7 @@ struct Builder<'a> {
 }
 
 /// Pixels per meter of the plants' pixel art (`pixelLeaf` in shaders/scene.fs).
-const LEAF_PX_PER_M: f32 = 20.0;
+const LEAF_PX_PER_M: f32 = 32.0;
 
 impl Builder<'_> {
     /// The leaf drawn next is `width` across at its widest and `len` long (meters).

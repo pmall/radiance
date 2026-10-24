@@ -60,7 +60,7 @@ a smooth mesh built in code (a box pole and arm read poorly). Rules:
 
 *(Milestone 10, pass 1: `groundWear` and `wallWear` in `shaders/scene.fs`.)* Abandonment is what
 people left and what time did to it, so every surface is worn, drawn on the same pixel grid as
-the pixel art (16 pixels per meter, ordered dither) in the biome's swatches and by its amounts
+the pixel art (32 pixels per meter, ordered dither) in the biome's swatches and by its amounts
 (`Textures`: `dusty`, `littered`, `puddled`, `mossy`, `damp`), and by height: the depths dusty and
 stained, the canopy mossy and strewn with leaves, open sky bringing rain.
 
@@ -80,7 +80,7 @@ stained, the canopy mossy and strewn with leaves, open sky bringing rain.
 ## Plants in pixel art
 
 *(Milestone 10, pass 5.)* Plants share the pixels of the city: a leaf, frond or blade is a flat
-cut-out drawn as square cells (20 per meter) in its own leaf coordinates, in a few flat tones of
+cut-out drawn as square cells (32 per meter) in its own leaf coordinates, in a few flat tones of
 its color dithered from a dark root to a light tip, with a lighter midrib and a darker rim, its
 edge ragged where cells of the outer columns are cut away (`pixelLeaf` in `shaders/scene.fs`).
 Fronds are nearly flat, with just enough fold for volume. Flowers stay clean and glowing, since

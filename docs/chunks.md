@@ -36,7 +36,7 @@ Ours is that city **abandoned**: the neon is dead, the windows dark, the signs s
 pixel art but unlit, and the glowing flowers are the only light. Concretely:
 
 - **Grain:** architecture snapped to a 0.25 m grid, small details and props to 0.125 m.
-- **Textures:** pixel art at about 16 pixels per meter, nearest filtering (crisp pixels), per
+- **Textures:** pixel art at 32 pixels per meter (16 at first, too blocky for the owner), nearest filtering (crisp pixels), per
   material (concrete, brick, tile, rusted metal, painted panel, wood, glass, sign art). Generated
   by scripts from code (`tools/`), so the project stays plain text; the seed picks the colors.
 - **Light:** sun and sky by day, flowers by night, both as today (cover map, fog, flower lights).
@@ -274,7 +274,7 @@ Each phase ends with shots the owner can judge.
    the lot holding their center and reach the neighbors as collision only.
 3. **Style test** *(done; the owner keeps the ink outlines and flat light bands on, and the
    pixel-art materials; plants as pixel or voxel foliage is a suggestion still open)*: every chunk material has a pixel-art
-   tile (4 m at 16 pixels per meter, limited palette, ordered dithering, chunky joints, cracks,
+   tile (4 m at 32 pixels per meter, first 16, limited palette, ordered dithering, chunky joints, cracks,
    rivets, stains), drawn by code in `src/render/pixels.rs` and sampled with crisp nearest
    filtering. To compare: `--chunk great_square` with F3 (outlines), F5 (flat light bands) and
    F8 (grain) in game, or `--fx 255` against `--fx 234` in shots. Seen so far: without outlines
