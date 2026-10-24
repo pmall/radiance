@@ -117,7 +117,7 @@
        tiles (concrete, paint) like the chunk boxes, worn the same way; the photo detail is left
        on the plants only, until pass 5.
     5. Pixel-art plants *(first pass done)*: every leaf, frond and blade is a sprite of square
-       cells (20 per meter, now 32) in its leaf coordinates, which carry its size (`growth::set_leaf`,
+       cells (20 per meter, now 64) in its leaf coordinates, which carry its size (`growth::set_leaf`,
        `pixelLeaf` in `shaders/scene.fs`): flat tones dithered root to tip, a lighter midrib,
        a darker rim, a ragged pixel edge cut out of the outer cells; fronds nearly flat
        (`FOLD`); stems in world-space cells. The photo detail layer is gone (`assets/textures`,

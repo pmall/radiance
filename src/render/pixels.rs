@@ -1,6 +1,6 @@
 //! Pixel-art textures of the chunk materials (`world::chunks::Mat`, `docs/chunks.md`), of the
 //! tower facade units and of the city's own surfaces (roads, sidewalks, roofs, deck undersides):
-//! one tile of 4 m at 32 pixels per meter each, drawn here by code (limited palettes, ordered
+//! one tile of 4 m at `PPM` pixels per meter each, drawn here by code (limited palettes, ordered
 //! dithering, chunky joints, cracks, rivets and stains) and sampled with crisp nearest filtering
 //! by `atlasTile` in `shaders/scene.fs`. Tiles wrap seamlessly. A last tile holds swatches: the
 //! colors the shader's wear (dust, litter, moss, puddles) is drawn in.
@@ -16,8 +16,34 @@ use sola_raylib::ffi;
 use crate::rng::{Rng, hash_coords};
 use crate::world::biome::{BIOMES, MAX_BIOMES};
 
-/// Side of a material tile in pixels (4 m, 32 pixels per meter).
-pub const TILE: usize = 128;
+/// Pixels per meter of the textures (`PPM` in shaders/scene.fs, `LEAF_PX_PER_M` in
+/// src/world/growth.rs).
+pub const PPM: usize = 64;
+/// Side of a material tile in pixels (4 m).
+pub const TILE: usize = 4 * PPM;
+/// Pixels per pattern unit. Patterns are written in units of 1/32 m (`u`, `at`), so they keep
+/// their size in meters whatever `PPM`; noise cells are in units too (`noise`). Only the thin
+/// lines are written in pixels: `JOINT`, `LINE` and the cracks.
+const U: usize = PPM / 32;
+/// Width of joints, grout and seams, in pixels (3 cm).
+const JOINT: usize = U;
+/// Width of the lit and shadowed lines along edges (sills, ledges, rails, slab edges), in pixels.
+const LINE: usize = 1;
+
+/// `n` units (1/32 m) in pixels.
+const fn u(n: i32) -> i32 {
+    n * U as i32
+}
+
+/// A point `(x, y)` in units, in pixels.
+const fn at(x: i32, y: i32) -> (i32, i32) {
+    (u(x), u(y))
+}
+
+/// A pixel coordinate in units, for pattern shapes worked out in units.
+fn un(p: usize) -> f32 {
+    p as f32 / U as f32
+}
 /// Chunk materials, in `Mat::index` order.
 pub const MATERIALS: usize = 11;
 /// Tower facade units (`facade_tiles`), after the materials: 4 m bays one story (4 m) high.
@@ -27,8 +53,8 @@ pub const FACADES: usize = 14;
 pub const SURFACES: usize = 4;
 /// Tiles in a row of the atlas: materials, facade units, surfaces, and the swatches last.
 pub const COUNT: usize = MATERIALS + FACADES + SURFACES + 1;
-/// Rows of the atlas: one per biome (`biome::variant_of`), room for all of them.
-pub const ROWS: usize = MAX_BIOMES;
+/// Rows of the atlas: one per biome (`biome::variant_of`).
+pub const ROWS: usize = BIOMES.len();
 /// Material slot (sampler `texture10`) of the atlas.
 pub const SLOT: usize = 10;
 
@@ -38,7 +64,8 @@ pub type Rgb = [u8; 3];
 pub type Ramp = [Rgb; 5];
 
 /// How a biome's materials and facade units look (`Biome::textures`; start a new one from
-/// `..DEFAULT_TEXTURES`). Pattern sizes are in pixels, 32 to the meter, and must divide `TILE`.
+/// `..DEFAULT_TEXTURES`). Pattern sizes are in units of 1/32 m (`u`) and must divide the tile's
+/// 128 units.
 #[derive(Clone, Copy)]
 pub struct Textures {
     // The shades of each material.
@@ -411,8 +438,15 @@ fn hash(x: i32, y: i32, salt: i32) -> f32 {
     (hash_coords(0x5eed, x, salt, y) >> 40) as f32 / (1u64 << 24) as f32
 }
 
-/// Tileable value noise with cells of `cx` x `cy` pixels (each must divide `TILE`), 0..1.
+/// `hash` of the unit holding pixel `(x, y)`: specks a unit across.
+fn speck(x: usize, y: usize, salt: i32) -> f32 {
+    hash((x / U) as i32, (y / U) as i32, salt)
+}
+
+/// Tileable value noise at pixel `(x, y)` with cells of `cx` x `cy` units (each must divide 128),
+/// 0..1.
 fn noise(x: usize, y: usize, cx: usize, cy: usize, salt: i32) -> f32 {
+    let (cx, cy) = (cx * U, cy * U);
     let (gx, gy) = (TILE / cx, TILE / cy);
     let (fx, fy) = (x as f32 / cx as f32, y as f32 / cy as f32);
     let (ix, iy) = (fx.floor() as usize, fy.floor() as usize);
@@ -424,10 +458,14 @@ fn noise(x: usize, y: usize, cx: usize, cy: usize, salt: i32) -> f32 {
     a + (b - a) * sy
 }
 
-/// A palette color for a shade `t` in 0..1, dithered between neighbors.
+/// How far the ordered dither reaches between two shades of a ramp, in shades: low, so a surface
+/// reads as flat painted tones with a narrow dithered seam where they meet, not as grain.
+const DITHER: f32 = 0.3;
+
+/// A palette color for a shade `t` in 0..1, dithered between neighbors where they meet.
 fn ramp(pal: &[Rgb], t: f32, x: usize, y: usize) -> Rgb {
     let n = pal.len() as f32 - 1.0;
-    let v = t.clamp(0.0, 1.0) * n + (BAYER[y % 4][x % 4] / 16.0 - 0.5) * 0.9;
+    let v = t.clamp(0.0, 1.0) * n + (BAYER[y % 4][x % 4] / 16.0 - 0.5) * DITHER;
     pal[(v.round().clamp(0.0, n)) as usize]
 }
 
@@ -523,7 +561,7 @@ impl Tile {
         }
     }
 
-    /// Thin dark cracks wandering from random points.
+    /// Thin dark cracks a pixel wide wandering from random points, `len` units long.
     fn cracks(&mut self, count: usize, len: usize, color: Rgb, salt: u64) {
         let mut rng = Rng::new(salt);
         for _ in 0..count {
@@ -532,8 +570,14 @@ impl Tile {
             if dx == 0 && dy == 0 {
                 dx = 1;
             }
-            for _ in 0..len {
+            for i in 0..len * U {
                 self.set(x, y, color);
+                // Turns a unit apart at most, so cracks wander at the same scale whatever `PPM`.
+                if (i + 1) % U != 0 {
+                    x += dx;
+                    y += dy;
+                    continue;
+                }
                 if rng.chance(0.35) {
                     dx = rng.range_i(-1, 2);
                 }
@@ -565,12 +609,14 @@ fn paving(s: &Textures, pal: &Ramp, how: Paving, salt: i32) -> Tile {
     }
 }
 
-/// Paving slabs of `slab` pixels: a shade per slab, dark joints, a lit edge, specks and cracks.
+/// Paving slabs of `slab` units: a shade per slab, dark joints, a lit edge, specks and cracks.
 fn slabs(s: &Textures, pal: &Ramp, slab: usize, salt: i32) -> Tile {
+    let slab = slab * U;
     let mut t = Tile::new();
     t.fill(|x, y| {
         let (sx, sy) = ((x / slab) as i32, (y / slab) as i32);
-        if x % slab == 0 || y % slab == 0 {
+        let (jx, jy) = (x % slab, y % slab);
+        if jx < JOINT || jy < JOINT {
             return moss(s, x, y, 1.0, salt + 5).unwrap_or(pal[0]);
         }
         if let Some(m) = moss(s, x, y, 0.4, salt + 5) {
@@ -579,10 +625,10 @@ fn slabs(s: &Textures, pal: &Ramp, slab: usize, salt: i32) -> Tile {
         let mut v = 0.35 + 0.3 * hash(sx, sy, salt);
         v += 0.25 * (noise(x, y, 16, 16, salt + 1) - 0.5)
             + 0.2 * (noise(x, y, 2, 2, salt + 2) - 0.5);
-        if x % slab == 1 || y % slab == 1 {
+        if jx < JOINT + LINE || jy < JOINT + LINE {
             v += 0.15;
         }
-        if hash(x as i32, y as i32, salt + 3) > 0.97 {
+        if speck(x, y, salt + 3) > 0.97 {
             v -= 0.3;
         }
         ramp(pal, v, x, y)
@@ -591,28 +637,30 @@ fn slabs(s: &Textures, pal: &Ramp, slab: usize, salt: i32) -> Tile {
     t
 }
 
-/// Setts of `sett` pixels in courses offset by half a sett: a shade per sett, domed (lit on top
-/// and left, dark at the bottom and right, two pixels each), corners cut round, mortar or moss
+/// Setts of `sett` units in courses offset by half a sett: a shade per sett, domed (lit on top
+/// and left, dark at the bottom and right, two units each), corners cut round, mortar or moss
 /// between.
 fn setts(s: &Textures, pal: &Ramp, sett: usize, salt: i32) -> Tile {
+    let sett = sett * U;
     let mut t = Tile::new();
     t.fill(|x, y| {
         let course = y / sett;
         let xo = (x + if course % 2 == 1 { sett / 2 } else { 0 }) % TILE;
         let (u, v) = (xo % sett, y % sett);
         let edge = |a: usize| a.min(sett - a);
-        if u == 0 || v == 0 || edge(u) + edge(v) <= 3 {
+        if u < JOINT || v < JOINT || edge(u) + edge(v) <= 3 * U {
             return moss(s, x, y, 1.0, salt + 5)
                 .unwrap_or_else(|| ramp(&s.mortar, 0.15 + 0.3 * noise(x, y, 8, 8, salt), x, y));
         }
         let mut sh = 0.3 + 0.4 * hash((xo / sett) as i32, course as i32, salt + 1);
         sh += 0.15 * (noise(x, y, 2, 2, salt + 2) - 0.5);
+        // Units in from the joint before the sett, and to the one after it.
         let dome = |a: usize| -> f32 {
-            match a {
-                1 => 0.2,
-                2 => 0.1,
-                a if a == sett - 1 => -0.2,
-                a if a == sett - 2 => -0.1,
+            match ((a - JOINT) / U, (sett - 1 - a) / U) {
+                (0, _) => 0.2,
+                (1, _) => 0.1,
+                (_, 0) => -0.2,
+                (_, 1) => -0.1,
                 _ => 0.0,
             }
         };
@@ -629,16 +677,17 @@ fn concrete(s: &Textures) -> Tile {
         let mut v =
             0.5 + 0.35 * (noise(x, y, 32, 32, 20) - 0.5) + 0.25 * (noise(x, y, 8, 8, 21) - 0.5);
         // Rain streaks running down from some columns.
-        let streak = hash(x as i32, 0, 22);
+        let streak = speck(x, 0, 22);
         if streak > 0.8 {
             v -= 0.25 * (y as f32 / TILE as f32) * (noise(x, y, 1, 16, 23) + 0.3);
         }
         // Form-tie holes every meter, a lit lip under each.
-        if (14..18).contains(&(x % 32)) && (15..18).contains(&(y % 32)) {
-            v = if y % 32 == 17 { 0.7 } else { 0.0 };
+        let (ux, uy) = (x / U % 32, y / U % 32);
+        if (14..18).contains(&ux) && (15..18).contains(&uy) {
+            v = if uy == 17 { 0.7 } else { 0.0 };
         }
         // Formwork joints, moss in them.
-        if y % 64 == 0 {
+        if y % (u(64) as usize) < JOINT {
             if let Some(m) = moss(s, x, y, 0.9, 29) {
                 return m;
             }
@@ -646,12 +695,12 @@ fn concrete(s: &Textures) -> Tile {
         }
         if s.damp > 0.0 {
             // Algae running down from the formwork joints.
-            let run = 1.0 - (y % 64) as f32 / 48.0;
-            if hash(x as i32, 0, 26) > 1.0 - 0.3 * s.damp && noise(x, y, 1, 16, 27) < run {
+            let run = 1.0 - un(y % u(64) as usize) / 48.0;
+            if speck(x, 0, 26) > 1.0 - 0.3 * s.damp && noise(x, y, 1, 16, 27) < run {
                 return ramp(&s.moss, 0.15 + 0.4 * noise(x, y, 4, 8, 28), x, y);
             }
             // A tide mark: a dark line, a pale line of salt over it.
-            let d = y as f32 - (40.0 + 10.0 * noise(x, 0, 32, 1, 25));
+            let d = un(y) - (40.0 + 10.0 * noise(x, 0, 32, 1, 25));
             if (0.0..2.0).contains(&d) {
                 v -= 0.3 * s.damp;
             } else if (-1.0..0.0).contains(&d) {
@@ -665,13 +714,13 @@ fn concrete(s: &Textures) -> Tile {
 }
 
 fn brick(s: &Textures) -> Tile {
-    let (bw, bh) = s.bricks;
+    let (bw, bh) = (s.bricks.0 * U, s.bricks.1 * U);
     let mut t = Tile::new();
     t.fill(|x, y| {
         let row = y / bh;
         let xo = x + if row % 2 == 1 { bw / 2 } else { 0 };
         let (bx, by) = ((xo / bw) as i32, row as i32);
-        if y % bh == bh - 1 || xo % bw == bw - 1 {
+        if y % bh >= bh - JOINT || xo % bw >= bw - JOINT {
             // Mortar, or moss in it.
             if let Some(m) = moss(s, x, y, 1.0, 35) {
                 return m;
@@ -684,15 +733,16 @@ fn brick(s: &Textures) -> Tile {
             v -= 0.3;
         }
         v += 0.15 * (noise(x, y, 2, 2, 33) - 0.5);
-        if y % bh == 0 {
+        let top = y % bh < LINE;
+        if top {
             v += 0.12;
         }
         if s.glazed {
             // A sheen along the top of each brick, a glint at its corner.
-            if y % bh == 0 && xo % bw < bw / 2 {
+            if top && xo % bw < bw / 2 {
                 v += 0.2;
             }
-            if y % bh == 0 && xo % bw == 1 {
+            if top && xo % bw / U == 1 {
                 v = 1.0;
             }
         } else {
@@ -705,11 +755,11 @@ fn brick(s: &Textures) -> Tile {
 }
 
 fn tiles(s: &Textures) -> Tile {
-    let n = s.tiles;
+    let n = s.tiles * U;
     let mut t = Tile::new();
     t.fill(|x, y| {
         let (tx, ty) = ((x / n) as i32, (y / n) as i32);
-        if x % n == 0 || y % n == 0 {
+        if x % n < JOINT || y % n < JOINT {
             return moss(s, x, y, 0.9, 45).unwrap_or(s.tile[0]);
         }
         // A few tiles missing: bare concrete.
@@ -718,7 +768,7 @@ fn tiles(s: &Textures) -> Tile {
         }
         let mut v =
             0.55 + s.mosaic * (hash(tx, ty, 42) - 0.5) + 0.15 * (noise(x, y, 8, 8, 43) - 0.5);
-        if x % n == 1 || y % n == 1 {
+        if x % n < JOINT + LINE || y % n < JOINT + LINE {
             v += 0.15;
         }
         ramp(&s.tile, v, x, y)
@@ -733,13 +783,14 @@ fn metal(s: &Textures, rust: f32) -> Tile {
         let mut v =
             0.5 + 0.3 * (noise(x, y, 32, 1, 50) - 0.5) + 0.15 * (noise(x, y, 2, 2, 51) - 0.5);
         // Panels with seams, lit under each seam, rivets along them: domes of two by two
-        // pixels, lit at the top left.
-        if y % 32 == 0 || x % 64 == 0 {
+        // units, lit at the top left.
+        let (sy, sx) = (y % u(32) as usize, x % u(64) as usize);
+        if sy < JOINT || sx < JOINT {
             v = 0.05;
-        } else if y % 32 == 1 || x % 64 == 1 {
+        } else if sy < JOINT + LINE || sx < JOINT + LINE {
             v += 0.2;
         }
-        let (ry, rx) = (y % 32, x % 16);
+        let (ry, rx) = (y / U % 32, x / U % 16);
         if (ry == 4 || ry == 5 || ry == 27 || ry == 28) && (rx == 8 || rx == 9) {
             v = if (ry == 4 || ry == 27) && rx == 8 {
                 1.0
@@ -763,21 +814,22 @@ fn metal(s: &Textures, rust: f32) -> Tile {
 fn wood(s: &Textures) -> Tile {
     let mut t = Tile::new();
     t.fill(|x, y| {
-        let plank = (y / 8) as i32;
-        if y % 8 == 0 {
+        let plank = (y / u(8) as usize) as i32;
+        let py = y % u(8) as usize;
+        if py < JOINT {
             return moss(s, x, y, 0.8, 64).unwrap_or(s.wood[0]);
         }
         let shift = (hash(plank, 0, 60) * TILE as f32) as usize;
         let mut v = 0.35 + 0.3 * hash(plank, 1, 61);
         v += 0.35 * (noise((x + shift) % TILE, y, 32, 1, 62) - 0.5);
-        if y % 8 == 1 {
+        if py < JOINT + LINE {
             v += 0.12;
         }
         // Plank ends and knots.
-        if (x + shift).is_multiple_of(64) {
+        if (x + shift) % (u(64) as usize) < JOINT {
             v = 0.0;
         }
-        if hash(x as i32, y as i32, 63) > 0.985 {
+        if speck(x, y, 63) > 0.985 {
             v -= 0.35;
         }
         ramp(&s.wood, v, x, y)
@@ -790,20 +842,20 @@ fn glass(s: &Textures) -> Tile {
     t.fill(|x, y| {
         let mut v = 0.25 + 0.2 * (y as f32 / TILE as f32) + 0.1 * (noise(x, y, 16, 16, 70) - 0.5);
         // Diagonal reflections.
-        let d = (x + TILE - y % TILE) % 64;
-        if d < 6 {
+        let d = (x + TILE - y % TILE) % u(64) as usize;
+        if d < u(6) as usize {
             v += 0.45;
-        } else if d < 10 {
+        } else if d < u(10) as usize {
             v += 0.2;
         }
         // Grime at the foot.
-        if y > 104 {
+        if y > u(104) as usize {
             v -= 0.15 * noise(x, y, 8, 4, 71);
         }
         if s.damp > 0.0 {
             // Mist gathering low on the pane, beads of water.
             v += s.damp * 0.35 * (y as f32 / TILE as f32) * noise(x, y, 8, 8, 72);
-            if hash(x as i32, y as i32, 73) > 1.0 - 0.03 * s.damp {
+            if speck(x, y, 73) > 1.0 - 0.03 * s.damp {
                 v = 1.0;
             }
         }
@@ -819,8 +871,8 @@ fn soil(s: &Textures) -> Tile {
             return m;
         }
         let v = 0.45 + 0.4 * (noise(x, y, 8, 8, 80) - 0.5) + 0.3 * (noise(x, y, 2, 2, 81) - 0.5);
-        if hash(x as i32, y as i32, 82) > 0.97 {
-            return ramp(&s.stone, 0.5 + 0.4 * hash(x as i32, y as i32, 83), x, y);
+        if speck(x, y, 82) > 0.97 {
+            return ramp(&s.stone, 0.5 + 0.4 * speck(x, y, 83), x, y);
         }
         ramp(&s.soil, v, x, y)
     });
@@ -838,12 +890,12 @@ fn paint(s: &Textures) -> Tile {
             v = 0.15;
         }
         // Grime streaks running down.
-        if hash(x as i32, 0, 94) > 0.85 {
+        if speck(x, 0, 94) > 0.85 {
             v -= 0.25 * (y as f32 / TILE as f32);
         }
         if s.damp > 0.0 && v > 0.15 {
             // A tide mark, water stains under it.
-            let d = y as f32 - (80.0 + 12.0 * noise(x, 0, 32, 1, 95));
+            let d = un(y) - (80.0 + 12.0 * noise(x, 0, 32, 1, 95));
             if (0.0..2.0).contains(&d) {
                 v -= 0.3 * s.damp;
             } else if d > 0.0 {
@@ -852,12 +904,13 @@ fn paint(s: &Textures) -> Tile {
         }
         ramp(&PAINT, v, x, y)
     });
-    // Outline the chips one pixel darker below and right, like flaking paint.
+    // Outline the chips a line darker below and right, like flaking paint.
     let src = t.px.clone();
+    let l = LINE as i32;
     for y in 0..TILE as i32 {
         for x in 0..TILE as i32 {
             let chip = |c: Rgb| c == PAINT[0];
-            if !chip(src[y as usize * TILE + x as usize]) && chip(t.get(x - 1, y - 1)) {
+            if !chip(src[y as usize * TILE + x as usize]) && chip(t.get(x - l, y - l)) {
                 t.set(x, y, PAINT[1]);
             }
         }
@@ -878,13 +931,18 @@ const WALL: [Rgb; 5] = [
     [222, 222, 222],
 ];
 
-/// Shade of a tiled wall's pixel, tiles of `n`: dark grout, a shade per tile, its top and left
-/// edges lit.
+/// Shade of a tiled wall's pixel, tiles of `n` units: dark grout, a shade per tile, its top and
+/// left edges lit.
 fn tiled(n: usize, x: usize, y: usize, salt: i32) -> f32 {
-    if x.is_multiple_of(n) || y.is_multiple_of(n) {
+    let n = n * U;
+    if x % n < JOINT || y % n < JOINT {
         return 0.3;
     }
-    let lit = if x % n == 1 || y % n == 1 { 0.08 } else { 0.0 };
+    let lit = if x % n < JOINT + LINE || y % n < JOINT + LINE {
+        0.08
+    } else {
+        0.0
+    };
     0.6 + 0.25 * (hash((x / n) as i32, (y / n) as i32, salt) - 0.5)
         + 0.15 * (noise(x, y, 32, 32, salt + 1) - 0.5)
         + lit
@@ -904,8 +962,8 @@ fn facade_wall(s: &Textures, salt: i32) -> Tile {
             Wall::Tiled(n) => tiled(n, x, y, salt),
         };
         // Grime gathering under the ledge above, rain streaks down some columns.
-        v -= 0.25 * (1.0 - y as f32 / 20.0).max(0.0);
-        if hash(x as i32, 0, salt + 2) > 0.82 {
+        v -= 0.25 * (1.0 - un(y) / 20.0).max(0.0);
+        if speck(x, 0, salt + 2) > 0.82 {
             v -= 0.22 * noise(x, y, 1, 32, salt + 3);
         }
         ramp(&WALL, v, x, y)
@@ -913,12 +971,12 @@ fn facade_wall(s: &Textures, salt: i32) -> Tile {
     t.wall.iter_mut().for_each(|w| *w = true);
     if s.damp > 0.0 {
         for x in 0..TILE {
-            if hash(x as i32, 0, salt + 5) < 1.0 - 0.18 * s.damp {
+            if speck(x, 0, salt + 5) < 1.0 - 0.18 * s.damp {
                 continue;
             }
-            let len = 20.0 + 72.0 * hash(x as i32, 1, salt + 6);
-            for y in 0..118 {
-                let run = 1.0 - y as f32 / len;
+            let len = 20.0 + 72.0 * speck(x, U, salt + 6);
+            for y in 0..u(118) as usize {
+                let run = 1.0 - un(y) / len;
                 if noise(x, y, 1, 8, salt + 7) < run {
                     t.px[y * TILE + x] = ramp(&s.moss, 0.15 + 0.45 * run, x, y);
                     t.wall[y * TILE + x] = false;
@@ -927,17 +985,21 @@ fn facade_wall(s: &Textures, salt: i32) -> Tile {
         }
     }
     // The slab ledge: concrete, lit on top, dark under; moss on it.
-    t.rect((0, 118), (128, 128), |x, y| {
-        let v = match y {
-            118 => 0.95,
-            126 => 0.3,
-            127 => 0.1,
-            _ => 0.55 + 0.25 * (noise(x, y, 8, 1, salt + 4) - 0.5),
+    let (top, foot) = (u(118) as usize, TILE);
+    t.rect((0, top as i32), (TILE as i32, foot as i32), |x, y| {
+        let v = if y < top + LINE {
+            0.95
+        } else if y >= foot - LINE {
+            0.1
+        } else if y >= foot - 2 * LINE {
+            0.3
+        } else {
+            0.55 + 0.25 * (noise(x, y, 8, 1, salt + 4) - 0.5)
         };
         ramp(&s.concrete, v, x, y)
     });
-    t.moss(s, (114, 118), 0.6, salt + 8);
-    t.moss(s, (118, 122), 1.0, salt + 8);
+    t.moss(s, (u(114) as usize, top), 0.6, salt + 8);
+    t.moss(s, (top, u(122) as usize), 1.0, salt + 8);
     t.cracks(2, 16, WALL[0], salt as u64);
     t
 }
@@ -945,23 +1007,23 @@ fn facade_wall(s: &Textures, salt: i32) -> Tile {
 /// Window glass, dark with a faint diagonal sheen; `broken` knocks most panes out. Damp mists it
 /// over low down and beads it.
 fn glass_px(s: &Textures, x: usize, y: usize, broken: bool, salt: i32) -> Rgb {
-    let d = (x + TILE - y % TILE) % 48;
-    let mut v = 0.35 + 0.25 * (noise(x, y, 16, 16, salt) - 0.5) + if d < 4 { 0.4 } else { 0.0 };
+    let d = (x + TILE - y % TILE) % u(48) as usize;
+    let sheen = if d < u(4) as usize { 0.4 } else { 0.0 };
+    let mut v = 0.35 + 0.25 * (noise(x, y, 16, 16, salt) - 0.5) + sheen;
     if broken && noise(x, y, 8, 8, salt + 1) > 0.42 {
         v = 0.0;
     } else if s.damp > 0.0 {
-        v +=
-            s.damp * 0.6 * ((y as f32 - 32.0) / 64.0).clamp(0.0, 1.0) * noise(x, y, 8, 4, salt + 2);
-        if hash(x as i32, y as i32, salt + 3) > 1.0 - 0.04 * s.damp {
+        v += s.damp * 0.6 * ((un(y) - 32.0) / 64.0).clamp(0.0, 1.0) * noise(x, y, 8, 4, salt + 2);
+        if speck(x, y, salt + 3) > 1.0 - 0.04 * s.damp {
             v = 1.0;
         }
     }
     ramp(&s.pane, v, x, y)
 }
 
-/// A window of glass in a frame, `x0..x1` x `y0..y1`, a sill under it: square with a mullion and
-/// a transom, or (`Textures::arched`) round-headed under a keystone, the transom where the arch
-/// springs. Moss takes the sill where the biome grows it.
+/// A window of glass in a frame, `x0..x1` x `y0..y1` (pixels), a sill under it: square with a
+/// mullion and a transom, or (`Textures::arched`) round-headed under a keystone, the transom where
+/// the arch springs. Moss takes the sill where the biome grows it.
 fn window(
     s: &Textures,
     t: &mut Tile,
@@ -970,6 +1032,7 @@ fn window(
     broken: bool,
     salt: i32,
 ) {
+    let l = LINE as i32;
     // The arch: a half circle over the opening, its center `r` under the head.
     let r = (x1 - x0) as f32 * 0.5;
     let (cx, cy) = ((x0 + x1) as f32 * 0.5, y0 as f32 + r);
@@ -979,41 +1042,54 @@ fn window(
             !s.arched || py >= cy || (px - cx).powi(2) + (py - cy).powi(2) <= (r + grow).powi(2)
         }
     };
-    t.area((x0 - 4, y0 - 4), (x1 + 4, y1 + 4), inside(4.0), |x, y| {
-        ramp(&s.frame, 0.5 + 0.3 * (noise(x, y, 4, 4, salt) - 0.5), x, y)
-    });
+    let f = u(4);
+    t.area(
+        (x0 - f, y0 - f),
+        (x1 + f, y1 + f),
+        inside(f as f32),
+        |x, y| ramp(&s.frame, 0.5 + 0.3 * (noise(x, y, 4, 4, salt) - 0.5), x, y),
+    );
     t.area((x0, y0), (x1, y1), inside(0.0), |x, y| {
         glass_px(s, x, y, broken, salt + 1)
     });
     let mid = (x0 + x1) / 2;
-    t.area((mid - 1, y0), (mid + 1, y1), inside(0.0), |_, _| s.frame[0]);
+    t.area((mid - u(1), y0), (mid + u(1), y1), inside(0.0), |_, _| {
+        s.frame[0]
+    });
     let tr = if s.arched {
         cy as i32
     } else {
         y0 + (y1 - y0) / 3
     };
-    t.rect((x0, tr), (x1, tr + 2), |_, _| s.frame[0]);
+    t.rect((x0, tr), (x1, tr + u(2)), |_, _| s.frame[0]);
     if s.arched {
-        t.rect((mid - 4, y0 - 6), (mid + 4, y0), |x, y| {
-            ramp(&s.frame, if y as i32 == y0 - 6 { 1.0 } else { 0.6 }, x, y)
+        let top = y0 - u(6);
+        t.rect((mid - u(4), top), (mid + u(4), y0), |x, y| {
+            ramp(&s.frame, if (y as i32) < top + l { 1.0 } else { 0.6 }, x, y)
         });
     }
     // The sill, lit on top, shadowed under.
-    t.rect((x0 - 6, y1 + 4), (x1 + 6, y1 + 8), |x, y| {
-        match y as i32 - y1 {
-            4 => s.frame[2],
-            7 => ramp(&s.concrete, 0.1, x, y),
-            _ => ramp(&s.concrete, 0.3, x, y),
+    let (sill, under) = (y1 + u(4), y1 + u(8));
+    t.rect((x0 - u(6), sill), (x1 + u(6), under), |x, y| {
+        if (y as i32) < sill + l {
+            s.frame[2]
+        } else if y as i32 >= under - l {
+            ramp(&s.concrete, 0.1, x, y)
+        } else {
+            ramp(&s.concrete, 0.3, x, y)
         }
     });
     if s.mossy > 0.0 {
-        for x in x0 - 6..x1 + 6 {
-            if let Some(c) = moss(s, x as usize, (y1 + 4) as usize, 1.0, salt + 5) {
-                t.set(x, y1 + 4, c);
+        for x in x0 - u(6)..x1 + u(6) {
+            if let Some(c) = moss(s, x as usize, sill as usize, 1.0, salt + 5) {
+                for y in sill..sill + l {
+                    t.set(x, y, c);
+                }
                 // Now and then a strand hanging under the sill.
-                if hash(x, y1, salt + 6) > 0.7 {
-                    let len = 1 + (hash(x, y1, salt + 7) * 4.0) as i32;
-                    for y in y1 + 8..y1 + 8 + len {
+                let ux = x.div_euclid(U as i32);
+                if hash(ux, y1 / U as i32, salt + 6) > 0.7 {
+                    let len = u(1 + (hash(ux, y1 / U as i32, salt + 7) * 4.0) as i32);
+                    for y in under..under + len {
                         t.set(x, y, c);
                     }
                 }
@@ -1023,15 +1099,15 @@ fn window(
     if broken {
         // Shards left in the corners of the frame.
         let top = if s.arched { cy as i32 } else { y0 };
-        for i in 0..8 {
-            t.set(x0 + i, top + 6 - i, s.pane[3]);
-            t.set(x1 - 1 - i, y1 - 8 + i, s.pane[3]);
+        for i in 0..u(8) {
+            t.set(x0 + i, top + u(6) - i, s.pane[3]);
+            t.set(x1 - 1 - i, y1 - u(8) + i, s.pane[3]);
         }
     }
 }
 
-/// Vertical bars every `step` pixels over `x0..x1` x `y0..y1`, two pixels thick and lit on the
-/// left, rails top and bottom.
+/// Vertical bars every `step` units over `x0..x1` x `y0..y1` (pixels), two units thick and lit on
+/// the left, rails top and bottom.
 fn bars(
     s: &Textures,
     t: &mut Tile,
@@ -1040,48 +1116,51 @@ fn bars(
     step: i32,
     salt: i32,
 ) {
+    let l = LINE as i32;
     let bar = |x: usize, y: usize| ramp(&s.corrosion, 0.3 + 0.5 * noise(x, y, 4, 16, salt), x, y);
     let lit = |x: usize, y: usize| ramp(&s.corrosion, 0.6 + 0.4 * noise(x, y, 4, 16, salt), x, y);
-    for x in (x0..x1).step_by(step as usize) {
-        t.rect((x, y0), (x + 1, y1), lit);
-        t.rect((x + 1, y0), (x + 2, y1), bar);
+    for x in (x0..x1).step_by(u(step) as usize) {
+        t.rect((x, y0), (x + l, y1), lit);
+        t.rect((x + l, y0), (x + u(2), y1), bar);
     }
-    t.rect((x0, y0), (x1, y0 + 4), bar);
-    t.rect((x0, y0), (x1, y0 + 1), lit);
-    t.rect((x0, y1 - 4), (x1, y1), bar);
-    t.rect((x0, y1 - 4), (x1, y1 - 3), lit);
+    t.rect((x0, y0), (x1, y0 + u(4)), bar);
+    t.rect((x0, y0), (x1, y0 + l), lit);
+    t.rect((x0, y1 - u(4)), (x1, y1), bar);
+    t.rect((x0, y1 - u(4)), (x1, y1 - u(4) + l), lit);
 }
 
 /// The facade units, in shader order: window, two narrow windows, caged window, enclosed balcony,
 /// window with an air conditioner, boarded window, broken window, blank wall with a vent and a
 /// pipe, shop shutter, shop window, blank wall, curtain wall, curtain wall with panes gone,
-/// ribbon window.
+/// ribbon window. Laid out in units (`at`), 128 to the tile.
 fn facade_tiles(s: &Textures) -> Vec<Tile> {
+    let l = LINE as i32;
     let mut out = Vec::new();
     // 0: a window.
     let mut t = facade_wall(s, 100);
-    window(s, &mut t, (36, 24), (92, 92), false, 101);
+    window(s, &mut t, at(36, 24), at(92, 92), false, 101);
     out.push(t);
     // 1: two narrow windows.
     let mut t = facade_wall(s, 110);
-    window(s, &mut t, (18, 28), (50, 92), false, 111);
-    window(s, &mut t, (78, 28), (110, 92), false, 112);
+    window(s, &mut t, at(18, 28), at(50, 92), false, 111);
+    window(s, &mut t, at(78, 28), at(110, 92), false, 112);
     out.push(t);
     // 2: a window behind a burglar cage, a pot on its ledge.
     let mut t = facade_wall(s, 120);
-    window(s, &mut t, (36, 24), (92, 92), false, 121);
-    bars(s, &mut t, (26, 16), (104, 104), 8, 122);
-    t.rect((80, 92), (90, 102), |x, y| {
-        ramp(&s.brick, if x == 80 { 0.85 } else { 0.55 }, x, y)
+    window(s, &mut t, at(36, 24), at(92, 92), false, 121);
+    bars(s, &mut t, at(26, 16), at(104, 104), 8, 122);
+    t.rect(at(80, 92), at(90, 102), |x, y| {
+        let lit = (x as i32) < u(80) + l;
+        ramp(&s.brick, if lit { 0.85 } else { 0.55 }, x, y)
     });
-    t.rect((82, 86), (88, 92), |x, y| {
-        ramp(&s.soil, 0.8 + 0.2 * hash(x as i32, y as i32, 123), x, y)
+    t.rect(at(82, 86), at(88, 92), |x, y| {
+        ramp(&s.soil, 0.8 + 0.2 * speck(x, y, 123), x, y)
     });
     out.push(t);
     // 3: an enclosed balcony across the bay: a solid parapet below, a grille above, the dark room
     // behind with laundry hanging in it.
     let mut t = facade_wall(s, 130);
-    t.rect((4, 12), (124, 118), |x, y| {
+    t.rect(at(4, 12), at(124, 118), |x, y| {
         ramp(&s.pane, 0.25 + 0.3 * noise(x, y, 16, 16, 131), x, y)
     });
     for (cx, w, c) in [
@@ -1090,17 +1169,18 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
         (88, 14, s.laundry[2]),
     ] {
         // Hanging cloth, a fold down its middle, a shadow along its hem.
-        t.rect((cx, 28), (cx + w, 52), move |x, y| {
-            let fold = x as i32 == cx + w / 2 || y == 51;
+        t.rect(at(cx, 28), at(cx + w, 52), move |x, y| {
+            let (ux, uy) = (x as i32 / U as i32, y as i32 / U as i32);
+            let fold = ux == cx + w / 2 || uy == 51;
             let k = if fold { 0.72 } else { 1.0 };
             [c[0], c[1], c[2]].map(|v| (v as f32 * k) as u8)
         });
     }
-    t.rect((4, 26), (124, 28), |_, _| s.frame[0]);
-    bars(s, &mut t, (4, 12), (124, 80), 6, 132);
+    t.rect(at(4, 26), at(124, 28), |_, _| s.frame[0]);
+    bars(s, &mut t, at(4, 12), at(124, 80), 6, 132);
     // The parapet stays wall (tinted), with a lit coping.
-    for y in 80..118 {
-        for x in 4..124 {
+    for y in u(80) as usize..u(118) as usize {
+        for x in u(4) as usize..u(124) as usize {
             let i = y * TILE + x;
             let v = match s.wall {
                 Wall::Plaster => 0.45 + 0.25 * (noise(x, y, 16, 8, 133) - 0.5),
@@ -1110,32 +1190,39 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
             t.wall[i] = true;
         }
     }
-    t.rect((2, 78), (126, 82), |_, y| {
-        if y == 81 { s.frame[1] } else { s.frame[2] }
+    t.rect(at(2, 78), at(126, 82), |_, y| {
+        if y as i32 >= u(82) - l {
+            s.frame[1]
+        } else {
+            s.frame[2]
+        }
     });
-    t.moss(s, (78, 80), 1.0, 134);
+    t.moss(s, (u(78) as usize, u(80) as usize), 1.0, 134);
     out.push(t);
     // 4: a window with an air conditioner under it, a drip of corrosion below.
     let mut t = facade_wall(s, 140);
-    window(s, &mut t, (36, 20), (92, 80), false, 141);
-    t.rect((44, 92), (84, 114), |x, y| {
-        let v = if y % 3 == 0 && x > 48 && x < 72 {
+    window(s, &mut t, at(36, 20), at(92, 80), false, 141);
+    t.rect(at(44, 92), at(84, 114), |x, y| {
+        let (ux, uy) = (x / U, y / U);
+        let v = if uy % 3 == 0 && ux > 48 && ux < 72 {
             0.15
         } else {
             0.6 + 0.2 * (noise(x, y, 8, 8, 142) - 0.5)
         };
         ramp(&s.metal, v, x, y)
     });
-    t.rect((44, 92), (84, 94), |_, _| s.metal[4]);
-    t.rect((44, 112), (84, 114), |_, _| s.metal[0]);
-    t.rect((76, 114), (78, 128), |x, y| ramp(&s.corrosion, 0.4, x, y));
+    t.rect(at(44, 92), at(84, 94), |_, _| s.metal[4]);
+    t.rect(at(44, 112), at(84, 114), |_, _| s.metal[0]);
+    t.rect(at(76, 114), at(78, 128), |x, y| {
+        ramp(&s.corrosion, 0.4, x, y)
+    });
     out.push(t);
     // 5: a window boarded up with planks, two battens nailed across.
     let mut t = facade_wall(s, 150);
-    window(s, &mut t, (36, 24), (92, 92), false, 151);
-    t.rect((32, 24), (96, 92), |x, y| {
-        let plank = y / 10;
-        let v = if y % 10 == 0 {
+    window(s, &mut t, at(36, 24), at(92, 92), false, 151);
+    t.rect(at(32, 24), at(96, 92), |x, y| {
+        let plank = y / u(10) as usize;
+        let v = if y % (u(10) as usize) < JOINT {
             0.05
         } else {
             0.35 + 0.35 * hash(plank as i32, 0, 152) + 0.2 * (noise(x, y, 16, 1, 153) - 0.5)
@@ -1143,52 +1230,56 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
         ramp(&s.wood, v, x, y)
     });
     for y in [32, 82] {
-        t.rect((28, y), (100, y + 6), |x, y| {
+        t.rect(at(28, y), at(100, y + 6), |x, y| {
             let v = 0.6 + 0.2 * (noise(x, y, 8, 1, 154) - 0.5);
-            ramp(&s.wood, if y % 6 == 5 { v - 0.35 } else { v }, x, y)
+            ramp(&s.wood, if y / U % 6 == 5 { v - 0.35 } else { v }, x, y)
         });
         for x in [32, 64, 94] {
-            t.set(x, y + 2, s.metal[0]);
+            t.rect(at(x, y + 2), at(x + 1, y + 3), |_, _| s.metal[0]);
         }
     }
     out.push(t);
     // 6: a broken window, soot above it.
     let mut t = facade_wall(s, 160);
-    for y in 0..24 {
-        for x in 32..96 {
-            if noise(x, y, 8, 8, 161) + y as f32 / 48.0 > 0.6 {
+    for y in 0..u(24) as usize {
+        for x in u(32) as usize..u(96) as usize {
+            if noise(x, y, 8, 8, 161) + un(y) / 48.0 > 0.6 {
                 t.px[y * TILE + x] = ramp(&WALL, 0.1, x, y);
             }
         }
     }
-    window(s, &mut t, (36, 24), (92, 92), true, 162);
+    window(s, &mut t, at(36, 24), at(92, 92), true, 162);
     out.push(t);
     // 7: blank wall, a louvered vent and a pipe running down.
     let mut t = facade_wall(s, 170);
-    t.rect((52, 36), (76, 56), |x, y| match y % 4 {
+    t.rect(at(52, 36), at(76, 56), |x, y| match y / U % 4 {
         0 => s.pane[1],
         1 => ramp(&s.metal, 0.8, x, y),
         _ => ramp(&s.metal, 0.5, x, y),
     });
-    t.rect((108, 0), (114, 128), |x, y| {
-        let v = match x {
-            108 => 0.8,
-            113 => 0.15,
-            _ => 0.35 + 0.2 * noise(x, y, 1, 16, 171),
+    t.rect(at(108, 0), at(114, 128), |x, y| {
+        let v = if (x as i32) < u(108) + l {
+            0.8
+        } else if x as i32 >= u(114) - l {
+            0.15
+        } else {
+            0.35 + 0.2 * noise(x, y, 1, 16, 171)
         };
         ramp(&s.metal, v, x, y)
     });
-    t.rect((106, 60), (116, 64), |_, _| s.metal[0]);
+    t.rect(at(106, 60), at(116, 64), |_, _| s.metal[0]);
     out.push(t);
     // 8: a shop, its shutter down: the sign band above stays wall (tinted), with unlit lettering.
     let mut t = facade_wall(s, 180);
-    t.rect((4, 40), (124, 128), |x, y| {
-        let v = match y % 6 {
+    t.rect(at(4, 40), at(124, 128), |x, y| {
+        let v = match y / U % 6 {
             0 => 0.15,
             1 => 0.75,
             _ => 0.55 + 0.25 * (noise(x, y, 32, 4, 181) - 0.5),
         };
-        if noise(x, y, 8, 8, 182) * 0.6 + noise(x, y, 2, 2, 185) * 0.3 + (y as f32 / 128.0) * 0.3
+        if noise(x, y, 8, 8, 182) * 0.6
+            + noise(x, y, 2, 2, 185) * 0.3
+            + (y as f32 / TILE as f32) * 0.3
             > 0.78
         {
             ramp(&s.corrosion, 0.3 + 0.5 * noise(x, y, 2, 2, 183), x, y)
@@ -1196,15 +1287,17 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
             ramp(&s.metal, v, x, y)
         }
     });
-    t.rect((4, 36), (124, 40), |_, _| s.metal[0]);
+    t.rect(at(4, 36), at(124, 40), |_, _| s.metal[0]);
     letters(&mut t, 12, 184);
     out.push(t);
     // 9: a shop window, dark, its sign band above.
     let mut t = facade_wall(s, 190);
-    t.rect((4, 36), (124, 128), |x, y| ramp(&s.frame, 0.3, x, y));
-    t.rect((10, 42), (118, 122), |x, y| glass_px(s, x, y, false, 191));
-    t.rect((62, 42), (66, 122), |_, _| s.frame[0]);
-    t.rect((10, 100), (62, 102), |_, _| s.frame[0]);
+    t.rect(at(4, 36), at(124, 128), |x, y| ramp(&s.frame, 0.3, x, y));
+    t.rect(at(10, 42), at(118, 122), |x, y| {
+        glass_px(s, x, y, false, 191)
+    });
+    t.rect(at(62, 42), at(66, 122), |_, _| s.frame[0]);
+    t.rect(at(10, 100), at(62, 102), |_, _| s.frame[0]);
     letters(&mut t, 12, 192);
     out.push(t);
     // 10: blank wall.
@@ -1214,15 +1307,19 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
     out.push(curtain(s, true, 220));
     // 13: a ribbon window, glazed from edge to edge of the bay so the bays run on as one band.
     let mut t = facade_wall(s, 230);
-    t.rect((0, 28), (128, 32), |_, _| s.frame[0]);
-    t.rect((0, 32), (128, 80), |x, y| glass_px(s, x, y, false, 231));
+    t.rect(at(0, 28), at(128, 32), |_, _| s.frame[0]);
+    t.rect(at(0, 32), at(128, 80), |x, y| glass_px(s, x, y, false, 231));
     for x in [0, 32, 64, 96] {
-        t.rect((x, 32), (x + 3, 80), |_, _| s.frame[1]);
+        t.rect(at(x, 32), at(x + 3, 80), |_, _| s.frame[1]);
     }
-    t.rect((0, 80), (128, 84), |x, y| match y {
-        80 => s.frame[2],
-        83 => ramp(&s.concrete, 0.1, x, y),
-        _ => ramp(&s.concrete, 0.3, x, y),
+    t.rect(at(0, 80), at(128, 84), |x, y| {
+        if (y as i32) < u(80) + l {
+            s.frame[2]
+        } else if y as i32 >= u(84) - l {
+            ramp(&s.concrete, 0.1, x, y)
+        } else {
+            ramp(&s.concrete, 0.3, x, y)
+        }
     });
     out.push(t);
     out
@@ -1234,18 +1331,18 @@ fn facade_tiles(s: &Textures) -> Vec<Tile> {
 fn curtain(s: &Textures, broken: bool, salt: i32) -> Tile {
     let mut t = facade_wall(s, salt);
     for pane in 0..4 {
-        let (x0, y0) = ((pane % 2) * 64, if pane < 2 { 0 } else { 36 });
-        let y1 = if pane < 2 { 36 } else { 104 };
+        let (x0, y0) = at((pane % 2) * 64, if pane < 2 { 0 } else { 36 });
+        let y1 = u(if pane < 2 { 36 } else { 104 });
         let shade = hash(pane, 0, salt + 1);
         let gone = broken && hash(pane, 1, salt + 2) > 0.45;
-        t.rect((x0, y0), (x0 + 64, y1), |x, y| {
+        t.rect((x0, y0), (x0 + u(64), y1), |x, y| {
             if gone {
                 // The dark floor behind, the ceiling's edge a line at the top.
-                let v = if y < y0 as usize + 4 { 0.3 } else { 0.05 };
+                let v = if (y as i32) < y0 + u(4) { 0.3 } else { 0.05 };
                 return ramp(&s.pane, v, x, y);
             }
-            let d = (x + TILE - y % TILE) % 56;
-            let sheen = if d < 6 { 0.3 } else { 0.0 };
+            let d = (x + TILE - y % TILE) % u(56) as usize;
+            let sheen = if d < u(6) as usize { 0.3 } else { 0.0 };
             let v = 0.25 + 0.5 * shade + 0.15 * (y as f32 / TILE as f32) + sheen;
             ramp(
                 &s.pane,
@@ -1255,23 +1352,24 @@ fn curtain(s: &Textures, broken: bool, salt: i32) -> Tile {
             )
         });
         if gone {
-            for i in 0..10 {
-                t.set(x0 + 4 + i, y1 - 4 - i, s.pane[3]);
-                t.set(x0 + 58 - i, y0 + 4 + i / 2, s.pane[2]);
+            for i in 0..u(10) {
+                t.set(x0 + u(4) + i, y1 - u(4) - i, s.pane[3]);
+                t.set(x0 + u(58) - i, y0 + u(4) + i / 2, s.pane[2]);
             }
         }
     }
     // Mullions (the bay's edges meet in one), the transom, and the spandrel over the slab (left
     // as wall, tinted).
     for (x0, x1) in [(0, 1), (62, 64), (127, 128)] {
-        t.rect((x0, 0), (x1, 104), |_, _| s.frame[1]);
+        t.rect(at(x0, 0), at(x1, 104), |_, _| s.frame[1]);
     }
-    t.rect((0, 34), (128, 36), |_, _| s.frame[0]);
-    t.rect((0, 102), (128, 104), |_, _| s.frame[2]);
+    t.rect(at(0, 34), at(128, 36), |_, _| s.frame[0]);
+    t.rect(at(0, 102), at(128, 104), |_, _| s.frame[2]);
     t
 }
 
-/// Unlit sign lettering in the sign band (rows `y0..y0 + 16`): blocky glyphs of dark paint.
+/// Unlit sign lettering in the sign band (rows `y0..y0 + 16`, in units): blocky glyphs of dark
+/// paint.
 fn letters(t: &mut Tile, y0: i32, salt: i32) {
     let n = 4 + (hash(0, 0, salt) * 3.0) as i32;
     let w = 10;
@@ -1281,7 +1379,7 @@ fn letters(t: &mut Tile, y0: i32, salt: i32) {
             for gx in 0..3 {
                 if hash(i * 8 + gx, gy, salt + 1) > 0.45 {
                     let (x, y) = (x0 + i * (w + 4) + gx * 4 - 2, y0 + gy * 4);
-                    t.rect((x, y), (x + 4, y + 4), |_, _| [40, 34, 32]);
+                    t.rect(at(x, y), at(x + 4, y + 4), |_, _| [40, 34, 32]);
                 }
             }
         }
@@ -1300,12 +1398,13 @@ fn asphalt(s: &Textures, salt: i32) -> Tile {
             (
                 rng.range_i(0, TILE as i32),
                 rng.range_i(0, TILE as i32),
-                rng.range_i(24, 56),
-                rng.range_i(16, 40),
+                u(rng.range_i(24, 56)),
+                u(rng.range_i(16, 40)),
             )
         })
         .collect();
     // 0 outside every patch, 1 on a patch's border, 2 inside.
+    let l = LINE as i32;
     let patch = |x: usize, y: usize| {
         patches
             .iter()
@@ -1314,7 +1413,7 @@ fn asphalt(s: &Textures, salt: i32) -> Tile {
                 let dy = (y as i32 - py).rem_euclid(TILE as i32);
                 if dx >= w || dy >= h {
                     0
-                } else if dx == 0 || dy == 0 || dx == w - 1 || dy == h - 1 {
+                } else if dx.min(dy) < l || dx >= w - l || dy >= h - l {
                     1
                 } else {
                     2
@@ -1332,7 +1431,7 @@ fn asphalt(s: &Textures, salt: i32) -> Tile {
             1 => v = 0.05,
             2 => v = 0.25 + 0.08 * (noise(x, y, 16, 16, salt + 3) - 0.5),
             _ => {
-                let a = hash(x as i32, y as i32, salt + 4);
+                let a = speck(x, y, salt + 4);
                 if a > 0.94 {
                     v += 0.25;
                 } else if a < 0.05 {
@@ -1365,18 +1464,14 @@ fn roof(s: &Textures) -> Tile {
         }
         let mut v =
             0.5 + 0.2 * (noise(x, y, 32, 32, 150) - 0.5) + 0.12 * (noise(x, y, 2, 2, 151) - 0.5);
-        if x % 32 == 0 {
+        let seam = x % u(32) as usize;
+        if seam < LINE {
             v = 0.85;
-        } else if x % 32 == 1 {
+        } else if seam < 2 * LINE {
             v = 0.15;
         }
-        if hash(x as i32, y as i32, 152) > 0.86 {
-            return ramp(
-                &s.concrete,
-                0.35 + 0.5 * hash(x as i32, y as i32, 153),
-                x,
-                y,
-            );
+        if speck(x, y, 152) > 0.86 {
+            return ramp(&s.concrete, 0.35 + 0.5 * speck(x, y, 153), x, y);
         }
         ramp(&s.asphalt, v, x, y)
     });
@@ -1388,8 +1483,8 @@ fn roof(s: &Textures) -> Tile {
 /// the tile and a rib along the other, lit on one side and shadowed on the other; rings of water
 /// stains in the coffers, pale mineral streaks along the beams, algae where it is damp.
 fn underside(s: &Textures) -> Tile {
-    const BEAM: usize = 12;
-    const RIB: usize = 6;
+    const BEAM: usize = 12 * U;
+    const RIB: usize = 6 * U;
     let mut t = Tile::new();
     t.fill(|x, y| {
         let beam = x < BEAM;
@@ -1399,9 +1494,11 @@ fn underside(s: &Textures) -> Tile {
         } else {
             0.3 + 0.15 * (noise(x, y, 32, 32, 161) - 0.5)
         };
-        if x == BEAM || y == RIB {
+        let shadow = |a: usize, edge: usize| (edge..edge + LINE).contains(&a);
+        let lit = |a: usize, edge: usize| (edge - LINE..edge).contains(&a);
+        if shadow(x, BEAM) || shadow(y, RIB) {
             v = 0.05;
-        } else if x == BEAM - 1 || y == RIB - 1 {
+        } else if lit(x, BEAM) || lit(y, RIB) {
             v += 0.2;
         }
         if !beam && !rib {
@@ -1479,35 +1576,51 @@ pub fn wear_uniform() -> Vec<f32> {
 }
 
 /// A biome's row of tiles: the materials in `Mat::index` order, the facade units, the surfaces,
-/// the swatches.
+/// the swatches. Drawn on a few threads: at 64 pixels per meter a row takes a while.
 fn row(s: &Textures) -> Vec<Tile> {
-    [
-        paving(s, &s.stone, s.paving.0, 1),
-        paving(s, &s.stone_dark, s.paving.1, 10),
-        concrete(s),
-        brick(s),
-        tiles(s),
-        metal(s, s.corroded.0),
-        metal(s, s.corroded.1),
-        wood(s),
-        glass(s),
-        soil(s),
-        paint(s),
-    ]
-    .into_iter()
-    .chain(facade_tiles(s))
-    .chain(surface_tiles(s))
-    .chain(std::iter::once(swatches(s)))
-    .collect()
+    std::thread::scope(|scope| {
+        let facades = scope.spawn(|| facade_tiles(s));
+        let surfaces = scope.spawn(|| surface_tiles(s));
+        let more = scope.spawn(|| {
+            [
+                tiles(s),
+                metal(s, s.corroded.0),
+                metal(s, s.corroded.1),
+                wood(s),
+                glass(s),
+                soil(s),
+                paint(s),
+            ]
+        });
+        [
+            paving(s, &s.stone, s.paving.0, 1),
+            paving(s, &s.stone_dark, s.paving.1, 10),
+            concrete(s),
+            brick(s),
+        ]
+        .into_iter()
+        .chain(more.join().unwrap())
+        .chain(facades.join().unwrap())
+        .chain(surfaces.join().unwrap())
+        .chain(std::iter::once(swatches(s)))
+        .collect()
+    })
 }
 
-/// The atlas, RGBA: a row of tiles per biome (`biome::variant_of`), rows past the last biome
-/// left empty. Alpha marks the facade's wall pixels.
+/// The atlas, RGBA: a row of tiles per biome (`biome::variant_of`). Alpha marks the facade's wall
+/// pixels.
 pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
     let (w, h) = (TILE * COUNT, TILE * ROWS);
     let mut rgba = vec![0u8; w * h * 4];
-    for (r, biome) in BIOMES.iter().enumerate().take(ROWS) {
-        for (i, t) in row(&biome.textures).iter().enumerate() {
+    let rows: Vec<Vec<Tile>> = std::thread::scope(|scope| {
+        let rows: Vec<_> = BIOMES
+            .iter()
+            .map(|b| scope.spawn(|| row(&b.textures)))
+            .collect();
+        rows.into_iter().map(|r| r.join().unwrap()).collect()
+    });
+    for (r, tiles) in rows.iter().enumerate() {
+        for (i, t) in tiles.iter().enumerate() {
             for y in 0..TILE {
                 for x in 0..TILE {
                     let c = t.px[y * TILE + x];
@@ -1521,7 +1634,9 @@ pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
     (w, h, rgba)
 }
 
-/// The atlas as a texture: crisp pixels up close, mipmapped far away. Requires a GL context.
+/// The atlas as a texture: crisp pixels up close, mipmapped far away, blending from one mip level
+/// to the next so no band shows where the level changes (nearest within a level, so tiles never
+/// bleed into each other). Requires a GL context.
 pub fn load() -> ffi::Texture2D {
     let (w, h, rgba) = atlas_pixels();
     unsafe {
@@ -1535,6 +1650,11 @@ pub fn load() -> ffi::Texture2D {
         let mut t = ffi::LoadTextureFromImage(image);
         ffi::GenTextureMipmaps(&mut t);
         ffi::SetTextureFilter(t, ffi::TextureFilter::TEXTURE_FILTER_POINT as i32);
+        ffi::rlTextureParameters(
+            t.id,
+            ffi::RL_TEXTURE_MIN_FILTER as i32,
+            ffi::RL_TEXTURE_FILTER_NEAREST_MIP_LINEAR as i32,
+        );
         t
     }
 }
@@ -1557,7 +1677,9 @@ mod tests {
     /// a row of its own.
     #[test]
     fn every_biome_draws_its_own_tiles() {
-        let divides = |n: usize| n >= 2 && TILE.is_multiple_of(n);
+        // Pattern sizes are in units, 128 to the tile.
+        let divides =
+            |n: usize| n >= 2 && 128_usize.is_multiple_of(n) && TILE.is_multiple_of(n * U);
         let mut rows: Vec<Vec<Rgb>> = Vec::new();
         for b in BIOMES {
             let s = &b.textures;
@@ -1594,5 +1716,11 @@ mod tests {
             assert!(!rows.contains(&px), "{} draws another biome's row", b.name);
             rows.push(px);
         }
+    }
+
+    #[test]
+    fn the_shader_samples_the_atlas_at_its_density() {
+        let fs = include_str!("../../shaders/scene.fs");
+        assert!(fs.contains(&format!("const float PPM = {PPM}.0;")));
     }
 }

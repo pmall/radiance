@@ -163,6 +163,10 @@ What the project owner has said so far. Treat as requirements.
 - After milestone 10 (owner): "changes are good", but the texture pixels were too big, "looks too
   much like minecraft": smaller pixels, less blocky, more illustrated. The pixel art went from 16
   to 32 pixels per meter (textures, wear, plants), the patterns kept at their sizes in meters.
+- After the 32 pixels per meter pass (owner): 32 is better than 16, and go to 64. "Pixel art was
+  never a requirement. Cartoonish / Nivalis night look was." The textures went to 64 pixels per
+  meter (patterns written in meters, `pixels::PPM`), toward a painted look: flat tones with a
+  narrow dithered seam instead of dithered grain, mip levels blended so no band shows far away.
 
 ## How to work on generation (owner's direction)
 

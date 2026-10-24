@@ -477,6 +477,10 @@ impl Renderer {
         s.set_f32("uShadowTexel", self.shadow.texel());
         s.set_vec3_array("uPalette", &crate::world::biome::palette_uniform());
         s.set_vec3_array("uWear", &pixels::wear_uniform());
+        s.set_vec2(
+            "uAtlas",
+            Vec2::new(pixels::COUNT as f32, pixels::ROWS as f32),
+        );
         let heights: Vec<f32> = sky.heights.iter().flat_map(|c| c.to_array()).collect();
         s.set_vec3_array("uHeights", &heights);
         s.set_vec3("uCamPos", view.pos);

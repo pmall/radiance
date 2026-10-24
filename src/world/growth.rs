@@ -66,8 +66,8 @@ struct Builder<'a> {
     leaf_px: (f32, f32),
 }
 
-/// Pixels per meter of the plants' pixel art (`pixelLeaf` in shaders/scene.fs).
-const LEAF_PX_PER_M: f32 = 32.0;
+/// Pixels per meter of the plants' pixel art (`pixelLeaf` in shaders/scene.fs), the textures'.
+const LEAF_PX_PER_M: f32 = crate::render::pixels::PPM as f32;
 
 impl Builder<'_> {
     /// The leaf drawn next is `width` across at its widest and `len` long (meters).

@@ -31,6 +31,7 @@ uniform vec3 uPalette[8 * 9];    // per biome (src/world/biome.rs, Palette): 8 w
 uniform float uGlow;         // plant emission and light strength for the time of day
 uniform sampler2D texture5;  // cover map
 uniform sampler2D texture10; // chunk materials and facade units in pixel art, a row per biome (src/render/pixels.rs)
+uniform vec2 uAtlas;         // its tiles in a row and rows (pixels::COUNT, pixels::ROWS)
 uniform sampler2D texture6;  // tower elevations (src/render/facades.rs)
 uniform sampler2D texture0;  // noise (src/render/noise.rs): value noise of 1, 2, 4, 8 cells per unit
 uniform vec3 uWear[2 * 8];   // per biome (src/render/pixels.rs, wear_uniform): (moss, damp, dust), (litter, puddles, markings)
@@ -176,7 +177,9 @@ vec3 pal(int slot)
 // The atlas of pixel-art tiles (src/render/pixels.rs): a row per biome, each the chunk materials,
 // the facade units, the city's surfaces and a tile of swatches, 4 m per tile. Drawn from the row
 // of the fragment's biome; `t` is in tiles; crisp pixels up close.
-const vec2 ATLAS = vec2(30.0, 8.0);  // tiles in a row (pixels::COUNT), rows (MAX_BIOMES)
+const float PPM = 64.0;              // texture pixels per meter (pixels::PPM)
+const int TILE_PX = int(4.0 * PPM);  // side of a tile in pixels (pixels::TILE)
+const float UNIT = PPM / 32.0;       // pixels in 1/32 m, the unit patterns are sized in
 const float ROAD_TILE = 25.0;        // then sidewalk, roof, deck underside (pixels::SURFACES)
 const float SIDEWALK_TILE = 26.0;
 const float ROOF_TILE = 27.0;
@@ -184,17 +187,19 @@ const float UNDERSIDE_TILE = 28.0;
 const int SWATCH_TILE = 29;
 vec4 atlasTile(float tile, vec2 t)
 {
-    vec2 a = (vec2(tile, float(gVariant)) + fract(t)) / ATLAS;
-    // Gradients of the unwrapped coordinates, so the tile seams never pick a blurry mip level.
-    vec2 dx = dFdx(t) / ATLAS;
-    vec2 dy = dFdy(t) / ATLAS;
-    vec4 c = textureGrad(texture10, a, dx, dy);
+    vec2 a = (vec2(tile, float(gVariant)) + fract(t)) / uAtlas;
+    // Gradients of the unwrapped coordinates, so the tile seams never pick a blurry mip level,
+    // and never past the level where a tile is one texel, where tiles would blend together.
+    vec2 dx = dFdx(t), dy = dFdy(t);
+    float rho = max(length(dx), length(dy)) * float(TILE_PX);
+    float k = min(1.0, float(TILE_PX) / max(rho, 1e-6));
+    vec4 c = textureGrad(texture10, a, dx * k / uAtlas, dy * k / uAtlas);
     return vec4(pow(c.rgb, vec3(2.2)), c.a);
 }
 
 
 // ---- Wear: what time did to the city ----
-// Drawn over every surface on the textures' pixel grid (32 pixels per meter), dithered like them,
+// Drawn over every surface on the textures' pixel grid (PPM to the meter), dithered like them,
 // in the biome's swatches and by its amounts (src/render/pixels.rs, Textures), and by the floor:
 // the depths dusty and stained, the canopy mossy and strewn with leaves; open sky brings rain.
 
@@ -205,7 +210,7 @@ float gWet = 0.0;   // standing water at the fragment (groundWear), for the ligh
 vec3 swatch(int row, float t)
 {
     int i = clamp(int(t * 4.0 + 0.5), 0, 4);
-    vec3 c = texelFetch(texture10, ivec2(SWATCH_TILE * 128 + i, gVariant * 128 + row), 0).rgb;
+    vec3 c = texelFetch(texture10, ivec2(SWATCH_TILE * TILE_PX + i, gVariant * TILE_PX + row), 0).rgb;
     return pow(c, vec3(2.2));
 }
 
@@ -232,7 +237,7 @@ float dither(float a, vec2 q, float fine)
 // How far single pixels can be drawn: 1 up close, 0 once a screen pixel spans two texels.
 float fineAt(float px)
 {
-    return 1.0 - smoothstep(0.03, 0.065, px);
+    return 1.0 - smoothstep(0.96 / PPM, 2.08 / PPM, px);
 }
 
 // Ground: damp stains, long cracks with weeds, dust and sand in drifts, moss in patches, dead
@@ -244,8 +249,8 @@ float gOpen = 1.0;  // share of the sky the fragment sees (main)
 vec3 groundWear(vec3 col, vec3 p, float px, float edge)
 {
     vec3 w0 = uWear[gVariant * 2], w1 = uWear[gVariant * 2 + 1];
-    vec2 q = floor(p.xz * 32.0);
-    vec2 c = (q + 0.5) / 32.0;
+    vec2 q = floor(p.xz * PPM);
+    vec2 c = (q + 0.5) / PPM;
     float fine = fineAt(px);
     float h = stack01(p.y);
     float open = gOpen;
@@ -287,13 +292,14 @@ vec3 groundWear(vec3 col, vec3 p, float px, float edge)
         col = mix(col, col * 0.35, crack);
         col = mix(col, swatch(2, 0.3 + 0.6 * hash12(q + 1.7)), weed);
 
-        // Dead leaves and litter in clusters, a leaf two pixels long; glints of broken glass.
+        // Dead leaves and litter in clusters, a leaf two units long; glints of broken glass.
         float lit = w1.x * mix(0.6, 1.4, h);
-        vec2 lq = floor(q / vec2(2.0, 1.0));
+        vec2 lq = floor(q / (vec2(2.0, 1.0) * UNIT));
         float ln = smoothstep(0.45, 0.9, noise4(c * 0.45 + 13.0).r) * 0.035 + edge * 0.3;
         float leaf = step(hash12(lq + 0.71), lit * ln) * fine * (1.0 - pool);
         col = mix(col, swatch(1, 0.8 * hash12(lq + 3.7)), leaf);
-        float glint = step(hash12(q + 9.1), 0.0005 * w0.z * (1.0 - h)) * fine * (1.0 - pool);
+        float glint = step(hash12(q + 9.1), 0.512 / (PPM * PPM) * w0.z * (1.0 - h))
+                    * fine * (1.0 - pool);
         col = mix(col, vec3(0.55, 0.62, 0.66), glint);
     }
     return col;
@@ -306,10 +312,10 @@ vec3 groundWear(vec3 col, vec3 p, float px, float edge)
 vec3 wallWear(vec3 col, vec3 p, vec3 n, float u, float tall, float px)
 {
     vec3 w0 = uWear[gVariant * 2];
-    vec2 q = floor(vec2(u, p.y) * 32.0);
+    vec2 q = floor(vec2(u, p.y) * PPM);
     float fine = fineAt(px);
-    float x = (q.x + 0.5) / 32.0;
-    float y = aboveFloor((q.y + 0.5) / 32.0);
+    float x = (q.x + 0.5) / PPM;
+    float y = aboveFloor((q.y + 0.5) / PPM);
 
     // The foot: a ragged band, darker toward the ground.
     float foot = (0.25 + 0.4 * vnoise(vec2(x * 0.9, 3.0)) + 0.12 * vnoise(vec2(x * 7.0, 1.0)))
@@ -320,16 +326,16 @@ vec3 wallWear(vec3 col, vec3 p, vec3 n, float u, float tall, float px)
     float mf = f * step(1.0 - 0.9 * w0.x, vnoise(vec2(x * 1.7, y * 3.0) + 5.0)) * step(0.3, tall);
     col = mix(col, swatch(2, 0.1 + 0.6 * vnoise(vec2(x, y) * 4.0)), mf);
 
-    // Streaks from each story's ledge (every 4 m), two pixels wide, broken here and there.
+    // Streaks from each story's ledge (every 4 m), two units wide, broken here and there.
     if (tall > 3.0) {
-        float cx = floor(q.x / 2.0);
+        float cx = floor(q.x / (2.0 * UNIT));
         float story = floor(y / 4.0);
         float below = (story + 1.0) * 4.0 - y;
         vec2 k = vec2(cx, story + floor(p.y / 36.0) * 17.0);
         float r = hash12(k + 0.37);
         float len = 0.3 + 3.2 * hash12(k + 5.1) * (0.6 + 0.6 * w0.y);
         float s = step(r, 0.14 + 0.1 * w0.y) * (1.0 - smoothstep(0.0, len, below));
-        s *= step(0.2, hash12(q * vec2(1.0, 0.25) + 2.3)) * mix(0.6, 1.0, fine);
+        s *= step(0.2, hash12(floor(q / UNIT) * vec2(1.0, 0.25) + 2.3)) * mix(0.6, 1.0, fine);
         col *= 1.0 - 0.45 * s;
         col = mix(col, swatch(4, 0.4 + 0.3 * hash12(k)), s * step(r, 0.025) * 0.7);
     }
@@ -361,7 +367,7 @@ float deckAt(vec2 xz, float y)
 // short of it, at a curb. Masks are taken at the texel's center so their edges are pixels too.
 vec3 pavement(vec3 base, vec3 p, float px)
 {
-    vec2 uv = (floor(p.xz * 32.0) + 0.5) / 32.0;
+    vec2 uv = (floor(p.xz * PPM) + 0.5) / PPM;
     vec2 corner = round(uv / LOT);
     vec2 off = uv - corner * LOT;  // from the nearest corner
     vec2 ad = abs(off);
@@ -492,7 +498,7 @@ vec3 facade(vec3 base, vec3 p, vec3 n, vec2 loc, float fid, int elev, int shift)
     return mix(c.rgb, c.rgb / 0.44 * tint, c.a);
 }
 
-// Plants in pixel art. A leaf, frond or blade is a sprite of square cells (32 per meter) in its
+// Plants in pixel art. A leaf, frond or blade is a sprite of square cells (PPM per meter) in its
 // leaf coordinates (across with the midrib at 0.5, along from the root): flat colors in a few tones
 // of the plant's color, dithered like the textures, darker at the root, a lighter midrib, a
 // darker rim, and a ragged edge where cells of the outer columns are cut away, so it reads as
@@ -552,7 +558,7 @@ vec3 pixelPetal(vec3 base, vec2 uv, float seed)
 // textures' size, each a tone of the plant's color.
 vec3 pixelStem(vec3 base, vec3 p, float seed)
 {
-    vec3 c = floor(p * 32.0);
+    vec3 c = floor(p * PPM);
     float h = hash12(c.xz + c.y * 7.13 + seed);
     return base * mix(0.75, 1.15, floor(h * 3.0) / 2.0);
 }
