@@ -7,6 +7,8 @@ in vec3 fragWorldPos;
 in vec3 fragNormal;
 in vec4 fragColor;
 flat in float fragId;
+flat in float fragFar;       // a tower rising past the top deck, which the far skyline draws too
+flat in vec3 fragOrigin;     // where a prop stands, which its fade goes by
 flat in float fragKind;      // material: 0 tower, 1 plant, 2 floor/deck, 3 bridge, 4 stair, 5 test block
 in vec2 fragLoc;             // position along a vertical face, face width
 
@@ -36,6 +38,8 @@ uniform sampler2D texture6;  // tower elevations (src/render/facades.rs)
 uniform sampler2D texture0;  // noise (src/render/noise.rs): value noise of 1, 2, 4, 8 cells per unit
 uniform vec3 uWear[2 * 8];   // per biome (src/render/pixels.rs, wear_uniform): (moss, damp, dust), (litter, puddles, markings)
 uniform vec3 uCamPos;
+uniform vec3 uFade;          // where this draw dissolves (fade.glsl)
+uniform int uInstanced;
 #define COVER_TEX texture5
 
 #include "cover.glsl"
@@ -81,8 +85,8 @@ float shadow(vec3 p, vec3 n)
 
 // Light grid layout, mirrored from src/render/lights.rs.
 const int LW = 256;
-const int MAX_LIGHTS = 512;
-const ivec3 GRID = ivec3(32, 16, 32);
+const int MAX_LIGHTS = 1024;
+const ivec3 GRID = ivec3(32, 32, 32);
 const float CELL = 6.0;
 const float WALL_REACH = 1.6;  // lights.rs bins each light this much further for the walls
 
@@ -116,7 +120,8 @@ vec3 plantLights(vec3 p, vec3 n)
             if (x <= 0.0) continue;
             float q = 0.34 * smoothstep(0.03, 0.13, x) + 0.33 * smoothstep(0.30, 0.40, x)
                     + 0.33 * smoothstep(0.65, 0.75, x);
-            acc += fetchTexel(i * 3 + 1).rgb * q * clamp(facing * 0.5 + 0.6, 0.0, 1.0) * mix(1.0, 0.6, wall);
+            // Its fade with distance from the camera (lights.rs) rides in the band's z.
+            acc += fetchTexel(i * 3 + 1).rgb * band.z * q * clamp(facing * 0.5 + 0.6, 0.0, 1.0) * mix(1.0, 0.6, wall);
         }
     }
     return acc;
@@ -214,17 +219,8 @@ vec3 swatch(int row, float t)
     return pow(c, vec3(2.2));
 }
 
-// 4x4 ordered dither threshold at pixel q, in 0..1 (the textures' Bayer matrix, worked out).
-float bayer2(vec2 a)
-{
-    a = floor(a);
-    return fract(dot(a, vec2(0.5, a.y * 0.75)));
-}
-
-float bayer4(vec2 q)
-{
-    return bayer2(0.5 * q) * 0.25 + bayer2(q) + 1.0 / 32.0;
-}
+// The 4x4 ordered dither (bayer4) and the dissolve of far draws (faded).
+#include "fade.glsl"
 
 // Coverage `a` (0..1) at pixel q: all or nothing through the ordered dither up close (`fine` 1),
 // a plain blend far away, where single pixels would shimmer.
@@ -565,6 +561,7 @@ vec3 pixelStem(vec3 base, vec3 p, float seed)
 
 void main()
 {
+    if (faded(uInstanced != 0 ? fragOrigin : fragWorldPos)) discard;
     if (uSkyline == 1) {
         ivec2 l = ivec2(floor(fragWorldPos.xz / 24.0 - uLoadedOrigin));
         if (l.x >= 0 && l.y >= 0 && l.x < 21 && l.y < 21 && ((uLoaded[l.y] >> l.x) & 1) == 1)
@@ -673,6 +670,8 @@ void main()
         lit = mix(lit, mirror, fres * gWet);
     }
     lit += emit * glow * 0.32;
-    outColor = vec4(lit, 1.0);
+    // Alpha: 1 on the walls of the towers rising past the top deck, here or in the far skyline,
+    // which the fog at the loaded lots' edge leaves be (shaders/post.fs).
+    outColor = vec4(lit, kind == 0 && (uSkyline == 1 || fragFar > 0.5) ? 1.0 : 0.0);
     outNormal = vec4(n * 0.5 + 0.5, fragId);
 }

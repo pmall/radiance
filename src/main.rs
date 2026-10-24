@@ -6,6 +6,7 @@ mod recorder;
 mod render;
 mod report;
 mod rng;
+mod stream;
 mod world;
 
 use glam::{Vec2, Vec3, vec3};
@@ -20,8 +21,6 @@ use world::World;
 
 const DEFAULT_SEED: u64 = 1;
 const SIM_STEP: f32 = 1.0 / 120.0;
-/// Lots generated per frame while streaming, to keep frame times even.
-const STREAM_BUDGET: usize = 4;
 const SPAWN: Vec3 = vec3(0.0, 0.5, 0.0);
 /// Late afternoon: a few minutes before dusk starts.
 const START_TIME: f32 = 0.66;
@@ -250,12 +249,12 @@ fn main() {
 
     let mut player = spawn_player(args.view, args.shot.is_some() || args.bench.is_some());
     let mut world = World::new(args.seed);
-    world.stream(player.pos, usize::MAX);
     let mut renderer = Renderer::new();
     if let Some(fx) = args.fx {
         renderer.effects = fx;
     }
-    renderer.sync_world(&world);
+    let mut streamer = stream::Streamer::new();
+    streamer.fill(&mut world, &mut renderer, player.pos);
     renderer.sync_skyline(world.seed, player.pos, true);
     // Sound only for interactive runs: screenshots and benchmarks stay silent.
     let mut audio = if args.shot.is_none() && args.bench.is_none() && !args.no_audio {
@@ -375,11 +374,12 @@ fn main() {
                 a.reseed(s);
             }
             renderer.clear_world();
+            streamer.reset();
             if !player.is_flying() {
                 player = Player::new(SPAWN);
             }
             blend = Blend::new(biome_variant(s, player.pos));
-            world.stream(player.pos, usize::MAX);
+            streamer.fill(&mut world, &mut renderer, player.pos);
         }
 
         // Time of day.
@@ -427,7 +427,7 @@ fn main() {
         if player.pos.y < -100.0 {
             player = Player::new(SPAWN);
         }
-        world.stream(player.pos, STREAM_BUDGET);
+        streamer.update(&mut world, &mut renderer, player.pos);
         renderer.sync_world(&world);
         renderer.sync_skyline(world.seed, player.pos, false);
 

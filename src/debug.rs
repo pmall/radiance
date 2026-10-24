@@ -221,10 +221,11 @@ impl Debug {
         say("Technical".into(), HEADING);
         say(
             format!(
-                "  {} fps   {:.1} M triangles   {} flower lights   resolution {:.0}%   sound {}",
+                "  {} fps   {:.1} M triangles   {} flower lights ({} left out of full cells)   resolution {:.0}%   sound {}",
                 unsafe { sola_raylib::ffi::GetFPS() },
                 renderer.triangles() as f32 / 1e6,
                 renderer.lights_in_use,
+                renderer.lights_left_out(),
                 renderer.render_scale * 100.0,
                 match audio {
                     Some(a) if a.muted => "muted".to_string(),

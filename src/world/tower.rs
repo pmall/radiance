@@ -25,6 +25,14 @@ pub const NEAR_STORIES: usize = 2;
 pub struct Faces {
     pub ids: [u16; 4],
     pub paint: u8,
+    /// The tower rises past the top deck (`over_top_deck`): the far skyline draws it too, so the
+    /// fog at the loaded lots' edge leaves it be (`shaders/post.fs`).
+    pub far: bool,
+}
+
+/// Whether a placed tower rises past the top deck, into the far skyline (`skyline.rs`).
+pub fn over_top_deck(p: &Placement) -> bool {
+    floors::bottom() + p.stories as f32 * STORY > floors::top() + 1.0
 }
 
 /// The paint of a written digit on a tower (`d` 1 to 7) in a biome (`Palette::paints`, which the
@@ -218,6 +226,7 @@ pub fn build(cat: &Catalog, p: &Placement, seed: u64) -> Built {
             let mut faces = Faces {
                 ids: [0; 4],
                 paint: shift_paint,
+                far: over_top_deck(p),
             };
             for (fi, (n, _)) in FACES.iter().enumerate() {
                 faces.ids[face_index(tf.dir(*n))] = f.ids[fi];

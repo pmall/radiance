@@ -128,11 +128,12 @@ impl Block {
 }
 
 /// Lots kept loaded around the player (Chebyshev distance, in lots) and the distance at which
-/// they are dropped; the gap avoids thrashing at the boundary.
-pub const LOAD_RADIUS: i32 = 7;
-const UNLOAD_RADIUS: i32 = 9;
+/// they are dropped; the gap avoids thrashing at the boundary. Loaded on worker threads
+/// (`crate::stream`).
+pub const LOAD_RADIUS: i32 = 8;
+pub const UNLOAD_RADIUS: i32 = 10;
 
-type LotKey = (i32, i32);
+pub type LotKey = (i32, i32);
 
 /// A vertex of decorative plant geometry (no collision).
 pub struct PlantVert {
@@ -215,6 +216,27 @@ fn overhangs((lx, lz): LotKey, blocks: &[Block]) -> Vec<Aabb> {
         .collect()
 }
 
+/// Whether lot `k` is within `radius` lots of lot `c` (Chebyshev distance).
+fn within(c: LotKey, k: LotKey, radius: i32) -> bool {
+    (k.0 - c.0).abs().max((k.1 - c.1).abs()) <= radius
+}
+
+/// Generates a lot and grows its plants: a pure function of the seed and the lot, so any thread
+/// may make it.
+pub fn generate(seed: u64, (x, z): LotKey) -> Lot {
+    let mut blocks = Vec::new();
+    let dressed = city::generate_lot_dressed(seed, x, z, &mut blocks);
+    let growth = growth::grow_lot(seed, x, z, &blocks, &dressed.blooms);
+    Lot {
+        overhangs: overhangs((x, z), &blocks),
+        blocks,
+        plants: growth.plants,
+        props: dressed.props,
+        lights: growth.lights,
+        variant: biome::variant_of(biome::biome_at(seed, x, z)) as u8,
+    }
+}
+
 pub struct World {
     pub seed: u64,
     lots: HashMap<LotKey, Lot>,
@@ -228,12 +250,21 @@ impl World {
         }
     }
 
-    /// Loads lots around `center` (nearest first, at most `budget` per call) and drops far ones.
-    pub fn stream(&mut self, center: Vec3, budget: usize) {
-        let (cx, cz) = city::lot_of(center);
-        self.lots
-            .retain(|&(x, z), _| (x - cx).abs().max((z - cz).abs()) <= UNLOAD_RADIUS);
+    /// Takes out the lots too far from `center`, and hands them over to be freed.
+    pub fn drop_far(&mut self, center: Vec3) -> Vec<Lot> {
+        let c = city::lot_of(center);
+        let far: Vec<LotKey> = self
+            .lots
+            .keys()
+            .copied()
+            .filter(|&k| !within(c, k, UNLOAD_RADIUS))
+            .collect();
+        far.iter().filter_map(|k| self.lots.remove(k)).collect()
+    }
 
+    /// The lots to load around `center` that are not, nearest first.
+    pub fn missing(&self, center: Vec3) -> Vec<LotKey> {
+        let (cx, cz) = city::lot_of(center);
         let mut missing = Vec::new();
         for x in cx - LOAD_RADIUS..=cx + LOAD_RADIUS {
             for z in cz - LOAD_RADIUS..=cz + LOAD_RADIUS {
@@ -243,25 +274,16 @@ impl World {
             }
         }
         missing.sort_by_key(|&(x, z)| (x - cx).pow(2) + (z - cz).pow(2));
-        for key in missing.into_iter().take(budget) {
-            self.load(key);
-        }
+        missing
     }
 
-    /// Generates a lot and grows its plants.
-    fn load(&mut self, (x, z): LotKey) {
-        let mut blocks = Vec::new();
-        let dressed = city::generate_lot_dressed(self.seed, x, z, &mut blocks);
-        let growth = growth::grow_lot(self.seed, x, z, &blocks, &dressed.blooms);
-        let lot = Lot {
-            overhangs: overhangs((x, z), &blocks),
-            blocks,
-            plants: growth.plants,
-            props: dressed.props,
-            lights: growth.lights,
-            variant: biome::variant_of(biome::biome_at(self.seed, x, z)) as u8,
-        };
-        self.lots.insert((x, z), lot);
+    /// Whether a lot would be kept loaded around `center` (`drop_far`).
+    pub fn wants(&self, center: Vec3, key: LotKey) -> bool {
+        within(city::lot_of(center), key, UNLOAD_RADIUS)
+    }
+
+    pub fn insert(&mut self, key: LotKey, lot: Lot) {
+        self.lots.insert(key, lot);
     }
 
     pub fn lots(&self) -> impl Iterator<Item = (LotKey, &Lot)> {

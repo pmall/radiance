@@ -167,6 +167,13 @@ What the project owner has said so far. Treat as requirements.
   never a requirement. Cartoonish / Nivalis night look was." The textures went to 64 pixels per
   meter (patterns written in meters, `pixels::PPM`), toward a painted look: flat tones with a
   narrow dithered seam instead of dithered grain, mip levels blended so no band shows far away.
+- Pop-in (owner): "the framerate is good but things do not appear smoothly, all of a sudden
+  sometimes". Every far limit now fades instead of cutting: the fog closes in short of the loaded
+  lots' edge below the top deck (the far skyline's towers stay out of it, so the far city keeps
+  its layers), props and small boxes and their shadows dissolve in a dither before their reach,
+  flower lights and halos fade with distance. Lots load on worker threads, so crossing into a
+  new lot no longer stalls a few frames (up to 90 ms before), and one more ring of lots is loaded
+  (188 m). Status: `docs/roadmap.md`, milestone 10, "Pop-in".
 
 ## How to work on generation (owner's direction)
 

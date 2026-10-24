@@ -176,6 +176,20 @@
       camera's view and the shadow map's box, and plants cast shadows within 70 m only
       (`PLANT_SHADOW_REACH`): 5.6 ms at the spawn, 6.3 ms on the D5 stadium view, 3.2 ms on the
       top deck. What is left: shadows about 1.3 ms, the haze and its sunbeams about 1.1 ms.
+    - ~~Pop-in~~ *(done, label `popin`)*: things appeared all of a sudden at hard distance cutoffs.
+      Now: the fog closes in below the top deck over the last lot before the loaded lots' edge
+      (`EDGE_FOG`, `uEdgeFog` in `post.fs`), towers that rise past the top deck excepted
+      (`tower::Faces::far`, so the far skyline does not swap with the loaded towers); props and
+      small boxes dissolve over the last 20 m of their 110 m reach, their shadows over the last
+      15 m (`Fade`, `shaders/fade.glsl`); flower lights fade before the light grid ends (about
+      84 m) and their halos before 150 m or the 1024th light (`lights.rs`), and a full grid cell
+      keeps the lights strongest there, so none flickers as the camera moves. Lots are generated
+      and meshed on worker threads (`src/stream.rs`) and uploaded a little per frame, the far
+      skyline too: the worst frame while flying at 40 m/s went from 92 ms to about 30 ms, and
+      `LOAD_RADIUS` went from 7 to 8. About 7.0 to 7.4 ms/frame on the bench views (was 6.3 to
+      6.6), most of it the extra ring of lots. Measured and left: drawing props and small boxes
+      to 150 m (+0.5 to 0.8 ms) or longer shadows (+0.2 to 0.6 ms) for little gain now that they
+      fade.
     - Points to judge over time: how strong the wall wash from flowers is (`WALL_REACH`), the
       ragged leaf edges, and how the low-rise districts change the feel of the city.
     - The reference views moved in pass 6 (street-d3 moved, laundry-d1 renamed court-d1, three

@@ -5,7 +5,7 @@
 
 in vec2 fragTexCoord;
 
-uniform sampler2D texture0;  // scene color (linear HDR)
+uniform sampler2D texture0;  // scene color (linear HDR); alpha 1 on the towers of the far skyline
 uniform sampler2D uNormal;   // rgb: normal * 0.5 + 0.5, a: object id (0 = sky)
 uniform sampler2D uDepth;
 
@@ -39,6 +39,10 @@ uniform vec3 uHighlightTint;
 uniform int uEffects;
 uniform float uTime;
 uniform float uFogBase;      // fog density stops growing below this height
+// Where the loaded lots end: horizontal distances from the camera over which the fog closes in,
+// below the top deck (above it the far skyline goes on; src/render/mod.rs, EDGE_FOG).
+uniform vec2 uEdgeFog;
+uniform float uTopDeck;
 uniform sampler2D uCover;
 #define COVER_TEX uCover
 
@@ -221,6 +225,15 @@ void main()
         if ((uEffects & FX_FOG) != 0) {
             float dist = z / dot(dir, uCamFwd);
             float f = fogAmount(dir, dist);
+            // Short of the edge of the loaded lots the haze closes in below the top deck, so the
+            // city melts into it instead of ending, and lots loading there never show. A circle,
+            // so it never looks like a square. The towers of the far skyline (drawn far past the
+            // edge, here or by their lot) stand out of it.
+            vec3 wp = uCamPos + dir * dist;
+            float edge = smoothstep(uEdgeFog.x, uEdgeFog.y, length(wp.xz - uCamPos.xz))
+                       * (1.0 - smoothstep(uTopDeck, uTopDeck + 8.0, wp.y))
+                       * (1.0 - texture(texture0, uv).a);
+            f = 1.0 - (1.0 - f) * (1.0 - edge);
             col = mix(col, fogColor(dir, dist, f), f);
             col += uDisk * uFogGlow * gBeam * 0.45;
         }

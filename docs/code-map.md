@@ -6,6 +6,7 @@ this says where each rule is. Keep it current when a rule moves or a new one app
 
 ## How a lot is built
 
+`world::generate` (on the worker threads of `src/stream.rs` while running) →
 `city::generate_lot_dressed` (cached, `CACHED_LOTS`) → `generate_structure`, in this order:
 
 1. Ground, then deck slabs per floor (`deck`; `push_ring_deck` around a stairwell), and what

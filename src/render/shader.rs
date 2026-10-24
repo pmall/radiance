@@ -16,7 +16,10 @@ use sola_raylib::ffi;
 const SHADER_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/shaders");
 
 /// The files shaders may include: name and embedded source.
-const INCLUDES: &[(&str, &str)] = &[("cover.glsl", include_str!("../../shaders/cover.glsl"))];
+const INCLUDES: &[(&str, &str)] = &[
+    ("cover.glsl", include_str!("../../shaders/cover.glsl")),
+    ("fade.glsl", include_str!("../../shaders/fade.glsl")),
+];
 
 pub struct HotShader {
     pub raw: ffi::Shader,

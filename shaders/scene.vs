@@ -17,19 +17,25 @@ out vec3 fragWorldPos;
 out vec3 fragNormal;
 out vec4 fragColor;
 flat out float fragId;
+flat out float fragFar;      // 1 on the towers the far skyline draws too (src/render/mesh.rs)
 flat out float fragKind;     // material: 0 tower, 1 plant, 2 floor/deck, 3 bridge, 4 stair, 5 test block
 out vec2 fragLoc;
+flat out vec3 fragOrigin;    // where a prop stands (its fade goes by it, scene.fs)
 
 void main()
 {
     vec4 local = vec4(vertexPosition, 1.0);
     vec3 normal = vertexNormal;
-    fragId = vertexTexCoord.x;
+    // A negative id marks a tower rising past the top deck.
+    fragId = abs(vertexTexCoord.x);
+    fragFar = float(vertexTexCoord.x < 0.0);
+    fragOrigin = vec3(0.0);
     if (uInstanced != 0) {
         local = instanceTransform * local;
         normal = mat3(instanceTransform) * normal;
         // Each prop its own outline id (1..255), from where it stands.
         vec3 t = instanceTransform[3].xyz;
+        fragOrigin = t;
         float h = fract(sin(dot(t, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
         fragId = (1.0 + floor(h * 254.0)) / 255.0;
     }

@@ -37,7 +37,8 @@ void main()
         return;
     }
     vec4 a = fetchTexel(i * 3);
-    vec3 lin = fetchTexel(i * 3 + 1).rgb / 2.2;
+    vec4 light = fetchTexel(i * 3 + 1);
+    vec3 lin = light.rgb / 2.2;
     vec3 d = a.xyz - uCamPos;
     float dist = length(d);
 
@@ -47,7 +48,8 @@ void main()
     float size = max(0.5, dist * 0.01);
 
     fragCorner = vertexPosition.xy;
-    fragColor = vec4(pow(lin, vec3(1.0 / 2.2)), mix(0.3, 1.0, glow));
+    // The halo fades out with distance, before the lights run out (lights.rs).
+    fragColor = vec4(pow(lin, vec3(1.0 / 2.2)), mix(0.3, 1.0, glow) * light.w);
     fragViewZ = dot(d, uCamFwd);
     vec3 wp = a.xyz + (uCamRight * vertexPosition.x + uCamUp * vertexPosition.y) * size;
     gl_Position = mvp * vec4(wp, 1.0);

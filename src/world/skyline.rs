@@ -3,7 +3,7 @@
 //! towers are not drawn that far), so they stand as silhouettes in the haze, their feet lost in
 //! it. Pure, like the lots: computed off the main thread (`render::skyline`).
 
-use super::{Block, LOAD_RADIUS, biome, chunks, floors, planner, tower};
+use super::{Block, LOAD_RADIUS, biome, chunks, planner, tower};
 
 /// How far the skyline reaches, in lots (Chebyshev distance): about a kilometer.
 pub const RADIUS: i32 = 44;
@@ -21,8 +21,7 @@ pub fn blocks(seed: u64, (cx, cz): (i32, i32)) -> Vec<(u8, Vec<Block>)> {
                 continue;
             };
             // Each tower once, from its corner lot, and only those over the top deck.
-            let top = floors::bottom() + p.stories as f32 * chunks::STORY;
-            if p.origin != (x, z) || top <= floors::top() + 1.0 {
+            if p.origin != (x, z) || !tower::over_top_deck(&p) {
                 continue;
             }
             let cat = chunks::catalog(p.biome);
@@ -40,6 +39,7 @@ pub fn blocks(seed: u64, (cx, cz): (i32, i32)) -> Vec<(u8, Vec<Block>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world::floors;
 
     #[test]
     fn the_skyline_rises_over_the_top_deck() {

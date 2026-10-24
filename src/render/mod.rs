@@ -78,15 +78,75 @@ const DETAIL_SHADOW_REACH: f32 = 45.0;
 /// Plants (most of the triangles) cast shadows within this horizontal distance of the camera;
 /// further off their shadows are finer than the shadow map's texels show.
 const PLANT_SHADOW_REACH: f32 = 70.0;
+/// Over how many meters before its reach a thing dissolves away (`Fade`), and its shadow.
+const FADE: f32 = 20.0;
+const SHADOW_FADE: f32 = 15.0;
 /// How far ahead of the camera the shadow map is centered, in meters.
 const SHADOW_LEAD: f32 = 50.0;
+/// Horizontal distances from the camera over which the fog closes in below the top deck, ending
+/// short of the loaded lots' edge (`LOAD_RADIUS` lots from the camera's lot, at least that far
+/// from the camera), so the edge and the lots loading there never show.
+const EDGE_FOG: (f32, f32) = (EDGE_FOG_END - 1.25 * crate::world::city::LOT, EDGE_FOG_END);
+const EDGE_FOG_END: f32 = crate::world::LOAD_RADIUS as f32 * crate::world::city::LOT - 4.0;
+/// Vertices of the meshes of incoming lots uploaded per frame: a few milliseconds' worth.
+const STAGED_VERTICES: usize = 30_000;
 const RELOAD_POLL: f32 = 0.5;
 /// Scales how fast fog thins with height, so it spans the whole floor stack.
 const FOG_STACK_SCALE: f32 = 0.4;
 
 const IDENTITY: ffi::Matrix = matrix(Mat4::IDENTITY);
-/// Side of the square of lots `uLoaded` covers: every lot the world keeps loaded.
+/// Side of the square of lots `uLoaded` covers: every lot the world keeps loaded (21 in
+/// shaders/scene.fs).
 const LOADED_SIDE: usize = 21;
+const _: () = assert!(LOADED_SIDE > 2 * crate::world::UNLOAD_RADIUS as usize);
+
+/// Where a draw dissolves instead of stopping at its reach: a screen-door dither (`uFade` in
+/// shaders/scene.fs and shadow.fs) from `from` to `to` meters off the camera, height differences
+/// counting `vertical` times (0: horizontal distance). Props go by where they stand, the rest by
+/// each fragment.
+#[derive(Clone, Copy)]
+pub struct Fade {
+    from: f32,
+    to: f32,
+    vertical: f32,
+}
+
+impl Fade {
+    /// Never dissolves.
+    pub const NONE: Fade = Fade {
+        from: 1e6,
+        to: 2e6,
+        vertical: 0.0,
+    };
+
+    /// Gone at `reach`, dissolving over the `width` meters before it.
+    const fn to(reach: f32, width: f32, vertical: f32) -> Fade {
+        Fade {
+            from: reach - width,
+            to: reach,
+            vertical,
+        }
+    }
+
+    pub fn uniform(&self) -> Vec3 {
+        vec3(self.from, self.to, self.vertical)
+    }
+}
+
+/// A lot's meshes as vertex arrays, not uploaded yet (`Renderer::add_lot`): architecture, small
+/// boxes, plants. Plain data, so a worker thread can make them.
+pub struct LotMeshes([Option<mesh::Arrays>; 3]);
+
+impl LotMeshes {
+    pub fn of(seed: u64, k: (i32, i32), lot: &crate::world::Lot) -> Self {
+        // Distinguishes lots, so outline ids differ between neighbours.
+        let key = crate::rng::hash_coords(seed, k.0, 0, k.1);
+        Self(
+            [Part::Architecture, Part::Detail, Part::Plants]
+                .map(|p| WorldMesh::arrays(lot, key, p)),
+        )
+    }
+}
 
 pub struct View {
     pub pos: Vec3,
@@ -106,6 +166,8 @@ pub struct Renderer {
     details: HashMap<(i32, i32), WorldMesh>,
     /// Each lot's plants, casting shadows near the camera only.
     plants: HashMap<(i32, i32), WorldMesh>,
+    /// Meshes of lots taken in, waiting to be uploaded (`add_lot`).
+    staged: std::collections::VecDeque<((i32, i32), Part, mesh::Arrays)>,
     /// Props of each lot, drawn instanced (`props.rs`).
     lots_props: HashMap<(i32, i32), Vec<crate::world::props::Placed>>,
     prop_meshes: props::PropMeshes,
@@ -178,6 +240,13 @@ fn in_view(vp: &Mat4, (lo, hi): (Vec3, Vec3)) -> bool {
     (0..3).all(|a| !c.iter().all(|v| v[a] > v.w) && !c.iter().all(|v| v[a] < -v.w))
 }
 
+/// A mesh with its bounds, for culling.
+type Bounded<'a> = (&'a ffi::Mesh, (Vec3, Vec3));
+
+fn bounded(m: &WorldMesh) -> Bounded<'_> {
+    (&m.raw, m.bounds)
+}
+
 /// The meshes of the lots within `reach` of `eye` (horizontally, to the lot's edge).
 fn details_near(
     details: &HashMap<(i32, i32), WorldMesh>,
@@ -228,6 +297,7 @@ impl Renderer {
             meshes: HashMap::new(),
             plants: HashMap::new(),
             details: HashMap::new(),
+            staged: Default::default(),
             lots_props: HashMap::new(),
             prop_meshes,
             prop_triangles: 0,
@@ -261,6 +331,7 @@ impl Renderer {
         self.meshes.clear();
         self.details.clear();
         self.plants.clear();
+        self.staged.clear();
         self.lots_props.clear();
         self.lots_lights.clear();
         self.skyline.clear();
@@ -300,24 +371,58 @@ impl Renderer {
         self.plants.retain(|k, _| live.contains(k));
         self.lots_props.retain(|k, _| live.contains(k));
         self.lots_lights.retain(|k, _| live.contains(k));
+        self.staged.retain(|(k, _, _)| live.contains(k));
+        self.upload_staged(STAGED_VERTICES);
         for (k, lot) in world.lots() {
-            if self.lots_props.contains_key(&k) {
-                continue;
-            }
-            self.lots_props.insert(k, lot.props.clone());
-            self.lots_lights
-                .insert(k, lot.lights().map(|(i, l)| (i, *l)).collect());
-            let key = crate::rng::hash_coords(world.seed, k.0, 0, k.1);
-            if let Some(m) = WorldMesh::build(lot, key, Part::Architecture) {
-                self.meshes.insert(k, m);
-            }
-            if let Some(m) = WorldMesh::build(lot, key, Part::Detail) {
-                self.details.insert(k, m);
-            }
-            if let Some(m) = WorldMesh::build(lot, key, Part::Plants) {
-                self.plants.insert(k, m);
+            if !self.lots_props.contains_key(&k) {
+                self.add_lot(k, lot, LotMeshes::of(world.seed, k, lot));
+                self.upload_staged(usize::MAX);
             }
         }
+    }
+
+    /// Takes in a lot the world is loading, with its meshes made beforehand (on a worker thread,
+    /// `crate::stream`). They are uploaded over the next frames (`sync_world`): the lot comes in
+    /// at the edge of the loaded lots, in the fog.
+    pub fn add_lot(&mut self, k: (i32, i32), lot: &crate::world::Lot, meshes: LotMeshes) {
+        self.lots_props.insert(k, lot.props.clone());
+        self.lots_lights
+            .insert(k, lot.lights().map(|(i, l)| (i, *l)).collect());
+        let [arch, detail, plants] = meshes.0;
+        for (part, m) in [Part::Architecture, Part::Detail, Part::Plants]
+            .into_iter()
+            .zip([arch, detail, plants])
+        {
+            if let Some(m) = m {
+                self.staged.push_back((k, part, m));
+            }
+        }
+    }
+
+    /// Uploads every staged mesh now.
+    pub fn finish_uploads(&mut self) {
+        self.upload_staged(usize::MAX);
+    }
+
+    /// Uploads staged meshes, at least one and then up to about `vertices`.
+    fn upload_staged(&mut self, vertices: usize) {
+        let mut done = 0;
+        while done < vertices
+            && let Some((k, part, m)) = self.staged.pop_front()
+        {
+            done += m.0.pos.len() / 3;
+            let map = match part {
+                Part::Architecture => &mut self.meshes,
+                Part::Detail => &mut self.details,
+                Part::Plants => &mut self.plants,
+            };
+            map.insert(k, WorldMesh::upload(m));
+        }
+    }
+
+    /// Flower lights left out of crowded cells of the light grid last frame (`lights.rs`, SLOTS).
+    pub fn lights_left_out(&self) -> usize {
+        self.light_grid.overflow
     }
 
     /// Triangles drawn in the last frame.
@@ -451,15 +556,28 @@ impl Renderer {
                     ahead: None,
                 },
             );
-            let near = details_near(&self.details, view.pos, DETAIL_SHADOW_REACH);
-            let plants = details_near(&self.plants, view.pos, PLANT_SHADOW_REACH);
+            let groups = [
+                (Fade::NONE, self.meshes.values().map(bounded).collect()),
+                (
+                    Fade::to(DETAIL_SHADOW_REACH, SHADOW_FADE, 0.0),
+                    details_near(&self.details, view.pos, DETAIL_SHADOW_REACH)
+                        .map(bounded)
+                        .collect(),
+                ),
+                (
+                    Fade::to(PLANT_SHADOW_REACH, SHADOW_FADE, 0.0),
+                    details_near(&self.plants, view.pos, PLANT_SHADOW_REACH)
+                        .map(bounded)
+                        .collect(),
+                ),
+            ];
             light_vp = self.shadow.render(
-                self.meshes
-                    .values()
-                    .chain(near)
-                    .chain(plants)
-                    .map(|m| (&m.raw, m.bounds)),
-                &casters,
+                &groups,
+                (
+                    &casters,
+                    Fade::to(PROP_SHADOW_REACH, SHADOW_FADE, props::VERTICAL),
+                ),
+                view.pos,
                 view.pos + ahead,
                 sky.light_dir,
             );
@@ -519,6 +637,7 @@ impl Renderer {
             // Alpha carries the object id in the normal target: it must not blend.
             ffi::rlDisableColorBlend();
             s.set_i32("uInstanced", 0);
+            s.set_vec3("uFade", Fade::NONE.uniform());
             // Only the lots the camera may see.
             let (mut drawn, mut detail) = (0, 0);
             let lots = self.meshes.values().chain(self.plants.values());
@@ -526,11 +645,15 @@ impl Renderer {
                 ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
                 drawn += mesh.triangles();
             }
+            // The small boxes dissolve before their reach, each fragment by its distance; a lot's
+            // are drawn while any of it is within reach.
+            s.set_vec3("uFade", Fade::to(DETAIL_REACH, FADE, 0.0).uniform());
             let near = details_near(&self.details, view.pos, DETAIL_REACH);
             for mesh in near.filter(|m| in_view(&view_vp, m.bounds)) {
                 ffi::DrawMesh(mesh.raw, self.material, IDENTITY);
                 detail += mesh.triangles();
             }
+            s.set_vec3("uFade", Fade::NONE.uniform());
             self.lot_triangles = drawn;
             self.detail_triangles = detail;
             // The far skyline, but not where a loaded lot draws its tower.
@@ -542,7 +665,12 @@ impl Renderer {
             }
             s.set_i32("uSkyline", 0);
             s.set_i32("uInstanced", 1);
+            s.set_vec3(
+                "uFade",
+                Fade::to(PROP_REACH, FADE, props::VERTICAL).uniform(),
+            );
             props::draw(&batches, self.material);
+            s.set_vec3("uFade", Fade::NONE.uniform());
             s.set_i32("uInstanced", 0);
             ffi::rlEnableColorBlend();
             ffi::EndMode3D();
@@ -577,6 +705,8 @@ impl Renderer {
             crate::world::floors::y(crate::world::floors::START),
         );
         p.set_f32("uFogDensity", look.fog_density);
+        p.set_vec2("uEdgeFog", Vec2::new(EDGE_FOG.0, EDGE_FOG.1));
+        p.set_f32("uTopDeck", crate::world::floors::top());
         // The looks were tuned for a city a third as tall: stretch the thinning over the stack.
         p.set_f32("uFogFalloff", look.fog_falloff * FOG_STACK_SCALE);
         p.set_f32("uFogGlow", look.fog_glow);

@@ -18,7 +18,7 @@ pub struct Reach {
 }
 
 /// How much a height difference counts toward a prop's distance.
-const VERTICAL: f32 = 1.6;
+pub const VERTICAL: f32 = 1.6;
 
 pub struct PropMeshes {
     /// In the order of `props::meshes().list`.

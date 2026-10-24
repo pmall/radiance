@@ -16,6 +16,9 @@ pub struct WorldMesh {
     pub bounds: (Vec3, Vec3),
 }
 
+/// A mesh's vertex arrays and their bounds (min, max), not uploaded yet (`WorldMesh::upload`).
+pub type Arrays = (MeshData, (Vec3, Vec3));
+
 /// Vertex arrays in raylib's layout; an empty array leaves that attribute out.
 #[derive(Default)]
 pub struct MeshData {
@@ -80,9 +83,10 @@ pub enum Part {
 }
 
 impl WorldMesh {
-    /// One `part` of a lot; `None` if there is nothing. `key` distinguishes lots so outline ids
-    /// differ between neighbours.
-    pub fn build(lot: &Lot, key: u64, part: Part) -> Option<Self> {
+    /// The vertex arrays of one `part` of a lot and their bounds, for `upload`; `None` if there
+    /// is nothing. `key` distinguishes lots so outline ids differ between neighbours. Plain data,
+    /// so a worker thread can make them.
+    pub fn arrays(lot: &Lot, key: u64, part: Part) -> Option<Arrays> {
         let detail = part == Part::Detail;
         let mut pos: Vec<f32> = Vec::new();
         let mut nrm: Vec<f32> = Vec::new();
@@ -106,7 +110,12 @@ impl WorldMesh {
                 continue;
             }
             // Object id for outline detection between touching blocks; 0 is reserved for sky.
+            // Negative on the towers the far skyline draws too (`tower::Faces::far`).
             let id = 1.0 + (mix64(key ^ i as u64) % 255) as f32;
+            let id = match b.kind {
+                BlockKind::Tower(f) if f.far => -id,
+                _ => id,
+            };
             let size = b.aabb.size();
             // Shader material code: see `kind` in shaders/scene.fs (1 is plants).
             let kind = variant
@@ -187,15 +196,21 @@ impl WorldMesh {
                 (lo.min(p), hi.max(p))
             },
         );
-        let raw = MeshData {
+        let data = MeshData {
             pos,
             nrm,
             uv,
             uv2,
             col,
+        };
+        Some((data, bounds))
+    }
+
+    pub fn upload((data, bounds): Arrays) -> Self {
+        Self {
+            raw: data.upload(),
+            bounds,
         }
-        .upload();
-        Some(Self { raw, bounds })
     }
 
     pub fn triangles(&self) -> i32 {

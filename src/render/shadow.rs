@@ -7,7 +7,7 @@ use sola_raylib::ffi;
 
 use super::shader::HotShader;
 use super::targets::texture;
-use super::{IDENTITY, v3};
+use super::{Bounded, Fade, IDENTITY, v3};
 
 const SIZE: i32 = 4096;
 /// Half the side of the square area covered, in meters.
@@ -76,13 +76,14 @@ impl ShadowMap {
         self.material.shader = self.shader.raw;
     }
 
-    /// Renders the meshes (each with its bounds) into the shadow map, covering an area around
-    /// `center`.
+    /// Renders groups of meshes (each with its bounds) and the props into the shadow map, each
+    /// group dissolving as it says away from the camera at `cam`, covering an area around `center`.
     /// Returns the light view-projection matrix for sampling.
-    pub fn render<'a>(
+    pub fn render(
         &mut self,
-        meshes: impl Iterator<Item = (&'a ffi::Mesh, (Vec3, Vec3))>,
-        props: &[super::props::Batch],
+        groups: &[(Fade, Vec<Bounded>)],
+        (props, props_fade): (&[super::props::Batch], Fade),
+        cam: Vec3,
         center: Vec3,
         light_dir: Vec3,
     ) -> Mat4 {
@@ -132,12 +133,17 @@ impl ShadowMap {
             // Back faces only: closed boxes then never shadow their own lit faces.
             ffi::rlSetCullFace(ffi::rlCullMode::RL_CULL_FACE_FRONT as i32);
             self.shader.set_i32("uInstanced", 0);
+            self.shader.set_vec3("uCamPos", cam);
             // Only the meshes in the light's box: the map covers the area around the camera.
             let vp = proj * view;
-            for (mesh, _) in meshes.filter(|&(_, b)| super::in_view(&vp, b)) {
-                ffi::DrawMesh(*mesh, self.material, IDENTITY);
+            for (fade, meshes) in groups {
+                self.shader.set_vec3("uFade", fade.uniform());
+                for (mesh, _) in meshes.iter().filter(|&&(_, b)| super::in_view(&vp, b)) {
+                    ffi::DrawMesh(**mesh, self.material, IDENTITY);
+                }
             }
             self.shader.set_i32("uInstanced", 1);
+            self.shader.set_vec3("uFade", props_fade.uniform());
             super::props::draw(props, self.material);
             self.shader.set_i32("uInstanced", 0);
             ffi::rlSetCullFace(ffi::rlCullMode::RL_CULL_FACE_BACK as i32);
