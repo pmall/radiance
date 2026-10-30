@@ -14,8 +14,8 @@ interest and other gameplay come next, voices last (`docs/vision.md`, "Stages").
 - `docs/art-direction.md`: rendering look, palettes, day/night cycle, light plants.
 - `docs/audio.md`: piano notes, ambient soundscape. `docs/guidance-ideas.md`: ideas to guide the player by sound.
 - `docs/roadmap.md`: milestones, current status, debug tooling.
-- `docs/chunks.md`: the planned move to hand-written map chunks placed by rules, in a Nivalis-like
-  box and pixel-art style (proposal, `chunks` branch).
+- `docs/chunks.md`: how the city is built from hand-written map chunks placed by rules, in a
+  Nivalis-like box and pixel-art style (done: every lot is a chunk).
 - `docs/biome-ideas.md`: brainstormed biomes (Cyan Grotto implemented), for inspiration. What a biome can set and how
   to add one: `docs/world.md`, "Biomes".
 - `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.

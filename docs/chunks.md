@@ -1,6 +1,6 @@
 # City chunks: design
 
-Status: on the `chunks` branch. Phases 2 to 7 are done, and "everything is a chunk" (section
+Status: in `master`. Phases 2 to 7 are done, and "everything is a chunk" (section
 below) too: every lot of every floor is a chunk placed by the planner (towers, streets, fillers,
 holes, craters, blocks, hubs, areas); no random architecture code is left. This replaces the
 lot-by-lot generation described in `docs/world.md` (its "Decks" and "Set dressing" sections are
