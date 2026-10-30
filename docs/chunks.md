@@ -127,9 +127,10 @@ for.
 
 ## Catalog rule (owner)
 
-The catalog does not grow on its own: no new chunks or props are written unless the owner asks.
-When the owner wants more content, they ask for a **new biome**, and that biome's chunks and props
-are written then, in its own folder. The `default` biome is what exists now.
+The catalog does not grow on its own: no chunks or props are written on the side. New content
+comes when the owner asks for it: a **new biome**, whose chunks and props are written then, in its
+own folder, or the **points of interest** of `docs/poi-catalog.md` (both coming soon). The
+`default` biome is what exists now.
 
 Exception (owner): the visual pass of milestone 10 (`docs/roadmap.md`) may add chunks and props
 to the existing biomes: landmarks, special places, things left behind. Added so far: debris props

@@ -1,26 +1,31 @@
 # Vision and scope
 
-Explorable artistic proof of concept: a procedurally generated, infinite cyberpunk megacity
-overgrown by bioluminescent plant life, rendered in 3D but reading like a **2D illustration**.
-The player moves freely through it in first person.
+*Last Radiance*: a conceptual artistic game. Wick, an android search unit, is sent on an absurd
+mission into the depths of a vast cyberpunk megacity overgrown by plants: find the humans left in
+the dark. There are none. The glowing flowers each play a piano note, and they are the souls of the
+long-gone humans. The player is a presence inside Wick, pulling it upward against its orders. Story,
+dialogue and the narrative escalation: `docs/story.md`; systems: `docs/game-ideas.md`; points of
+interest: `docs/poi-catalog.md`.
 
-**The final render is the goal.** The world is always procedurally generated from the seed; how its
+The city is procedurally generated from the seed, so every player gets a different city, and its
+scale is what makes it a megacity. It is rendered in 3D but reads like a **2D illustration**; how
 surfaces are dressed (procedural shaders, authored textures, external assets) is secondary to how
 good it looks.
 
-It's a mood and rendering prototype: **no gameplay systems** (no objectives, no NPCs, no UI beyond
-debug tools).
+## Stages
 
-A possible future, brainstormed by the owner: a short narrative exploration game, *Last Radiance*,
-built on this city (`docs/story.md`, `docs/game-ideas.md`). It is inspiration for the mood and the
-world, not a change of scope.
+1. **The city and its atmosphere** (now): generation, the look, light, the flowers and their notes.
+   The game must look and feel good before anything else.
+2. **The game** (next): new biomes and points of interest first, then the story, Wick's orders and
+   the radio dialogue, progression between floors.
+3. **Voices** (last): very good text to speech for the dialogue (maybe ElevenLabs).
 
-## Definition of done
+## Definition of done for stage 1
 
 - Launch → seed-generated city → walk through it in first person.
 - The city has real vertical depth: a finite stack of floors, from the original ground to the
-  construction front. It streams endlessly in every horizontal direction (kept unless it gets in
-  the way of more important things).
+  construction front, each floor vast. It streams endlessly in every horizontal direction today,
+  but endlessness is not a goal: bounded floors are fine if the game needs them.
 - The rendering clearly reads as stylized illustration, not default 3D.
 - Bioluminescent plants light their surroundings and play a soft piano-like note when approached.
 - Time of day evolves continuously through a full day/night cycle.
@@ -28,7 +33,7 @@ world, not a change of scope.
 
 ## Guidance (future)
 
-The city is huge and has no UI. The flowers guide the player: near a point of interest their notes
+The city is huge and has no map or markers. The flowers guide the player: near a point of interest their notes
 grow more consonant and form a motif that completes on arrival, never explained (the "melodic
 gradient", chosen by the owner; see `docs/guidance-ideas.md` and `docs/audio.md`).
 

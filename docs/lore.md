@@ -1,7 +1,7 @@
 # Lore
 
-Told by the owner, then extended in a brainstorm (`docs/story.md`, the *Last Radiance* story). It is not shown in the game (no text, no UI); it exists to
-guide decisions about what the city looks like and sounds like.
+Told by the owner, then extended in a brainstorm (`docs/story.md`, the *Last Radiance* story). This is the background the game's story rests on, never stated outright
+(the story reveals it slowly, `docs/story.md`); it also guides what the city looks like and sounds like.
 
 - **Humanity is long gone.** The city is empty of people for good. Why they disappeared stays a
   mystery.

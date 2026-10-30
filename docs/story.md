@@ -1,8 +1,8 @@
 # Story: *Last Radiance* (working title)
 
-The owner's brainstormed story bible for a possible narrative game on this city. Inspiration, not a
-spec: the prototype has no text, no voices and no UI. It is here because the story explains what
-the city looks and sounds like; the shorter, rendering-oriented version is `docs/lore.md`. Systems
+The game's story bible: story, dialogue and the narrative escalation, still being written and not
+built yet (the render comes first, `docs/vision.md`, "Stages"). It also explains what the city looks
+and sounds like; the shorter, rendering-oriented version is `docs/lore.md`. Systems
 are in `docs/game-ideas.md`, points of interest and their lines in `docs/poi-catalog.md`.
 
 Principles: authored story, procedural city (the same story performed in a different place each

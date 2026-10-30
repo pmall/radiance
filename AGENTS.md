@@ -1,8 +1,11 @@
 # Radiance
 
-Artistic proof of concept in Rust + raylib: an infinite, seed-generated cyberpunk megacity
-overgrown by bioluminescent plants, explored in first person and rendered to read like a
-2D illustration. Mood and rendering prototype only — no gameplay, NPCs or UI beyond debug tools.
+*Last Radiance*, a conceptual artistic game in Rust + raylib: Wick, an android search unit sent on
+an absurd mission (find the humans left in the dark; there are none), explores in first person
+the depths of a vast, seed-generated cyberpunk megacity overgrown by plants, rendered to read like
+a 2D illustration. Its glowing flowers each play a piano note: they are the souls of the long-gone
+humans. Today the work is the city, its look and its atmosphere; story, dialogue, points of
+interest and other gameplay come next, voices last (`docs/vision.md`, "Stages").
 
 ## Docs (read the one relevant to the task)
 
@@ -16,9 +19,9 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 - `docs/biome-ideas.md`: brainstormed biomes (Cyan Grotto implemented), for inspiration. What a biome can set and how
   to add one: `docs/world.md`, "Biomes".
 - `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.
-- `docs/story.md`, `docs/game-ideas.md`, `docs/poi-catalog.md`: *Last Radiance*, a brainstormed narrative game on this
-  city (story and dialogue, mechanics, points of interest), and what the prototype can take from it now. Inspiration,
-  not scope: this file and `docs/feedback.md` win when they disagree.
+- `docs/story.md`, `docs/game-ideas.md`, `docs/poi-catalog.md`: the game's design (story, dialogue and its narrative
+  escalation, mechanics, points of interest). Not built yet; still being written, so ask the owner when it disagrees
+  with `docs/feedback.md`.
 - `docs/feedback.md`: owner feedback and decisions so far; read it before visual or control changes.
 - `docs/code-map.md`: where each generation rule lives (rule → function) and how a lot is built;
   read it before touching `src/world/`, and update it when a rule moves.
@@ -27,13 +30,15 @@ overgrown by bioluminescent plants, explored in first person and rendered to rea
 
 - Rust with `sola-raylib` 6.x (binds raylib 6.0). Drop to the raw FFI (`sola_raylib::ffi`) when the
   wrapper is missing or awkward.
-- **The only goal is a great final render.** Everything else is a means.
-- **No new chunks or props unless the owner asks.** More content comes as a new biome, written
-  when the owner asks for one (`docs/chunks.md`, "Catalog rule").
+- **Render quality over code purity or method.** The look and the atmosphere carry the game: never
+  trade them for a cleaner technique.
+- **No chunks or props on the side.** New content comes when the owner asks for it: a new biome,
+  or points of interest from `docs/poi-catalog.md` (`docs/chunks.md`, "Catalog rule").
 - **World generation must be procedural**: the city, its layout, architecture and plants come from
-  the seed (random, extensible, deterministic). This is a hard requirement. Vertically the city is a
-  finite stack of floors; horizontally it streams infinitely for now, but that may be cut if it makes
-  more important things hard (see `docs/feedback.md`).
+  the seed (random, extensible, deterministic), because every player gets a different city and its
+  scale is the megacity's atmosphere. This is a hard requirement. Vertically the city is a finite
+  stack of floors; horizontally it streams without end today, but endlessness is not a goal: floors
+  can become bounded if that helps the game (see `docs/feedback.md`).
 - **Surface look is free**: textures, images and other external assets are welcome (authored or
   procedural, whichever looks best) and do not conflict with procedural generation: the seed still
   decides what is placed where; assets only decide how surfaces look. No editor is used and the

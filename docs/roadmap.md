@@ -18,10 +18,10 @@
    *(light plants done: ~1 in 8 plants in the canopy and ~1 in 3 in the depths are luminous (cyan, green,
    magenta, violet), emit and cast banded point lights; up to 1024 nearest lights binned in a camera
    grid (`src/render/lights.rs`), 3.8 ms/frame on the 3060. Glow follows `plant_glow` in the looks,
-   always strong in the depths. Sound pending)*
+   always strong in the depths. Sound: the piano souls, `docs/audio.md`)*
 7. **Atmosphere and polish:** particles, day/night cycle, palette tuning, movement feel.
    *(done: GPU-driven pollen motes and glowing spores (`src/render/particles.rs`), full day/night cycle,
-   dusk brightened, 4096 shadow map, landing dip. Not done: audio, which was skipped on request)*
+   dusk brightened, 4096 shadow map, landing dip. Audio came later: `docs/audio.md`)*
 
 8. **Visual quality pass (feedback after the first full playthrough):**
    - Plants: bushes read as boulders (faceted blobs); replace with leaf cards or fronds, smaller and
@@ -197,7 +197,7 @@
 
 ## Debug and art-iteration tools
 
-Important, since the purpose is art exploration. Build them alongside the features they serve.
+Important, since the look is worked out by iteration. Build them alongside the features they serve.
 
 - Change or randomize the seed and regenerate. *(done: R, [ ])*
 - Control time of day: pause, speed up, and scrub to any time. *(done: T, PgUp/PgDn, Home/End, 1-4)*
