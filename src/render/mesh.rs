@@ -1,5 +1,9 @@
 //! Static GPU meshes: one per lot from the world's blocks (`WorldMesh`), and the upload every
 //! mesh of the renderer goes through (`MeshData`).
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use glam::Vec3;
 use sola_raylib::ffi;
@@ -33,6 +37,7 @@ impl MeshData {
     /// Uploads the arrays as a mesh owned by raylib (freed by `UnloadMesh`).
     pub fn upload(&self) -> ffi::Mesh {
         let count = self.pos.len() / 3;
+        // SAFETY: an all-zero `Mesh` is raylib's empty mesh: no buffers, zero counts.
         let mut raw: ffi::Mesh = unsafe { std::mem::zeroed() };
         raw.vertexCount = count as i32;
         raw.triangleCount = (count / 3) as i32;
@@ -41,6 +46,7 @@ impl MeshData {
         raw.texcoords = raylib_copy(&self.uv);
         raw.texcoords2 = raylib_copy(&self.uv2);
         raw.colors = raylib_copy(&self.col);
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe { ffi::UploadMesh(&mut raw, false) };
         raw
     }
@@ -52,6 +58,8 @@ fn raylib_copy<T: Copy>(data: &[T]) -> *mut T {
         return std::ptr::null_mut();
     }
     let bytes = std::mem::size_of_val(data);
+    // SAFETY: MemAlloc returns room for `bytes`, exactly `data`'s size; the mesh owns it and raylib
+    // frees it with the mesh.
     unsafe {
         let p = ffi::MemAlloc(bytes as u32) as *mut T;
         std::ptr::copy_nonoverlapping(data.as_ptr(), p, data.len());
@@ -220,6 +228,7 @@ impl WorldMesh {
 
 impl Drop for WorldMesh {
     fn drop(&mut self) {
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe { ffi::UnloadMesh(self.raw) };
     }
 }

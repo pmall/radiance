@@ -1,4 +1,8 @@
 //! Offscreen scene targets: HDR color, normal + object id, and a sampleable depth texture.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use sola_raylib::ffi;
 
@@ -23,6 +27,7 @@ pub(super) fn texture(id: u32, width: i32, height: i32, format: i32) -> ffi::Tex
 }
 
 pub(super) fn set_params(id: u32, filter: u32) {
+    // SAFETY: GL call on the window's thread (module doc).
     unsafe {
         ffi::rlTextureParameters(id, ffi::RL_TEXTURE_MIN_FILTER as i32, filter as i32);
         ffi::rlTextureParameters(id, ffi::RL_TEXTURE_MAG_FILTER as i32, filter as i32);
@@ -44,6 +49,7 @@ impl SceneTargets {
         use ffi::rlFramebufferAttachTextureType::RL_ATTACHMENT_TEXTURE2D as TEX2D;
         use ffi::rlFramebufferAttachType::*;
         use ffi::rlPixelFormat::*;
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             let fbo = ffi::rlLoadFramebuffer();
             ffi::rlEnableFramebuffer(fbo);
@@ -104,6 +110,7 @@ impl SceneTargets {
 
 impl Drop for SceneTargets {
     fn drop(&mut self) {
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             ffi::rlUnloadTexture(self.color.id);
             ffi::rlUnloadTexture(self.normal.id);

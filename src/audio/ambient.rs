@@ -1,5 +1,8 @@
 //! The city's own sound, synthesized at startup (no samples): a low machinery hum that never
 //! stopped. It loops as a music stream so its volume can follow the player's altitude.
+//!
+//! Every `unsafe` block here is a raylib audio call that needs the audio device open: `Audio::new`
+//! opens it, checks it, and only then makes the parts that play sound.
 
 use std::f32::consts::TAU;
 use std::ffi::CString;
@@ -116,6 +119,8 @@ fn stream(data: Vec<f32>) -> ffi::Music {
     // The stream reads the file image for as long as it plays: leak it.
     let bytes: &'static [u8] = Box::leak(wav_bytes(&data, 2).into_boxed_slice());
     let kind = CString::new(".wav").unwrap();
+    // SAFETY: audio call with the device open (module doc). The file image is leaked, so it
+    // outlives the stream reading it.
     unsafe {
         let mut m =
             ffi::LoadMusicStreamFromMemory(kind.as_ptr(), bytes.as_ptr(), bytes.len() as i32);
@@ -128,6 +133,7 @@ impl Ambient {
     /// Needs an initialized audio device.
     pub fn new(seed: u64) -> Self {
         let hum = stream(hum(&mut Rng::new(seed ^ 0x0A1B_1E27)));
+        // SAFETY: audio call with the device open (module doc).
         unsafe {
             ffi::SetMusicVolume(hum, 0.0);
             ffi::PlayMusicStream(hum);
@@ -140,6 +146,7 @@ impl Ambient {
     pub fn update(&mut self, height: f32, day: f32, master: f32) {
         let up = crate::world::floors::depth01(height);
         let hum = (0.34 - 0.2 * up) * (1.0 + 0.15 * (1.0 - day)) * master;
+        // SAFETY: audio call with the device open (module doc).
         unsafe {
             ffi::UpdateMusicStream(self.hum);
             ffi::SetMusicVolume(self.hum, hum);
@@ -149,6 +156,7 @@ impl Ambient {
 
 impl Drop for Ambient {
     fn drop(&mut self) {
+        // SAFETY: audio call with the device open (module doc).
         unsafe { ffi::UnloadMusicStream(self.hum) };
     }
 }

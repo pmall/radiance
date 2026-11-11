@@ -1,6 +1,10 @@
 //! The scene shader's extra samplers: where raylib binds the material's maps (cover map, tower
 //! elevations, chunk pixel art) in the shader. The photographic detail that once lived here is
 //! gone: every surface is pixel art (milestone 10).
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use std::ffi::CString;
 
@@ -18,6 +22,8 @@ pub fn bind_samplers(material: &mut ffi::Material) {
         ("texture6", SHADER_LOC_MAP_HEIGHT),
         ("texture10", SHADER_LOC_MAP_BRDF),
     ] {
+        // SAFETY: GL call on the window's thread (module doc). `locs` has RL_MAX_SHADER_LOCATIONS
+        // (32) entries and the SHADER_LOC_* indexes are below it.
         unsafe {
             let name = CString::new(name).unwrap();
             let loc = ffi::GetShaderLocation(material.shader, name.as_ptr());

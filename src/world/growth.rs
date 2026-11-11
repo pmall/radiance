@@ -371,7 +371,10 @@ impl Builder<'_> {
     /// the root. `el` is its initial elevation, `droop` how far its tip may sag (relative to its
     /// length). Returns the tip, or nothing if the bush is trimmed (`trim`) and the blade would
     /// run into a block.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "a frond's shape: each number is drawn by the caller from its species"
+    )]
     fn frond(
         &mut self,
         base: Vec3,
@@ -623,7 +626,10 @@ impl Builder<'_> {
     /// A climber of species `sp` branching up a wall. `origin` is the face's bottom-left point at
     /// the wall surface, `along` the face's horizontal unit axis, `normal` points away from the
     /// wall.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the wall face as the caller found it: its frame, width and height span"
+    )]
     fn climber(
         &mut self,
         sp: &Climber,

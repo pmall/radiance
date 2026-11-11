@@ -1427,7 +1427,6 @@ const SKYBRIDGE_STEP: f32 = 2.0;
 /// A walkway with low parapets between two towers (`skybridge_segment` modules of `cat`, the
 /// deciding lot's biome, from wall to wall), at a height the seed picks between their tops, away
 /// from the `heights` of the pair's other bridges. `along_x` is the direction from `a` to `b`.
-#[allow(clippy::too_many_arguments)]
 fn push_bridge(
     rng: &mut Rng,
     cat: &chunks::Catalog,

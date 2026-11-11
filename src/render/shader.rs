@@ -4,6 +4,10 @@
 //! GLSL has no includes: a line `#include "file"` is replaced here by a file of `INCLUDES`, and a
 //! change to that file reloads the shaders using it. Compile errors in an included file are
 //! reported as source string 1, with the file's own line numbers.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -76,6 +80,8 @@ impl HotShader {
     /// `vs` / `fs` are (file name, embedded source). No `vs` uses raylib's default.
     pub fn new(vs: Option<(&'static str, &'static str)>, fs: (&'static str, &'static str)) -> Self {
         let mut s = Self {
+            // SAFETY: an all-zero `Shader` (id 0) means none loaded; `new` loads one before
+            // returning.
             raw: unsafe { std::mem::zeroed() },
             vs,
             fs,
@@ -111,6 +117,8 @@ impl HotShader {
         });
         self.includes = includes;
         let fs = CString::new(fs).unwrap();
+        // SAFETY: GL call on the window's thread (module doc). Both sources are NUL-terminated and
+        // outlive the call.
         let shader = unsafe {
             ffi::LoadShaderFromMemory(
                 vs.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
@@ -118,11 +126,14 @@ impl HotShader {
             )
         };
         // raylib falls back to its default shader when compilation fails.
+        // SAFETY: GL call on the window's thread (module doc).
         if shader.id == 0 || shader.id == unsafe { ffi::rlGetShaderIdDefault() } {
             self.broken = true;
             return false;
         }
         if self.raw.id != 0 {
+            // SAFETY: GL call on the window's thread (module doc). `raw` is a shader of ours,
+            // replaced right after.
             unsafe { ffi::UnloadShader(self.raw) };
         }
         self.raw = shader;
@@ -148,6 +159,7 @@ impl HotShader {
         let raw = self.raw;
         *self.locs.entry(name).or_insert_with(|| {
             let c = CString::new(name).unwrap();
+            // SAFETY: GL call on the window's thread (module doc). `c` outlives the call.
             unsafe { ffi::GetShaderLocation(raw, c.as_ptr()) }
         })
     }
@@ -160,6 +172,8 @@ impl HotShader {
     ) {
         let loc = self.loc(name);
         if loc >= 0 {
+            // SAFETY: GL call on the window's thread (module doc). `ptr` points to a value of type
+            // `ty`.
             unsafe { ffi::SetShaderValue(self.raw, loc, ptr, ty as i32) };
         }
     }
@@ -202,6 +216,7 @@ impl HotShader {
     pub fn set_f32_array(&mut self, name: &'static str, data: &[f32]) {
         let loc = self.loc(name);
         if loc >= 0 {
+            // SAFETY: GL call on the window's thread (module doc). `data` holds `len` floats.
             unsafe {
                 ffi::SetShaderValueV(
                     self.raw,
@@ -218,6 +233,7 @@ impl HotShader {
     pub fn set_i32_array(&mut self, name: &'static str, data: &[i32]) {
         let loc = self.loc(name);
         if loc >= 0 {
+            // SAFETY: GL call on the window's thread (module doc). `data` holds `len` ints.
             unsafe {
                 ffi::SetShaderValueV(
                     self.raw,
@@ -234,6 +250,7 @@ impl HotShader {
     pub fn set_vec3_array(&mut self, name: &'static str, data: &[f32]) {
         let loc = self.loc(name);
         if loc >= 0 {
+            // SAFETY: GL call on the window's thread (module doc). `data` holds `len / 3` vec3s.
             unsafe {
                 ffi::SetShaderValueV(
                     self.raw,
@@ -249,6 +266,7 @@ impl HotShader {
     pub fn set_mat4(&mut self, name: &'static str, m: Mat4) {
         let loc = self.loc(name);
         if loc >= 0 {
+            // SAFETY: GL call on the window's thread (module doc).
             unsafe { ffi::SetShaderValueMatrix(self.raw, loc, super::matrix(m)) };
         }
     }
@@ -256,6 +274,7 @@ impl HotShader {
     pub fn set_texture(&mut self, name: &'static str, tex: ffi::Texture2D) {
         let loc = self.loc(name);
         if loc >= 0 {
+            // SAFETY: GL call on the window's thread (module doc).
             unsafe { ffi::SetShaderValueTexture(self.raw, loc, tex) };
         }
     }

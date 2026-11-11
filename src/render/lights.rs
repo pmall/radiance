@@ -6,8 +6,12 @@
 //! switches on or off as the camera moves; their halos (`halos.rs`) reach further.
 //! Texture layout (RGBA32F, `WIDTH` texels per row): light data first (3 texels per light:
 //! position + radius, color + halo fade, vertical extent + light fade), then the grid (2 texels
-//! per cell: 8 light indices, -1 = empty). The constants here are mirrored in `shaders/scene.fs` (checked by
-//! `mirrors.rs`).
+//! per cell: 8 light indices, -1 = empty). The constants here are mirrored in `shaders/scene.fs`
+//! (checked by `mirrors.rs`).
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use glam::Vec3;
 use sola_raylib::ffi;
@@ -48,6 +52,7 @@ pub struct LightGrid {
 impl LightGrid {
     pub fn new() -> Self {
         let format = ffi::rlPixelFormat::RL_PIXELFORMAT_UNCOMPRESSED_R32G32B32A32 as i32;
+        // SAFETY: GL call on the window's thread (module doc).
         let id =
             unsafe { ffi::rlLoadTexture(std::ptr::null(), WIDTH as i32, HEIGHT as i32, format, 1) };
         super::targets::set_params(id, ffi::RL_TEXTURE_FILTER_NEAREST);
@@ -143,6 +148,8 @@ impl LightGrid {
             }
         }
 
+        // SAFETY: GL call on the window's thread (module doc). `pixels` holds the whole texture,
+        // `WIDTH * HEIGHT` RGBA32F texels.
         unsafe {
             ffi::rlUpdateTexture(
                 self.texture.id,

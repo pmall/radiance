@@ -6,6 +6,8 @@
 //! and written to a raw file. When recording stops, the video and the sound are muxed into
 //! `recordings/radiance-<seed>-<time>.mp4` on another thread, so the game does not freeze.
 //! Needs `ffmpeg` on the PATH (NVENC is used when it works, x264 otherwise).
+//!
+//! The screen grab (`unsafe`) is a raylib call that needs the window open, on its thread.
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -87,6 +89,8 @@ fn nvenc_works() -> bool {
 
 /// The current screen as RGBA, with its size.
 pub fn grab_screen() -> (Vec<u8>, i32, i32) {
+    // SAFETY: the window is open and this is its thread; the image holds `w * h` RGBA8 pixels,
+    // copied before it is unloaded.
     unsafe {
         let image = ffi::LoadImageFromScreen();
         let (w, h) = (image.width, image.height);

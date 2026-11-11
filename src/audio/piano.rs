@@ -1,5 +1,8 @@
 //! The souls' voice: sampled upright piano notes, pitched to a minor pentatonic scale and played
 //! through a pool of sound aliases so notes overlap and ring out.
+//!
+//! Every `unsafe` block here is a raylib audio call that needs the audio device open: `Audio::new`
+//! opens it, checks it, and only then makes the parts that play sound.
 
 use std::ffi::CString;
 
@@ -54,6 +57,8 @@ impl Piano {
     /// Needs an initialized audio device.
     pub fn new() -> Self {
         let kind = CString::new(".wav").unwrap();
+        // SAFETY: audio call with the device open (module doc). Each wave is read from `bytes`,
+        // which is static.
         let samples = SAMPLES
             .iter()
             .map(|&(key, bytes)| unsafe {
@@ -84,12 +89,14 @@ impl Piano {
         let shift = (note - sample.key) as f32;
         // A free voice if there is one, else the oldest.
         let n = sample.voices.len();
+        // SAFETY: audio call with the device open (module doc).
         let slot = (0..n)
             .map(|k| (sample.next + k) % n)
             .find(|&i| !unsafe { ffi::IsSoundPlaying(sample.voices[i]) })
             .unwrap_or(sample.next);
         sample.next = (slot + 1) % n;
         let voice = sample.voices[slot];
+        // SAFETY: audio call with the device open (module doc).
         unsafe {
             ffi::StopSound(voice);
             ffi::SetSoundPitch(voice, 2f32.powf(shift / 12.0));
@@ -103,6 +110,8 @@ impl Piano {
 impl Drop for Piano {
     fn drop(&mut self) {
         for s in &self.samples {
+            // SAFETY: audio call with the device open (module doc). Aliases go before their source,
+            // which owns the sample data.
             unsafe {
                 // Aliases first, the source owns the data.
                 for v in s.voices.iter().skip(1) {

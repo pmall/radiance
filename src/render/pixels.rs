@@ -10,6 +10,10 @@
 //! square or arched windows, plain or glazed bricks) and the wear (moss, damp, corrosion), so the
 //! same chunk reads differently from one biome to the next. Fixed, not seeded: the seed picks where
 //! materials go, not how they look.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use sola_raylib::ffi;
 
@@ -1639,6 +1643,8 @@ pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
 /// bleed into each other). Requires a GL context.
 pub fn load() -> ffi::Texture2D {
     let (w, h, rgba) = atlas_pixels();
+    // SAFETY: the image borrows `rgba`, alive for the call; LoadTextureFromImage copies it to the
+    // GPU.
     unsafe {
         let image = ffi::Image {
             data: rgba.as_ptr() as *mut _,

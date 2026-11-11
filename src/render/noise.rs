@@ -2,6 +2,10 @@
 //! noise, one per channel, so one fetch gives what the shader would otherwise work out with a
 //! dozen hashes (`noise4` in `shaders/scene.fs`). Fixed, like the pixel art: the seed picks where
 //! things go, not the grain of the noise.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use sola_raylib::ffi;
 
@@ -49,6 +53,8 @@ pub fn pixels() -> Vec<u8> {
 /// 0). Requires a GL context.
 pub fn load() -> ffi::Texture2D {
     let rgba = pixels();
+    // SAFETY: the image borrows `rgba`, alive for the call; LoadTextureFromImage copies it to the
+    // GPU.
     unsafe {
         let image = ffi::Image {
             data: rgba.as_ptr() as *mut _,

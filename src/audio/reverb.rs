@@ -1,6 +1,8 @@
 //! A stereo reverb on the whole mix (Freeverb: parallel damped combs into series allpasses), so
 //! every note rings into the empty canyons of the city. Runs in raylib's audio thread
 //! as a mixed-output processor.
+//!
+//! Its `unsafe` blocks register `process` with raylib's mixer, and read the buffer raylib hands it.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -164,6 +166,8 @@ pub fn stop_capture() -> Option<f32> {
 /// Called by raylib's audio thread with interleaved stereo f32 frames.
 unsafe extern "C" fn process(buffer: *mut c_void, frames: u32) {
     let Some(lock) = REVERB.get() else { return };
+    // SAFETY: raylib passes `frames` interleaved stereo f32 frames at `buffer`, ours until we
+    // return.
     let data = unsafe { std::slice::from_raw_parts_mut(buffer as *mut f32, frames as usize * 2) };
     if let Ok(mut r) = lock.try_lock() {
         reverberate(&mut r, data);
@@ -218,11 +222,14 @@ pub fn attach() {
             right: Channel::new(STEREO_SPREAD),
         })
     });
+    // SAFETY: `process` is a plain function, valid for the whole run; the device is open
+    // (`Audio::new`).
     unsafe { ffi::AttachAudioMixedProcessor(Some(process)) };
 }
 
 /// Stops the reverb (before closing the audio device).
 pub fn detach() {
+    // SAFETY: detaching the callback registered by `attach`.
     unsafe { ffi::DetachAudioMixedProcessor(Some(process)) };
 }
 

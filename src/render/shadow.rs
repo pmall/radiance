@@ -1,4 +1,8 @@
 //! Directional shadow map from the key light, following the camera.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use glam::camera::rh::proj::opengl;
 use glam::camera::rh::view::look_at_mat4;
@@ -32,8 +36,10 @@ impl ShadowMap {
             Some(("shadow.vs", include_str!("../../shaders/shadow.vs"))),
             ("shadow.fs", include_str!("../../shaders/shadow.fs")),
         );
+        // SAFETY: GL call on the window's thread (module doc).
         let mut material = unsafe { ffi::LoadMaterialDefault() };
         material.shader = shader.raw;
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             let fbo = ffi::rlLoadFramebuffer();
             ffi::rlEnableFramebuffer(fbo);
@@ -120,6 +126,7 @@ impl ShadowMap {
             fovy: 2.0 * HALF_EXTENT,
             projection: ffi::CameraProjection::CAMERA_ORTHOGRAPHIC as i32,
         };
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             ffi::rlSetClipPlanes(1.0, DEPTH_RANGE as f64);
             ffi::BeginTextureMode(ffi::RenderTexture2D {
@@ -156,6 +163,7 @@ impl ShadowMap {
 
 impl Drop for ShadowMap {
     fn drop(&mut self) {
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             ffi::rlUnloadTexture(self.color_id);
             ffi::rlUnloadFramebuffer(self.fbo);

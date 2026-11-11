@@ -440,7 +440,10 @@ pub fn lean(seed: u64, p: &Placement, body: &Aabb) -> Option<Vec3> {
 
 /// The units in boxes of a tier's faces, on the street story and the `NEAR_STORIES` above each
 /// floor whose deck meets the face, from its elevations.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the tier, its facade, placement and transform are separate parts of the tower being built"
+)]
 fn push_units(
     cat: &Catalog,
     p: &Placement,

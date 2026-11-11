@@ -61,6 +61,7 @@ pub struct Audio {
 impl Audio {
     /// Opens the audio device. `None` when there is no usable device.
     pub fn new(seed: u64) -> Option<Self> {
+        // SAFETY: the main thread opens the audio device once, before any other audio call.
         unsafe {
             ffi::InitAudioDevice();
             if !ffi::IsAudioDeviceReady() {

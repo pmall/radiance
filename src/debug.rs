@@ -1,4 +1,6 @@
 //! Debug and art-iteration tools: overlay and key bindings.
+//!
+//! Its `unsafe` blocks are raylib calls made while drawing: the window is open, on its thread.
 
 use sola_raylib::prelude::*;
 
@@ -222,6 +224,7 @@ impl Debug {
         say(
             format!(
                 "  {} fps   {:.1} M triangles   {} flower lights ({} left out of full cells)   resolution {:.0}%   sound {}",
+                // SAFETY: called while drawing, the window open (module doc).
                 unsafe { sola_raylib::ffi::GetFPS() },
                 renderer.triangles() as f32 / 1e6,
                 renderer.lights_in_use,
@@ -258,6 +261,7 @@ impl Debug {
 
         let measure = |s: &str, size: i32| {
             let c = std::ffi::CString::new(s).unwrap_or_default();
+            // SAFETY: called while drawing, the window open; `c` outlives the call.
             unsafe { sola_raylib::ffi::MeasureText(c.as_ptr(), size) }
         };
         let width = lines
@@ -283,6 +287,8 @@ pub fn export_screen(path: &std::path::Path) -> bool {
     let Ok(c) = std::ffi::CString::new(path.to_string_lossy().as_bytes()) else {
         return false;
     };
+    // SAFETY: called while drawing, the window open; `c` outlives the export, and the image is
+    // unloaded once.
     unsafe {
         // Draws still queued in raylib's batch must reach the screen first.
         sola_raylib::ffi::rlDrawRenderBatchActive();

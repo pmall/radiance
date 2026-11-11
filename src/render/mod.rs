@@ -6,6 +6,10 @@
 //!    (`shaders/post.fs`).
 //!
 //! Shaders hot-reload from disk when edited.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 mod cover;
 mod facades;
@@ -64,6 +68,17 @@ pub const EFFECTS: [(i32, &str); 8] = [
 ];
 
 pub const RENDER_SCALES: [f32; 4] = [0.5, 0.75, 1.0, 1.5];
+
+// Every material map slot the renderer writes is one LoadMaterialDefault allocates (the SAFETY
+// comments on those writes rely on it).
+const _: () = {
+    let slots = [1, 2, cover::SLOT, pixels::SLOT, noise::SLOT, facades::SLOT];
+    let mut i = 0;
+    while i < slots.len() {
+        assert!(slots[i] < sola_raylib::consts::MAX_MATERIAL_MAPS as usize);
+        i += 1;
+    }
+};
 
 const NEAR: f32 = 0.1;
 const FAR: f32 = 1500.0;
@@ -273,20 +288,32 @@ impl Renderer {
         );
         let post = HotShader::new(None, ("post.fs", include_str!("../../shaders/post.fs")));
         let shadow = ShadowMap::new();
+        // SAFETY: GL call on the window's thread (module doc).
         let mut material = unsafe { ffi::LoadMaterialDefault() };
         material.shader = scene.raw;
         // Map slot 1 is bound by DrawMesh to the `texture1` sampler.
+        // SAFETY: slot 1 is below MAX_MATERIAL_MAPS (12), the maps LoadMaterialDefault allocates.
         unsafe { (*material.maps.add(1)).texture = shadow.depth };
         // Map slot 2 is bound to `texture2`: the plant light grid.
         let light_grid = LightGrid::new();
+        // SAFETY: slot 2 is below MAX_MATERIAL_MAPS (12), the maps LoadMaterialDefault allocates.
         unsafe { (*material.maps.add(2)).texture = light_grid.texture };
         let cover = CoverMap::new();
+        // SAFETY: slot cover::SLOT (5) is below MAX_MATERIAL_MAPS (12), the maps
+        // LoadMaterialDefault allocates.
         unsafe { (*material.maps.add(cover::SLOT)).texture = cover.texture };
         let prop_meshes = props::PropMeshes::new();
+        // SAFETY: slot pixels::SLOT (10) is below MAX_MATERIAL_MAPS (12), the maps
+        // LoadMaterialDefault allocates. The atlas upload: GL call on the window's thread (module
+        // doc).
         unsafe { (*material.maps.add(pixels::SLOT)).texture = pixels::load() };
         // Map slot 0 is the noise the wear is drawn from, sampler `texture0`.
+        // SAFETY: slot noise::SLOT (0) is below MAX_MATERIAL_MAPS (12), the maps
+        // LoadMaterialDefault allocates. The upload: GL call on the window's thread (module doc).
         unsafe { (*material.maps.add(noise::SLOT)).texture = noise::load() };
         let facades = facades::Facades::new();
+        // SAFETY: slot facades::SLOT (6) is below MAX_MATERIAL_MAPS (12), the maps
+        // LoadMaterialDefault allocates.
         unsafe { (*material.maps.add(facades::SLOT)).texture = facades.texture };
         surfaces::bind_samplers(&mut material);
         let halos = halos::new(light_grid.texture);
@@ -365,6 +392,8 @@ impl Renderer {
     pub fn sync_world(&mut self, world: &World) {
         self.seed = world.seed;
         if self.facades.refresh() {
+            // SAFETY: slot facades::SLOT (6) is below MAX_MATERIAL_MAPS (12), the maps
+            // LoadMaterialDefault allocates.
             unsafe { (*self.material.maps.add(facades::SLOT)).texture = self.facades.texture };
         }
         let live: std::collections::HashSet<_> = world.lots().map(|(k, _)| k).collect();
@@ -502,6 +531,7 @@ impl Renderer {
     }
 
     pub fn draw(&mut self, view: &View, sky: &Sky, time: f32) {
+        // SAFETY: GL call on the window's thread (module doc).
         let (rw, rh) = unsafe { (ffi::GetRenderWidth(), ffi::GetRenderHeight()) };
         let sw = ((rw as f32 * self.render_scale) as i32).max(1);
         let sh = ((rh as f32 * self.render_scale) as i32).max(1);
@@ -630,6 +660,7 @@ impl Renderer {
         let s = &mut self.scene;
         s.set_vec3("uGridOrigin", self.light_grid.origin);
         s.set_f32("uGlow", look.plant_glow);
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             ffi::rlSetClipPlanes(NEAR as f64, FAR as f64);
             ffi::BeginTextureMode(targets.render_texture());
@@ -720,6 +751,7 @@ impl Renderer {
         p.set_i32("uEffects", self.effects);
         p.set_f32("uTime", time);
         p.set_f32("uLineWidth", (LINE_WIDTH * sh as f32 / 1080.0).max(1.0));
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             ffi::BeginShaderMode(p.raw);
             // Samplers must be bound after BeginShaderMode, which flushes pending state.
@@ -773,6 +805,8 @@ impl Renderer {
             p.set_vec2("uCoverOrigin", cover_origin);
             p.set_f32_array("uFloorY", &cover::floor_uniform());
             p.set_i32("uFloorCount", crate::world::floors::count() as i32);
+            // SAFETY: slot 2 is below MAX_MATERIAL_MAPS (12), the maps LoadMaterialDefault
+            // allocates.
             unsafe { (*self.particles.material.maps.add(2)).texture = self.cover.texture };
             self.halos
                 .shader

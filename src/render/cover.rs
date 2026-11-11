@@ -14,6 +14,10 @@
 //!
 //! Rebuilt when the camera changes lot; each lot's data is cached, so a move only computes the
 //! new edge. `SIZE` and the layout are mirrored in `shaders/cover.glsl` (checked by `mirrors.rs`).
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use std::collections::HashMap;
 
@@ -75,6 +79,7 @@ impl CoverMap {
     pub fn new() -> Self {
         let format = ffi::rlPixelFormat::RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32;
         let (w, h) = (SIZE * TILES, SIZE);
+        // SAFETY: GL call on the window's thread (module doc).
         let id = unsafe { ffi::rlLoadTexture(std::ptr::null(), w, h, format, 1) };
         super::targets::set_params(id, ffi::RL_TEXTURE_FILTER_LINEAR);
         Self {
@@ -149,6 +154,8 @@ impl CoverMap {
                     .copy_from_slice(&roads::bits(seed, lot.0, lot.1).to_le_bytes());
             }
         }
+        // SAFETY: GL call on the window's thread (module doc). `pixels` holds the whole texture,
+        // `SIZE * TILES` by `SIZE` RGBA8 texels.
         unsafe {
             ffi::rlUpdateTexture(
                 self.texture.id,

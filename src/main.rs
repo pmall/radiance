@@ -239,6 +239,7 @@ fn main() {
         rl.disable_cursor();
     }
     if args.bench.is_some() {
+        // SAFETY: the window was just opened on this thread.
         unsafe {
             sola_raylib::ffi::ClearWindowState(
                 sola_raylib::ffi::ConfigFlags::FLAG_VSYNC_HINT as u32,

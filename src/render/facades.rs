@@ -3,6 +3,10 @@
 //! the left seen from outside, story of the floor from the street up), sixteen blocks a row. A
 //! texel holds the tile painted far away, the tile painted near a deck, the paint digit and the
 //! number of bays. Rebuilt when the chunk files change.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use sola_raylib::ffi;
 
@@ -39,6 +43,8 @@ fn pixels() -> (usize, usize, Vec<u8>) {
 
 fn upload() -> ffi::Texture2D {
     let (w, h, rgba) = pixels();
+    // SAFETY: the image borrows `rgba`, alive for the call; LoadTextureFromImage copies it to the
+    // GPU.
     unsafe {
         let image = ffi::Image {
             data: rgba.as_ptr() as *mut _,
@@ -68,6 +74,8 @@ impl Facades {
             return false;
         }
         self.generation = chunks::generation();
+        // SAFETY: GL call on the window's thread (module doc). The old texture is not bound again
+        // before it is replaced.
         unsafe { ffi::UnloadTexture(self.texture) };
         self.texture = upload();
         true
@@ -76,6 +84,7 @@ impl Facades {
 
 impl Drop for Facades {
     fn drop(&mut self) {
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe { ffi::UnloadTexture(self.texture) };
     }
 }

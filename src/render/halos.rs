@@ -2,6 +2,10 @@
 //!
 //! One quad per light slot, uploaded once. `shaders/halos.vs` reads each light's position and
 //! color from the light texture, so the halo always sits exactly where the light does.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use sola_raylib::ffi;
 
@@ -22,6 +26,7 @@ pub fn new(light_texture: ffi::Texture2D) -> Overlay {
         ("halos.fs", include_str!("../../shaders/halos.fs")),
         m.upload(),
     );
+    // SAFETY: slot 2 is below MAX_MATERIAL_MAPS (12), the maps LoadMaterialDefault allocates.
     unsafe { (*halos.material.maps.add(2)).texture = light_texture };
     halos
 }

@@ -1,5 +1,9 @@
 //! Props drawn instanced: one GPU mesh per prop and biome version (`world::props`), and each frame
 //! every placement near the camera in a single call per mesh, so props cost no memory per lot.
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use std::collections::HashMap;
 
@@ -71,6 +75,7 @@ impl PropMeshes {
 
 impl Drop for PropMeshes {
     fn drop(&mut self) {
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe {
             for m in &self.meshes {
                 ffi::UnloadMesh(*m);
@@ -82,6 +87,8 @@ impl Drop for PropMeshes {
 /// Draws batches with a material whose shader takes `instanceTransform` (raylib's default name).
 pub fn draw(batches: &[Batch], material: ffi::Material) {
     for b in batches {
+        // SAFETY: GL call on the window's thread (module doc). `transforms` holds the `len`
+        // matrices passed.
         unsafe {
             ffi::DrawMeshInstanced(
                 b.mesh,

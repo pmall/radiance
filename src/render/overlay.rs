@@ -1,6 +1,10 @@
 //! Layers drawn additively over the finished frame and hidden by the scene's depth: a fixed set of
 //! quads uploaded once, which the layer's vertex shader places and billboards every frame (pollen
 //! and spores, `particles.rs`; halos at the flowers, `halos.rs`).
+//!
+//! Every `unsafe` block here is a raylib call that needs the window open and must run on its
+//! thread, where the GL context is current: the renderer is made after the window opens and
+//! never leaves the main thread.
 
 use glam::{Vec2, Vec3};
 use sola_raylib::ffi;
@@ -32,6 +36,7 @@ impl Overlay {
         mesh: ffi::Mesh,
     ) -> Self {
         let shader = HotShader::new(Some(vs), fs);
+        // SAFETY: GL call on the window's thread (module doc).
         let mut material = unsafe { ffi::LoadMaterialDefault() };
         material.shader = shader.raw;
         Self {
@@ -72,6 +77,8 @@ impl Overlay {
         s.set_f32("uNear", NEAR);
         s.set_f32("uFar", FAR);
         s.set_f32("uGlow", glow);
+        // SAFETY: slot 1 is below MAX_MATERIAL_MAPS (12), the maps LoadMaterialDefault allocates.
+        // The rest: GL call on the window's thread (module doc).
         unsafe {
             (*self.material.maps.add(1)).texture = depth;
             ffi::rlSetClipPlanes(NEAR as f64, FAR as f64);
@@ -90,6 +97,7 @@ impl Overlay {
 
 impl Drop for Overlay {
     fn drop(&mut self) {
+        // SAFETY: GL call on the window's thread (module doc).
         unsafe { ffi::UnloadMesh(self.mesh) };
     }
 }
