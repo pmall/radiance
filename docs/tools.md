@@ -6,7 +6,10 @@ its main loop; the overlay is `src/debug.rs`.
 
 ## Command line
 
-`cargo run --release -- [seed] [flags]` (a random seed when left out).
+`cargo run --release -- [seed] [flags]` (seed 1 when left out). `--help` prints the usage. A bad
+command line (unknown flag, missing or out-of-range value, a second seed, an unknown `--chunk`)
+says what is wrong and exits with 2; a `--shot` that cannot be saved or a `--record-for` that fails
+exits with 1.
 
 | Flag                   | What it does                                                                                                                     |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -14,9 +17,9 @@ its main loop; the overlay is `src/debug.rs`.
 | `--view x,y,z,yaw,pch` | Camera at that feet position. With `--shot` or `--bench` it renders there; alone it starts a normal run walking from that spot.  |
 | `--shot out.png`       | Render one frame, save it and exit (silent).                                                                                     |
 | `--overlay`            | Keep the debug panel in a shot.                                                                                                  |
-| `--fx MASK`            | Effect bits for a shot (`render::EFFECTS`: outlines, fog, cel, shadows, grading, grain, particles, texture; 255 = all on).       |
+| `--fx MASK`            | Effect bits for a shot (`debug::EFFECT_KEYS`: outlines, fog, cel, shadows, grading, grain, particles, texture; 255 = all on).    |
 | `--bench N`            | Render N frames without vsync and print ms/frame and the triangles drawn in view (silent).                                       |
-| `--floors N`           | Number of floors of the stack (`floors::init`).                                                                                  |
+| `--floors N`           | Number of floors of the stack, 5 to 16 (`floors::MIN`, `MAX`); refuses any other.                                                |
 | `--no-props`           | Props off (like O in game).                                                                                                      |
 | `--no-pois`            | Points of interest off (like I in game).                                                                                         |
 | `--report [radius]`    | Print the floor profiles next to what the seed produced, and the places and landmark towers with a `--view` for each, then exit. |
