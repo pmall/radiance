@@ -1,102 +1,135 @@
 # Radiance
 
-*Last Radiance*, a conceptual artistic game in Rust + raylib: Wick, an android search unit sent on
-an absurd mission (find the humans left in the dark; there are none), explores in first person
-the depths of a vast, seed-generated cyberpunk megacity overgrown by plants, rendered to read like
-a 2D illustration. Its glowing flowers each play a piano note: they are the souls of the long-gone
-humans. Today the work is the city, its look and its atmosphere; story, dialogue, points of
-interest and other gameplay come next, voices last (`docs/vision.md`, "Stages").
+*Last Radiance* is a conceptual artistic game in Rust and raylib: an android explores in first
+person a vast, seed-generated cyberpunk megacity overgrown by plants whose glowing flowers each play
+a piano note, rendered to read like a 2D illustration. Today the work is the city, its look and its
+atmosphere; story and gameplay come next.
 
-## Docs (read the one relevant to the task)
+The docs index is in `README.md`: read the doc relevant to the task before starting it, and the
+owner's feedback and decisions before any visual or control change.
 
-- `docs/vision.md`: scope, definition of done, player feel, references.
-- `docs/world.md`: setting, vertical layers, procedural generation rules, biomes (what a biome sets, how to add one).
-- `docs/art-direction.md`: rendering look, palettes, day/night cycle, light plants.
-- `docs/audio.md`: piano notes, ambient soundscape. `docs/guidance-ideas.md`: ideas to guide the player by sound.
-- `docs/roadmap.md`: milestones, current status, debug tooling.
-- `docs/chunks.md`: how the city is built from hand-written map chunks placed by rules, in a
-  Nivalis-like box and pixel-art style (done: every lot is a chunk).
-- `docs/biome-ideas.md`: brainstormed biomes (Cyan Grotto implemented), for inspiration. What a biome can set and how
-  to add one: `docs/world.md`, "Biomes".
-- `docs/lore.md`: the story behind the city (machines kept building, flowers are souls); read it for art and audio decisions.
-- `docs/story.md`, `docs/game-ideas.md`, `docs/poi-catalog.md`: the game's design (story, dialogue and its narrative
-  escalation, mechanics, points of interest). Not built yet; still being written, so ask the owner when it disagrees
-  with `docs/feedback.md`.
-- `docs/feedback.md`: owner feedback and decisions so far; read it before visual or control changes.
-- `docs/code-map.md`: where each generation rule lives (rule → function) and how a lot is built;
-  read it before touching `src/world/`, and update it when a rule moves.
-
-## Hard constraints
-
-- Rust with `sola-raylib` 6.x (binds raylib 6.0). Drop to the raw FFI (`sola_raylib::ffi`) when the
-  wrapper is missing or awkward.
-- **Render quality over code purity or method.** The look and the atmosphere carry the game: never
-  trade them for a cleaner technique.
-- **No chunks or props on the side.** New content comes when the owner asks for it: a new biome,
-  or points of interest from `docs/poi-catalog.md` (`docs/chunks.md`, "Catalog rule").
-- **World generation must be procedural**: the city, its layout, architecture and plants come from
-  the seed (random, extensible, deterministic), because every player gets a different city and its
-  scale is the megacity's atmosphere. This is a hard requirement. Vertically the city is a finite
-  stack of floors; horizontally it streams without end today, but endlessness is not a goal: floors
-  can become bounded if that helps the game (see `docs/feedback.md`).
-- **Surface look is free**: textures, images and other external assets are welcome (authored or
-  procedural, whichever looks best) and do not conflict with procedural generation: the seed still
-  decides what is placed where; assets only decide how surfaces look. No editor is used and the
-  project stays plain text. Never trade visual quality for avoiding assets.
-- Deterministic: same seed ⇒ same city. All randomness goes through `src/rng.rs`.
-- Smooth framerate on a mid-range GPU (dev machine: RTX 3060 on Ubuntu; keep weaker GPUs in mind).
-- Modular (rendering, generation, audio, player) but no general-purpose engine upfront.
-
-## Layout
-
-- `src/main.rs`: window, main loop, fixed 120 Hz simulation step, input routing.
-- `src/player.rs`: first-person controller (walk/run/jump, step-up, ledge grab, free-fly).
-- `src/stream.rs`: lots generated and meshed on worker threads around the player, uploaded a little
-  per frame (`LOAD_RADIUS` in `src/world/mod.rs`).
-- `src/world/`: world data, collision index and generation (`floors.rs`: the stack of floors, fixed per run but variable (`--floors N`) and its zones; `design.rs`: the floor profiles, every generation number that depends on the floor (holes, plants, flower chances, stairs, props) and the props/POI switches; `biome.rs`: map zones and everything a biome sets: its plants (species, colors, rates), its atmosphere (sky, fog, light through the day), its palette and textures (a biome's name is also its folder of chunks, modules and props; `docs/world.md`, "Biomes"); `city.rs`: builds a lot from what the planner says (ground, decks, hub stairs, its share of towers and chunks, skybridges), each lot a pure function of seed + lot coords, recent lots cached; `growth.rs`: plants grown over a lot's blocks; `leftovers.rs`: things left behind, by rule (debris at the wall feet, cables across the streets); `roads.rs`: the road network, which lot borders are roads on each floor (never into a hole or an edge, no dead ends); `props.rs`: the props, box-built modules (placed instanced by chunks) plus the street light built in code; `chunks.rs`: hand-written map chunks and modules, one collection per biome in `assets/biomes/<biome>/` plus the shared modules of `assets/modules/` (`docs/chunks.md`); `planner.rs`: which chunk stands where (areas and sub-areas, towers, holes, craters, blocks, stair hubs, fillers, streets): every lot of every floor is a chunk; `tower.rs`: tower chunks built (tiers, written elevations, units near the decks, roofs, leaning tiers); `skyline.rs`: the towers rising past the top deck within a kilometer, drawn far beyond the loaded lots).
-- `src/render/`: stylized pipeline (scene pass into HDR + normal/id + depth targets, shadow map,
-  post pass for sky, outlines, fog, grading, grain; `lights.rs` bins flower point lights into a camera grid texture, `halos.rs` draws a halo at each, `facades.rs` the towers' written elevations as a texture, `particles.rs` drifting motes and spores; `props.rs` draws the props instanced; `pixels.rs` draws each biome's pixel-art tiles of the chunk materials, facade units and city surfaces (roads, sidewalks, roofs, deck undersides), and the swatches the wear is drawn in (a row of the atlas per biome); `noise.rs` the noise texture the wear's shapes come from; `cover.rs` the cover map: which decks stand over each lot and how much sky it sees, for light and fog under the floors; `skyline.rs` the far skyline's meshes, made off the main thread from `world/skyline.rs`: the construction front's towers out to about a kilometer, left out over the loaded lots). `look.rs` holds the per-time-of-day palettes (the default biome's looks) and the blend of biome atmospheres the sky is drawn in.
-- `shaders/`: GLSL 330 sources, hot-reloaded from disk while running (embedded as fallback);
-  `#include "file"` pulls in a shared file such as `cover.glsl` (`src/render/shader.rs`, `INCLUDES`);
-  `fade.glsl` dissolves far draws in a dither instead of cutting them (`Fade` in `src/render/mod.rs`).
-- `src/audio/`: sound. `piano.rs` (sampled upright piano, one note per soul/flower), `ambient.rs` (synthesized machinery hum), `reverb.rs` (Freeverb on the master bus). Samples in `assets/audio/`.
-- `src/daycycle.rs`: time-of-day clock and sun direction.
-- `src/rng.rs`: seeded RNG and coordinate hashing.
-- `src/debug.rs`: overlay and debug key help.
-- `src/recorder.rs`: video + sound recording of a run through `ffmpeg`.
+This file holds the instructions: how work is done here. It changes only when the owner asks.
 
 ## Commands
 
-- `cargo run -- <seed>`: run (seed optional).
-- `cargo run -- <seed> --time 0.5 --view x,y,z,yaw,pitch --shot out.png`: render one frame at a
-  given time of day (0 = midnight, 0.5 = noon) and camera, save it and exit. Use it to check looks.
-  Without `--shot` (or `--bench`), `--view` starts a normal run walking from that spot (F2 flies).
-- `--overlay` keeps the debug panel in a shot. `--fx <mask>` sets effect bits for a shot, `--bench <frames>` prints ms/frame (no vsync). Shots and benchmarks are silent; `--no-audio` mutes a normal run, `RADIANCE_AUDIO_LOG=1` prints each note.
-- `P` in game saves a screenshot (no debug panel) to `screenshots/radiance-<seed>-<n>.png`
-  (gitignored), with a `.txt` beside it: seed, floor, time and the `--view ... --shot` command that
-  renders the same view. The owner uses them for feedback: run that command to see what they saw.
-- `V` in game starts/stops recording the run (screen and sound) to `recordings/radiance-<seed>-<time>.mp4` (needs `ffmpeg`; `src/recorder.rs`). `--record-for <seconds>` records that long and exits, to test it.
-- `python3 tools/lookdev.py LABEL`: render the reference views (eight places at day, dusk and
-  night) into `screenshots/lookdev/LABEL/`, a sheet per time of day; judge every look change on
-  them against an earlier label (needs a release build and Pillow).
-- `--chunk NAME` (or `BIOME/NAME`): show one hand-written chunk alone (with `--view`/`--shot`); `--catalog` lists every biome's chunks and modules.
-- `--report [radius]`: print the floor profiles next to what the seed produced (decks, stairs,
-  flowers by source, props by kind) and the places (areas, blocks, craters) and landmark towers
-  (not housing, broken, leaning) with a `--view` for each, then exit. Use it to tune generation. `--floors N` sets the
-  number of floors; `--no-props` / `--no-pois` (O / I in game) switch props and points of interest.
-- `cargo check` / `cargo clippy`: verify. `cargo test --release`: the whole suite must stay fast
-  (a few seconds) so iterating is quick: a test sweeps as few lots and seeds as prove its point,
-  and filters cheaply before costly checks. A slow test gets fixed, not tolerated.
-- **At the end of every coding session, format the code and the markdown** (owner's rule):
-  `cargo fmt`, then `dprint fmt` (markdown, configured in `dprint.json`; install once with
-  `cargo install --locked dprint`).
-- Rust lives in `~/.cargo/bin`; it may need adding to `PATH` in non-login shells.
+- `cargo run -- <seed>`: run the game (seed optional). Rendering one frame, benchmarks, reports
+  and other tooling are described in the docs.
+- `tools/check.sh fast`: format (Rust, Markdown, TOML, JSON, Python), lint, type-check.
+- `tools/check.sh full`: the fast check, then the tests and the release build.
+- Rust lives in `~/.cargo/bin`, which non-login shells may lack in `PATH` (the check script adds
+  it). `dprint` installs once with `cargo install --locked dprint`.
 - If bindgen fails with `'stdarg.h' file not found`, the clang builtin headers are missing
-  (`libclang-common-<ver>-dev`); workaround: `BINDGEN_EXTRA_CLANG_ARGS="-I/usr/lib/gcc/x86_64-linux-gnu/<ver>/include"`.
+  (`libclang-common-<ver>-dev`); workaround:
+  `BINDGEN_EXTRA_CLANG_ARGS="-I/usr/lib/gcc/x86_64-linux-gnu/<ver>/include"`.
 
-## Git
+## Principles
 
-- **Commit at the end of every pass** (owner's rule): when a pass of a plan (`docs/roadmap.md`) is
-  done, checked and formatted, commit it as one commit, without asking.
-- **Never push** (force or not): commit when asked or at the end of a pass, the owner pushes. If a change would rewrite
-  commits already on the remote, rewrite locally and say a force-push is needed.
+### Automated checks
+
+Every turn that changed files ends with the fast check, so problems are caught while they are
+small. Every session that changed code ends with the full check. Formatting is applied by the
+formatter, never by hand, so the layout of code and docs never depends on who last wrote them.
+Never make a check pass by disabling a lint or skipping a test without saying why.
+
+The test suite stays fast (a few seconds in release) so iterating stays quick: a test sweeps as few
+lots and seeds as prove its point, and filters cheaply before costly checks. A slow test gets
+fixed, not tolerated.
+
+### Capabilities first, interfaces second
+
+What the project can do is its capabilities, each written once as plain code that knows nothing
+about how it is reached. Interfaces are thin layers on top. Write capabilities as if several
+interfaces already used them, so adding or replacing an interface never touches them. Below them, a
+data access layer is the only code that knows where and how data is stored. Capabilities take
+everything they need as arguments. The test: could a small script, or a test, use a capability
+directly, with no window open?
+
+Here the capabilities are world generation and planning, growth, the day cycle, the audio logic
+(which note, when) and the player's physics: they never depend on raylib, a window or a GPU. The
+interfaces are the window and main loop, the renderer, the CLI flags and the tools built on them
+(reports, shots, benchmarks, recording). Data access is the reading of `assets/` and `shaders/`.
+
+### Truthful types
+
+Types say exactly what the domain allows, because a type that lies moves the bug to whoever trusts
+it. Having to fight the type system means the design needs rethinking. In Rust:
+
+- `Option` only where a value can really be absent, an enum only where it really takes several
+  shapes. No sentinel values (`-1`, `0.0`, `NaN`, an empty string) standing for "none".
+- Expected failures (a missing asset, a malformed chunk file, a bad flag) are `Result`s with a
+  message that says what went wrong. No `unwrap` on them. Broken invariants panic, through `expect`
+  naming the invariant.
+- Numeric `as` casts only where the value is known to fit.
+- No `#[allow]` without a reason: `#[expect(lint, reason = "...")]`.
+- Every `unsafe` block (raw FFI) starts with a `// SAFETY:` comment stating the invariant it
+  relies on.
+
+### Every fact lives in one place
+
+So that a change touches as few places as possible. What code does is documented in its doc
+comments and nowhere else; docs point to the code rather than restate it. A tuning number is one
+named constant. Anything referred to from elsewhere (a section, a decision, an item) carries a
+short, meaningful, permanent ID, never a number, so reordering never breaks a reference.
+
+### Instructions, docs and notes
+
+Kept apart because each carries a different authority, and mixing them gives a passing remark the
+weight of a rule. An agent that starts from little but true information does well; piled-up notes
+make every later agent worse.
+
+- **Instructions** are this file: the owner's rules. They never go in `docs/`.
+- **Docs**, in `docs/`, are the understanding of the project shared by the owner and every agent:
+  what it is, how its parts fit, its invariants, its roadmap. They describe the present, rewritten
+  rather than appended to, and change with the owner's agreement when the project's shape changes.
+  When docs and code disagree, the code wins and the docs get fixed.
+- **Notes** (plans, findings, dead ends) go in the scratchpad or a temporary folder, never in the
+  repo. When work is done, what deserves to last goes into doc comments, the commit message or
+  `docs/`.
+
+### Git
+
+The agent manages git. It commits each coherent, passing unit of work (at the latest, the end of
+every pass of a plan) without asking, with a message that explains why, and pushes. It never
+commits secrets and never rewrites pushed history.
+
+### Orchestrating sessions
+
+The main session orchestrates and subagents do the work, so the main session's context stays small
+and sharp: everything it reads, it carries to the end. A subagent starts cold, so work quicker to
+do than to explain stays in the main session, and related small changes go to one subagent
+together. Each subagent gets a task for one short sitting and a budget counted in what it can see
+(tries, files), never tokens; when the budget runs out it commits what is good and reports what is
+left. The main session reads reports and the docs it needs to decide, not code or logs.
+
+### Working with the owner
+
+Product decisions belong to the owner; technical decisions and the quality of the work are the
+agent's. When a technical choice affects the owner (costs, accounts, steps only they can take), say
+so plainly. When a request conflicts with these principles, say so and propose a better way.
+
+## Project rules
+
+- **Render quality over code purity or method.** The look and the atmosphere carry the game: never
+  trade them for a cleaner technique. The principles above govern structure and types; they never
+  justify a worse picture. When they seem to collide, keep the picture and find the structure that
+  allows it (the renderer may be as specialized as the look needs; it is an interface).
+- **Rust with `sola-raylib` 6.x** (binds raylib 6.0). Drop to the raw FFI (`sola_raylib::ffi`) when
+  the wrapper is missing or awkward, rather than bending the design around it.
+- **World generation is procedural**: the city, its layout, architecture and plants come from the
+  seed (random, extensible, deterministic), because every player gets a different city and its
+  scale is the megacity's atmosphere. The city is a finite stack of floors; horizontal endlessness
+  is not a goal, and floors may become bounded if that helps the game.
+- **Deterministic**: same seed, same city, so a city can be shared, reported on and tested. All
+  randomness goes through `src/rng.rs`; nothing generated may depend on hash map iteration order or
+  on which worker thread finishes first.
+- **Surface look is free**: textures, images and other assets, authored or procedural, whichever
+  looks best. The seed decides what is placed where; assets only decide how surfaces look. No
+  editor: the project stays plain text. Never trade visual quality for avoiding assets.
+- **No chunks or props on the side.** New content comes when the owner asks for it (a new biome, or
+  a point of interest from the catalog), because what the city contains is a product decision.
+- **Smooth framerate on a mid-range GPU** (dev machine: RTX 3060 on Ubuntu; keep weaker GPUs in
+  mind), because a stutter breaks the atmosphere. Measure before and after a costly change.
+- **Modular, but no general-purpose engine upfront**: build what the game needs now, since
+  abstractions made before their use cost time and constrain the look.
+- **Judge look changes on rendered frames**, the reference views against an earlier label (the
+  tooling is in the docs), never on the code alone.

@@ -58,12 +58,21 @@ def sheet(out: Path, shots: list[tuple[str, Path]]) -> None:
         x, y = (i % cols) * THUMB[0], (i // cols) * THUMB[1]
         if path.exists():
             img.paste(Image.open(path).convert("RGB").resize(THUMB), (x, y))
-        draw.text((x + 10, y + 8), name, fill=(255, 255, 255), font=font, stroke_width=2, stroke_fill=(0, 0, 0))
+        draw.text(
+            (x + 10, y + 8),
+            name,
+            fill=(255, 255, 255),
+            font=font,
+            stroke_width=2,
+            stroke_fill=(0, 0, 0),
+        )
     img.save(out)
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("label", help="folder under screenshots/lookdev/")
     ap.add_argument("--only", help="comma-separated view names")
     ap.add_argument("--times", help="comma-separated: day, dusk, night")
@@ -75,11 +84,18 @@ def main() -> None:
     times = [t for t in TIMES if not a.times or t[0] in a.times.split(",")]
     out = ROOT / "screenshots" / "lookdev" / a.label
     out.mkdir(parents=True, exist_ok=True)
-    jobs = [(out / f"{name}-{tname}.png", seed, view, t) for name, seed, view in views for tname, t in times]
+    jobs = [
+        (out / f"{name}-{tname}.png", seed, view, t)
+        for name, seed, view in views
+        for tname, t in times
+    ]
     with ThreadPoolExecutor(a.jobs) as pool:
         list(pool.map(lambda j: render(*j), jobs))
     for tname, _ in times:
-        sheet(out / f"sheet-{tname}.png", [(name, out / f"{name}-{tname}.png") for name, _, _ in views])
+        sheet(
+            out / f"sheet-{tname}.png",
+            [(name, out / f"{name}-{tname}.png") for name, _, _ in views],
+        )
         print(out / f"sheet-{tname}.png")
 
 
