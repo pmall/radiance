@@ -50,3 +50,32 @@ impl Rng {
         self.f32() < p
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every city is built from these numbers: if this fails, every seed now gives another city.
+    /// Only change the values when that is the intent.
+    #[test]
+    fn the_sequences_never_change() {
+        // SplitMix64's published first output for state 0.
+        assert_eq!(mix64(0), 0xE220_A839_7B1D_CDAF);
+        assert_eq!(mix64(1), 0x910A_2DEC_8902_5CC1);
+        assert_eq!(hash_coords(1, 0, 0, 0), 0xE281_95DD_D9EE_4956);
+        assert_eq!(hash_coords(42, -3, 7, -11), 0x1F76_C14E_3C59_213B);
+        let mut r = Rng::new(42);
+        assert_eq!(
+            [r.next_u64(), r.next_u64(), r.next_u64(), r.next_u64()],
+            [
+                0xF4AB_D143_FEB2_4055,
+                0x7C81_6738_C129_03B2,
+                0x113E_5DEC_6F8F_D8A8,
+                0xAD4A_5990_62FD_1739,
+            ]
+        );
+        let mut r = Rng::new(42);
+        assert_eq!(r.f32(), 16_034_769.0 / (1 << 24) as f32);
+        assert_eq!(r.range_i(-5, 17), 13);
+    }
+}
