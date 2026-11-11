@@ -13,6 +13,8 @@ mod halos;
 mod lights;
 pub mod look;
 mod mesh;
+#[cfg(test)]
+mod mirrors;
 pub mod noise;
 mod overlay;
 mod particles;

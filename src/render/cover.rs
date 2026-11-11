@@ -13,7 +13,7 @@
 //! Room for `floors::MAX` floors, whatever the run's count.
 //!
 //! Rebuilt when the camera changes lot; each lot's data is cached, so a move only computes the
-//! new edge. `SIZE` and the layout are mirrored in `shaders/cover.glsl`.
+//! new edge. `SIZE` and the layout are mirrored in `shaders/cover.glsl` (checked by `mirrors.rs`).
 
 use std::collections::HashMap;
 
@@ -26,8 +26,8 @@ pub const SIZE: i32 = 64;
 /// Material slot (sampler `texture5`) of the cover map.
 pub const SLOT: usize = 5;
 /// The tile of the roads, after the deck bits and the sky views.
-const ROADS_TILE: usize = 1 + floors::MAX / 4;
-const TILES: i32 = ROADS_TILE as i32 + 1;
+pub(super) const ROADS_TILE: usize = 1 + floors::MAX / 4;
+pub(super) const TILES: i32 = ROADS_TILE as i32 + 1;
 /// Directions traced per lot and floor to estimate its sky view.
 const VIEW_RAYS: usize = 24;
 

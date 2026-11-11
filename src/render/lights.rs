@@ -6,18 +6,19 @@
 //! switches on or off as the camera moves; their halos (`halos.rs`) reach further.
 //! Texture layout (RGBA32F, `WIDTH` texels per row): light data first (3 texels per light:
 //! position + radius, color + halo fade, vertical extent + light fade), then the grid (2 texels
-//! per cell: 8 light indices, -1 = empty). The constants here are mirrored in `shaders/scene.fs`.
+//! per cell: 8 light indices, -1 = empty). The constants here are mirrored in `shaders/scene.fs` (checked by
+//! `mirrors.rs`).
 
 use glam::Vec3;
 use sola_raylib::ffi;
 
 use crate::world::Light;
 
-const WIDTH: usize = 256;
+pub(super) const WIDTH: usize = 256;
 pub const MAX_LIGHTS: usize = 1024;
-const SLOTS: usize = 8;
-const GRID: [usize; 3] = [32, 32, 32];
-const CELL: f32 = 6.0;
+pub(super) const SLOTS: usize = 8;
+pub(super) const GRID: [usize; 3] = [32, 32, 32];
+pub(super) const CELL: f32 = 6.0;
 /// Lights are gone this far from the camera: a cell short of the grid's side, which snaps by a
 /// cell. Their halos, which need no grid, go on to `HALO_REACH`, short of the fog at the loaded
 /// lots' edge. Both fade out over the last quarter of the way, or of the distance to the farthest
@@ -26,7 +27,7 @@ const REACH: f32 = (GRID[0] / 2 - 2) as f32 * CELL;
 const HALO_REACH: f32 = 150.0;
 const FADE_FROM: f32 = 0.75;
 /// How much further a light reaches the walls facing it (`plantLights` in shaders/scene.fs).
-const WALL_REACH: f32 = 1.6;
+pub(super) const WALL_REACH: f32 = 1.6;
 const LIGHT_TEXELS: usize = MAX_LIGHTS * 3;
 const GRID_CELLS: usize = GRID[0] * GRID[1] * GRID[2];
 const TEXELS: usize = LIGHT_TEXELS + GRID_CELLS * 2;

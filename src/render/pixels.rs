@@ -24,7 +24,7 @@ pub const TILE: usize = 4 * PPM;
 /// Pixels per pattern unit. Patterns are written in units of 1/32 m (`u`, `at`), so they keep
 /// their size in meters whatever `PPM`; noise cells are in units too (`noise`). Only the thin
 /// lines are written in pixels: `JOINT`, `LINE` and the cracks.
-const U: usize = PPM / 32;
+pub(super) const U: usize = PPM / 32;
 /// Width of joints, grout and seams, in pixels (3 cm).
 const JOINT: usize = U;
 /// Width of the lit and shadowed lines along edges (sills, ledges, rails, slab edges), in pixels.
@@ -1716,11 +1716,5 @@ mod tests {
             assert!(!rows.contains(&px), "{} draws another biome's row", b.name);
             rows.push(px);
         }
-    }
-
-    #[test]
-    fn the_shader_samples_the_atlas_at_its_density() {
-        let fs = include_str!("../../shaders/scene.fs");
-        assert!(fs.contains(&format!("const float PPM = {PPM}.0;")));
     }
 }
