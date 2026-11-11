@@ -1,7 +1,7 @@
-// Special places and the buildings along the streets (milestone 10, pass 6): row houses that
-// line the sidewalks around a courtyard, and the furniture of the squares, shrines, playgrounds,
-// bus terminals, monuments and open-air theaters the planner scatters on every floor
-// (`assets/biomes/default/chunks/`). Each stands on its origin, its front toward +z.
+// Special places and the buildings along the streets: row houses that line the sidewalks around a
+// courtyard, and the furniture of the squares, shrines, playgrounds, bus terminals, monuments and
+// open-air theaters the planner scatters on every floor (`assets/biomes/default/chunks/`). Each
+// stands on its origin, its front toward +z.
 [
     // A row house 4.75 m wide and 4.5 m deep, its front at z = 0 on the sidewalk: a shop or a
     // shuttered front at street level, three stories of windows in its accent color, a cornice,

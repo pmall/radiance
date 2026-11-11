@@ -1,5 +1,5 @@
 // Cyan Grotto's versions of the shared street and square pieces (`assets/modules/`), in glazed
-// tiles and teal paint, and the pieces of its landmark, the bathhouse (milestone 10, pass 8).
+// tiles and teal paint, and the pieces of its landmark, the bathhouse.
 // A module here wins over the shared one of its name in the grotto's chunks.
 [
     // A tree bed: a basin of glazed tiles, water at one end, soil at the other.

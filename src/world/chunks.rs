@@ -186,7 +186,8 @@ pub enum Part {
     },
     /// A vegetation hint over a rectangle (x, z corners).
     Growth { area: Rect, kind: GrowthKind },
-    /// An opening the planner fills with smaller chunks of these labels (not built yet).
+    /// An opening the planner fills with a smaller chunk carrying one of these labels
+    /// (`planner::subs_of`).
     Sub { area: Rect, labels: Vec<String> },
 }
 

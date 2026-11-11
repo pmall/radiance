@@ -1,6 +1,5 @@
 //! The scene shader's extra samplers: where raylib binds the material's maps (cover map, tower
-//! elevations, chunk pixel art) in the shader. The photographic detail that once lived here is
-//! gone: every surface is pixel art (milestone 10).
+//! elevations, chunk pixel art) in the shader. Every surface is pixel art.
 //!
 //! Every `unsafe` block here is a raylib call that needs the window open and must run on its
 //! thread, where the GL context is current: the renderer is made after the window opens and

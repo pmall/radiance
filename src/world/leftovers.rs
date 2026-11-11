@@ -1,9 +1,9 @@
-//! Things left behind, placed by rule (milestone 10, pass 3): debris at the foot of the walls, more
-//! under the tower facades (lumps of concrete, bricks, a fallen window frame or panel) than along
-//! the low walls (bags, boxes, papers, a tyre), never in a road; and cables sagging across the
-//! streets between towers facing each other. Ground cover at the wall feet and along the curbs is
-//! grown with the plants (`growth::grow_lot`, from `wall_feet` and `in_road`). Pure functions of
-//! the seed and the lot, like the rest.
+//! Things left behind, placed by rule: debris at the foot of the walls, more under the tower
+//! facades (lumps of concrete, bricks, a fallen window frame or panel) than along the low walls
+//! (bags, boxes, papers, a tyre), never in a road; and cables sagging across the streets between
+//! towers facing each other. Ground cover at the wall feet and along the curbs is grown with the
+//! plants (`growth::grow_lot`, from `wall_feet` and `in_road`). Pure functions of the seed and the
+//! lot, like the rest.
 
 use glam::{Vec3, vec3};
 

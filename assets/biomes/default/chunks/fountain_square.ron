@@ -1,7 +1,7 @@
 // Block: a square of three lots by three around a dry fountain, paved in stone: tree beds and
 // benches facing the basin on every side, lamps at the corners of the inner ring, a kiosk on two
-// sides, café tables under parasols on the others. Special places are met every few hundred
-// meters on every floor (milestone 10, pass 6).
+// sides, café tables under parasols on the others. Special places are met every few hundred meters
+// on every floor.
 Chunk(
     name: "fountain_square",
     size: (3, 3),

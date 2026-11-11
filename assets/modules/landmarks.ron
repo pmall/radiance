@@ -1,7 +1,7 @@
-// Landmarks (milestone 10, pass 7): the pieces of the places that are not housing and that one
-// remembers: the old stone city of the depths (a temple, tram lines), a station with its train
-// shed and clock tower, a stadium, a mall around its atrium, a parking garage, the machines'
-// works in the canopy. Each stands on its origin, its front toward +z.
+// Landmarks: the pieces of the places that are not housing and that one remembers: the old stone
+// city of the depths (a temple, tram lines), a station with its train shed and clock tower, a
+// stadium, a mall around its atrium, a parking garage, the machines' works in the canopy. Each
+// stands on its origin, its front toward +z.
 [
     // A temple of the old city: a stepped base 24 x 16 m, eight columns in front of the cella, a
     // pediment stepped like pixels. Centered on its origin, its steps toward +z.
