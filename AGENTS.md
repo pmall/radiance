@@ -5,8 +5,8 @@ person a vast, seed-generated cyberpunk megacity overgrown by plants whose glowi
 a piano note, rendered to read like a 2D illustration. Today the work is the city, its look and its
 atmosphere; story and gameplay come next.
 
-The docs index is in `README.md`: read the doc relevant to the task before starting it, and the
-owner's feedback and decisions before any visual or control change.
+The docs index is in `README.md`: read the doc relevant to the task before starting it. The owner's
+decisions live in the doc they concern: read `docs/art-direction.md` before any visual change.
 
 This file holds the instructions: how work is done here. It changes only when the owner asks.
 
@@ -86,6 +86,12 @@ make every later agent worse.
   repo. When work is done, what deserves to last goes into doc comments, the commit message or
   `docs/`.
 
+Nothing that must persist lives in a per-machine or per-session memory: the owner switches
+computers, so it lives in this repository. When a generation rule moves or a new one appears,
+`docs/architecture.md` is updated with it. The owner also brainstorms with another agent: its
+documents get folded into the regular docs, then deleted (no separate inspiration folder), and
+conflicts with the project's decisions are resolved with the owner.
+
 ### Git
 
 The agent manages git. It commits each coherent, passing unit of work (at the latest, the end of
@@ -106,6 +112,10 @@ left. The main session reads reports and the docs it needs to decide, not code o
 Product decisions belong to the owner; technical decisions and the quality of the work are the
 agent's. When a technical choice affects the owner (costs, accounts, steps only they can take), say
 so plainly. When a request conflicts with these principles, say so and propose a better way.
+
+The owner is not a graphics or game-dev specialist: explain choices and status in plain words, and
+make the technical and pipeline decisions (textures, assets, rendering) yourself. Only the owner
+decides on the product: "keep going" is not approval of a suggestion the agent made itself.
 
 ## Project rules
 
@@ -130,6 +140,11 @@ so plainly. When a request conflicts with these principles, say so and propose a
 - **Smooth framerate on a mid-range GPU** (dev machine: RTX 3060 on Ubuntu; keep weaker GPUs in
   mind), because a stutter breaks the atmosphere. Measure before and after a costly change.
 - **Modular, but no general-purpose engine upfront**: build what the game needs now, since
-  abstractions made before their use cost time and constrain the look.
+  abstractions made before their use cost time and constrain the look. But think of the game as
+  one consistent system, not fix after fix: the code is as consistent as the design, every rule in
+  its place.
+- **A new biome is checked** with the tests, `--catalog` (load errors), `--report` (where its
+  chunks land) and shots of its chunks, its zones and a border at several times of day
+  (`docs/tools.md`).
 - **Judge look changes on rendered frames**, the reference views against an earlier label (the
   tooling is in the docs), never on the code alone.
