@@ -113,17 +113,17 @@ fn hum(rng: &mut Rng) -> Vec<f32> {
 
 pub struct Ambient {
     hum: ffi::Music,
+    /// The file image `hum` streams from, kept as long as it plays (freed after it, on drop).
+    _wav: Box<[u8]>,
 }
 
-fn stream(data: Vec<f32>) -> ffi::Music {
-    // The stream reads the file image for as long as it plays: leak it.
-    let bytes: &'static [u8] = Box::leak(wav_bytes(&data, 2).into_boxed_slice());
+/// A looping stream of `wav`, a file image that must outlive it.
+fn stream(wav: &[u8]) -> ffi::Music {
     let kind = CString::new(".wav").unwrap();
-    // SAFETY: audio call with the device open (module doc). The file image is leaked, so it
-    // outlives the stream reading it.
+    // SAFETY: audio call with the device open (module doc). The caller keeps the file image
+    // alive until the stream is unloaded.
     unsafe {
-        let mut m =
-            ffi::LoadMusicStreamFromMemory(kind.as_ptr(), bytes.as_ptr(), bytes.len() as i32);
+        let mut m = ffi::LoadMusicStreamFromMemory(kind.as_ptr(), wav.as_ptr(), wav.len() as i32);
         m.looping = true;
         m
     }
@@ -132,13 +132,14 @@ fn stream(data: Vec<f32>) -> ffi::Music {
 impl Ambient {
     /// Needs an initialized audio device.
     pub fn new(seed: u64) -> Self {
-        let hum = stream(hum(&mut Rng::new(seed ^ 0x0A1B_1E27)));
+        let wav = wav_bytes(&hum(&mut Rng::new(seed ^ 0x0A1B_1E27)), 2).into_boxed_slice();
+        let hum = stream(&wav);
         // SAFETY: audio call with the device open (module doc).
         unsafe {
             ffi::SetMusicVolume(hum, 0.0);
             ffi::PlayMusicStream(hum);
         }
-        Self { hum }
+        Self { hum, _wav: wav }
     }
 
     /// Keeps the stream fed and sets the hum for the player's `height` and the daylight

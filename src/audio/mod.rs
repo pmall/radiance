@@ -29,6 +29,8 @@ const STAGGER: f32 = 0.2;
 /// Most notes waiting to sound.
 const MAX_QUEUE: usize = 6;
 const SALT_NOTE: i32 = 7;
+/// Salt of the jitter in the notes' start times.
+const SALT_JITTER: u64 = 0x50_1A60;
 
 /// A soul that has just started to sing: its lot and its index in that lot's lights.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -77,15 +79,20 @@ impl Audio {
             last_stats: 0.0,
             last_sung: HashMap::new(),
             queue: Vec::new(),
-            rng: Rng::new(seed ^ 0x50_1A60),
+            rng: Rng::new(seed ^ SALT_JITTER),
             muted: false,
             notes_played: 0,
         })
     }
 
-    /// A new world: souls sing again.
+    /// A new world (or the same one regenerated): souls sing again, and a new seed brings its own
+    /// hum and jitter, as if the game had started on it.
     pub fn reseed(&mut self, seed: u64) {
+        if seed != self.seed {
+            self.ambient = ambient::Ambient::new(seed);
+        }
         self.seed = seed;
+        self.rng = Rng::new(seed ^ SALT_JITTER);
         self.last_sung.clear();
         self.queue.clear();
     }
@@ -113,10 +120,10 @@ impl Audio {
         // RADIANCE_NO_SOULS silences the souls only (to compare the ambience on its own).
         if !self.muted && std::env::var_os("RADIANCE_NO_SOULS").is_none() {
             let here = city::lot_of(eye);
-            for (key, lot) in world.lots() {
-                if (key.0 - here.0).abs() > 1 || (key.1 - here.1).abs() > 1 {
-                    continue;
-                }
+            // The lots around in a fixed order: which souls start, and their jitter, must not
+            // depend on how the world stores its lots.
+            let around = (-1..=1).flat_map(|dx| (-1..=1).map(move |dz| (here.0 + dx, here.1 + dz)));
+            for (key, lot) in around.filter_map(|k| Some((k, world.lot(k)?))) {
                 for (index, light) in lot.lights() {
                     let d = light.pos.distance(eye);
                     // Only souls in the same open space: not through a deck.

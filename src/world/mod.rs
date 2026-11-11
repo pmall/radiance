@@ -291,6 +291,11 @@ impl World {
         self.lots.iter().map(|(&k, v)| (k, v))
     }
 
+    /// The lot at `key`, if loaded.
+    pub fn lot(&self, key: LotKey) -> Option<&Lot> {
+        self.lots.get(&key)
+    }
+
     /// Colliders that may overlap `b`: those of the lots it touches, and those reaching into it
     /// from the lots around (no block reaches further than the next lot).
     pub fn colliders_near<'a>(&'a self, b: &Aabb) -> impl Iterator<Item = &'a Aabb> + 'a {
