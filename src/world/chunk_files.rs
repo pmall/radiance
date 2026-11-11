@@ -191,9 +191,10 @@ pub fn generation() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world::biome::BiomeId;
 
     #[test]
-    fn biomes_include_other_biomes() {
+    fn biomes_include_other_biomes_and_a_folder_names_a_biome() {
         let root = std::env::temp_dir().join(format!("radiance-biomes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let write = |path: &str, text: &str| {
@@ -206,16 +207,26 @@ mod tests {
         };
         write("modules/a.ron", "[Module(name: \"post\", parts: [])]");
         write("biomes/default/chunks/house.ron", &chunk("house"));
-        write("biomes/rust/biome.ron", "(include: [\"default\"])");
-        write("biomes/rust/chunks/scrap.ron", &chunk("scrap"));
+        write("biomes/grotto/biome.ron", "(include: [\"default\"])");
+        write("biomes/grotto/chunks/scrap.ron", &chunk("scrap"));
+        write("biomes/nowhere/chunks/lost.ron", &chunk("lost"));
         write(
-            "biomes/rust/modules/m.ron",
+            "biomes/grotto/modules/m.ron",
             "[Module(name: \"post\", parts: [Box(at: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), mat: Rust)])]",
         );
         let all = load_from(&root);
         let _ = std::fs::remove_dir_all(&root);
-        assert!(all.errors.is_empty(), "{:?}", all.errors);
-        let (d, r) = (&all.biomes["default"], &all.biomes["rust"]);
+        // A folder no biome is named after is an error, not a collection of the default one.
+        assert!(
+            matches!(&all.errors[..], [e] if e.contains("nowhere")),
+            "{:?}",
+            all.errors
+        );
+        let grotto = BiomeId::named("grotto").unwrap();
+        let (d, r) = (
+            &all.biomes[BiomeId::DEFAULT.index()],
+            &all.biomes[grotto.index()],
+        );
         assert!(d.chunks.contains_key("house") && !d.chunks.contains_key("scrap"));
         assert!(r.chunks.contains_key("house") && r.chunks.contains_key("scrap"));
         // The biome's own module wins over the shared one of the same name.

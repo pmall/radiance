@@ -57,7 +57,7 @@ pub const FACADES: usize = 14;
 pub const SURFACES: usize = 4;
 /// Tiles in a row of the atlas: materials, facade units, surfaces, and the swatches last.
 pub const COUNT: usize = MATERIALS + FACADES + SURFACES + 1;
-/// Rows of the atlas: one per biome (`biome::variant_of`).
+/// Rows of the atlas: one per biome (`BiomeId::index`).
 pub const ROWS: usize = BIOMES.len();
 /// Material slot (sampler `texture10`) of the atlas.
 pub const SLOT: usize = 10;
@@ -1611,7 +1611,7 @@ fn row(s: &Textures) -> Vec<Tile> {
     })
 }
 
-/// The atlas, RGBA: a row of tiles per biome (`biome::variant_of`). Alpha marks the facade's wall
+/// The atlas, RGBA: a row of tiles per biome (`BiomeId::index`). Alpha marks the facade's wall
 /// pixels.
 pub fn atlas_pixels() -> (usize, usize, Vec<u8>) {
     let (w, h) = (TILE * COUNT, TILE * ROWS);

@@ -160,7 +160,7 @@ impl Debug {
                     String::new()
                 },
                 world.seed,
-                crate::world::biome::biome_at(world.seed, lx, lz).name
+                crate::world::biome::biome_at(world.seed, lx, lz).name()
             ),
             Color::RAYWHITE,
         );

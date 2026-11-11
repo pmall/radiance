@@ -14,9 +14,10 @@
 //! are built from its own modules of the same names (`props.rs`).
 //!
 //! To add a biome: define a `Biome` const (start from `DEFAULT` with `..DEFAULT`), add it to
-//! `BIOMES`, and give it a folder of chunks (or none: it then draws from `default`). Everything
-//! that varies per biome lives in `Biome` (its plants, its sky and fog, its textures and palette)
-//! or in its folder (chunks, modules, props), so generation code never matches on a biome's name.
+//! `BIOMES` (its place there is its `BiomeId`), and give it a folder of chunks (or none: it then
+//! draws from the default biome's). Everything that varies per biome lives in `Biome` (its
+//! plants, its sky and fog, its textures and palette) or in its folder (chunks, modules, props),
+//! so generation code never matches on a biome's name: it passes `BiomeId`s around.
 //!
 //! Not done yet: blending across zone borders (palette and density fade, discrete choices flip).
 
@@ -420,16 +421,51 @@ pub const GROTTO: Biome = Biome {
     },
 };
 
-/// Every biome the map can hold.
+/// Every biome the map can hold; the first is the default one (`BiomeId::DEFAULT`).
 pub const BIOMES: &[&Biome] = &[&DEFAULT, &GROTTO];
 
-/// Index of `biome` in `BIOMES`: the material variant its lots are drawn with. By name: two
-/// references to one `const` biome need not share an address.
-pub fn variant_of(biome: &Biome) -> usize {
-    BIOMES
-        .iter()
-        .position(|b| b.name == biome.name)
-        .unwrap_or(0)
+/// A biome, as its place in `BIOMES`: what generation, the planner, props and render pass around.
+/// Its index is also its material variant: its row of the shader's palette array and of the
+/// pixel-art atlas. A name becomes an id once, where names come in (a biome's folder, `--chunk
+/// BIOME/NAME`), through `named`, and an unknown name is an error there.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct BiomeId(u8);
+
+impl BiomeId {
+    /// The default biome: the spawn's, and the collection a biome without a folder draws from.
+    pub const DEFAULT: BiomeId = BiomeId(0);
+
+    /// Every biome, in `BIOMES` order.
+    pub fn all() -> impl Iterator<Item = BiomeId> {
+        (0..BIOMES.len() as u8).map(BiomeId)
+    }
+
+    /// The biome of that name (its folder under `assets/biomes/`), if there is one.
+    pub fn named(name: &str) -> Option<BiomeId> {
+        BIOMES
+            .iter()
+            .position(|b| b.name == name)
+            .map(|i| BiomeId(i as u8))
+    }
+
+    pub fn get(self) -> &'static Biome {
+        BIOMES[self.index()]
+    }
+
+    pub fn name(self) -> &'static str {
+        self.get().name
+    }
+
+    /// Its place in `BIOMES`: its material variant.
+    pub fn index(self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl Default for BiomeId {
+    fn default() -> Self {
+        BiomeId::DEFAULT
+    }
 }
 
 /// All palettes packed for the shader (`MAX_BIOMES` x `PALETTE_VEC3S` vec3s, unused ones zero).
@@ -443,33 +479,28 @@ pub fn palette_uniform() -> Vec<f32> {
     v
 }
 
-/// The biome of that name (its folder, a catalog's `biome`), or the default one.
-pub fn named(name: &str) -> &'static Biome {
-    BIOMES.iter().find(|b| b.name == name).unwrap_or(&&DEFAULT)
-}
-
 /// The biome of a lot.
-pub fn biome_at(seed: u64, lx: i32, lz: i32) -> &'static Biome {
+pub fn biome_at(seed: u64, lx: i32, lz: i32) -> BiomeId {
     // A chunk shown alone (`--chunk BIOME/NAME`) stands in its biome: its plants, props and sky.
     if let Some(p) = super::chunks::preview() {
-        return named(p.biome);
+        return p.biome;
     }
     // The plaza around spawn is always the default biome.
     if city::is_plaza(lx, lz) {
-        return &DEFAULT;
+        return BiomeId::DEFAULT;
     }
-    pick(BIOMES, seed, lx, lz)
+    BiomeId(pick(BIOMES, seed, lx, lz) as u8)
 }
 
-/// `biome_at` over an explicit list (tests use their own).
-fn pick<'a>(biomes: &[&'a Biome], seed: u64, lx: i32, lz: i32) -> &'a Biome {
-    if let [only] = biomes {
-        return only;
+/// `biome_at` over an explicit list (tests use their own): the index of the lot's biome in it.
+fn pick(biomes: &[&Biome], seed: u64, lx: i32, lz: i32) -> usize {
+    if biomes.len() == 1 {
+        return 0;
     }
     let total: f32 = biomes.iter().map(|b| b.frequency).sum();
     let (cx, cz) = (lx.div_euclid(SITE_LOTS), lz.div_euclid(SITE_LOTS));
     let lot = (lx as f32 + 0.5, lz as f32 + 0.5);
-    let mut best = (f32::MAX, biomes[0]);
+    let mut best = (f32::MAX, 0);
     for sz in cz - 1..=cz + 1 {
         for sx in cx - 1..=cx + 1 {
             let mut rng = Rng::new(hash_coords(seed, sx, SALT_BIOME, sz));
@@ -478,16 +509,16 @@ fn pick<'a>(biomes: &[&'a Biome], seed: u64, lx: i32, lz: i32) -> &'a Biome {
                 (sz as f32 + rng.f32()) * SITE_LOTS as f32,
             );
             let mut roll = rng.f32() * total;
-            let biome = biomes
+            let i = biomes
                 .iter()
-                .find(|b| {
+                .position(|b| {
                     roll -= b.frequency;
                     roll < 0.0
                 })
-                .unwrap_or(&biomes[0]);
-            let d = ((lot.0 - site.0).powi(2) + (lot.1 - site.1).powi(2)).sqrt() / biome.size;
+                .unwrap_or(0);
+            let d = ((lot.0 - site.0).powi(2) + (lot.1 - site.1).powi(2)).sqrt() / biomes[i].size;
             if d < best.0 {
-                best = (d, biome);
+                best = (d, i);
             }
         }
     }
@@ -547,14 +578,14 @@ mod tests {
             BIOMES.len() <= MAX_BIOMES,
             "the palette holds {MAX_BIOMES} biomes"
         );
-        assert!(BIOMES.iter().any(|b| b.name == DEFAULT.name));
+        assert_eq!(BiomeId::DEFAULT.name(), DEFAULT.name);
         for (i, b) in BIOMES.iter().enumerate() {
             assert!(
                 BIOMES[..i].iter().all(|o| o.name != b.name),
                 "two {}",
                 b.name
             );
-            assert_eq!(variant_of(b), i);
+            assert_eq!(BiomeId::named(b.name).map(BiomeId::index), Some(i));
             assert!((0.6..=1.5).contains(&b.size), "{}: size {}", b.name, b.size);
             assert!(b.frequency > 0.0, "{} is never picked", b.name);
             let p = &b.plants;
@@ -595,11 +626,11 @@ mod tests {
     #[test]
     fn every_biome_has_zones_and_the_spawn_is_default() {
         for seed in 1..=3 {
-            assert_eq!(biome_at(seed, 0, 0).name, DEFAULT.name);
+            assert_eq!(biome_at(seed, 0, 0), BiomeId::DEFAULT);
             let mut lots = vec![0; BIOMES.len()];
             for lz in (-60..60).step_by(2) {
                 for lx in (-60..60).step_by(2) {
-                    lots[variant_of(biome_at(seed, lx, lz))] += 1;
+                    lots[biome_at(seed, lx, lz).index()] += 1;
                 }
             }
             assert!(lots.iter().all(|&n| n > 0), "seed {seed}: {lots:?}");
@@ -617,14 +648,14 @@ mod tests {
         for lz in -80..80 {
             for lx in -80..80 {
                 let b = pick(list, 3, lx, lz);
-                assert_eq!(b.name, pick(list, 3, lx, lz).name);
-                match b.name {
+                assert_eq!(b, pick(list, 3, lx, lz));
+                match list[b].name {
                     "small" => n_small += 1,
                     _ => n_large += 1,
                 }
                 // Zones are blobs, not noise: neighbors mostly agree.
                 pairs += 1;
-                changes += (pick(list, 3, lx + 1, lz).name != b.name) as usize;
+                changes += (pick(list, 3, lx + 1, lz) != b) as usize;
             }
         }
         assert!(n_small > 0 && n_large > 0, "both biomes appear");

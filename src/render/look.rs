@@ -303,12 +303,12 @@ const FADE: f32 = 4.0;
 /// side of one is drawn in the player's atmosphere.)
 #[derive(Clone, Copy, Debug)]
 pub struct Blend {
-    /// Per biome (`biome::variant_of`), summing to 1.
+    /// Per biome (`BiomeId::index`), summing to 1.
     weights: [f32; MAX_BIOMES],
 }
 
 impl Blend {
-    /// All in one biome, `variant` (`biome::variant_of`).
+    /// All in one biome, `variant` (`BiomeId::index`).
     pub fn new(variant: usize) -> Self {
         let mut weights = [0.0; MAX_BIOMES];
         weights[variant] = 1.0;

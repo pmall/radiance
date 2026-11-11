@@ -157,8 +157,10 @@ The map is split into large zones, each with a biome; a biome type has its own t
 and the spawn is always in the default biome (`src/world/biome.rs`, a pure function of seed and
 lot). A biome is fully configurable, not only colors and rates (owner).
 
-A biome is a `Biome` const in `src/world/biome.rs` (start from `..DEFAULT`), listed in `BIOMES`,
-and a folder `assets/biomes/<name>/`. Between them, a biome sets:
+A biome is a `Biome` const in `src/world/biome.rs` (start from `..DEFAULT`), listed in `BIOMES`
+(its place there is its `BiomeId`, what the code passes around), and a folder
+`assets/biomes/<name>/` named after it (a folder no biome is named after is a load error, listed by
+`--catalog`). Between them, a biome sets:
 
 - **Its places:** its chunks and modules (`docs/chunks.md`, "Biomes"). Towers are chunks, so their
   shapes and elevations come with it; footbridges and skybridges are built from its modules too.

@@ -16,6 +16,7 @@ use std::sync::{Arc, OnceLock};
 use glam::{Vec3, vec3};
 use serde::Deserialize;
 
+use super::biome::{BIOMES, BiomeId};
 use super::chunk_files::{BiomeFiles, Files};
 pub use super::chunk_files::{catalogs, generation, poll};
 use super::{Aabb, Rgba};
@@ -587,18 +588,16 @@ pub struct Module {
 /// the biomes it includes, then its own, later ones winning on a name.
 #[derive(Default)]
 pub struct Catalog {
-    pub biome: String,
+    /// The biome whose folder it was gathered from (the default one's for a biome without one).
+    pub biome: BiomeId,
     pub chunks: HashMap<String, Chunk>,
     pub modules: HashMap<String, Module>,
 }
 
-/// Biome whose catalog stands in for a biome without a folder.
-pub const DEFAULT_BIOME: &str = "default";
-
 /// Every biome's catalog.
-#[derive(Default)]
 pub struct Catalogs {
-    pub biomes: HashMap<String, Arc<Catalog>>,
+    /// By `BiomeId::index`; a biome without a folder shares the default biome's catalog.
+    pub biomes: Vec<Arc<Catalog>>,
     /// Files that did not load, with the reason.
     pub errors: Vec<String>,
     /// Every tower face's elevation, by id (`Facade::ids`); id 0 is plain windows over shops.
@@ -672,14 +671,20 @@ impl Catalogs {
                 out.push(o);
             }
         }
-        let mut biomes = HashMap::new();
+        let mut biomes: Vec<Option<Arc<Catalog>>> = vec![None; BIOMES.len()];
         let mut elevations = vec![plain_elevation()];
         // In folder order (sorted), which numbers the elevations.
         for name in read.iter().map(|b| &b.name) {
+            let Some(id) = BiomeId::named(name) else {
+                errors.push(format!(
+                    "biomes/{name}/ is no biome (none of that name in BIOMES, world/biome.rs)"
+                ));
+                continue;
+            };
             let mut layers = Vec::new();
             gather(name, &own, &mut Vec::new(), &mut layers);
             let mut c = Catalog {
-                biome: name.clone(),
+                biome: id,
                 modules: shared.clone(),
                 ..Catalog::default()
             };
@@ -690,7 +695,7 @@ impl Catalogs {
                     .extend(o.modules.iter().map(|(k, v)| (k.clone(), v.clone())));
             }
             assign_elevations(&mut c, &mut elevations, &mut errors);
-            biomes.insert(name.clone(), Arc::new(c));
+            biomes[id.index()] = Some(Arc::new(c));
         }
         for o in &read {
             for i in o.include.iter().filter(|i| !own.contains_key(i.as_str())) {
@@ -700,17 +705,18 @@ impl Catalogs {
                 ));
             }
         }
-        if !biomes.contains_key(DEFAULT_BIOME) {
-            errors.push(format!("no {DEFAULT_BIOME} biome folder"));
-            biomes.insert(
-                DEFAULT_BIOME.to_string(),
-                Arc::new(Catalog {
-                    biome: DEFAULT_BIOME.to_string(),
-                    modules: shared,
-                    ..Catalog::default()
-                }),
-            );
-        }
+        let default = biomes[BiomeId::DEFAULT.index()].clone().unwrap_or_else(|| {
+            errors.push(format!("no {} biome folder", BiomeId::DEFAULT.name()));
+            Arc::new(Catalog {
+                biome: BiomeId::DEFAULT,
+                modules: shared,
+                ..Catalog::default()
+            })
+        });
+        let biomes = biomes
+            .into_iter()
+            .map(|c| c.unwrap_or_else(|| default.clone()))
+            .collect();
         for e in &errors {
             eprintln!("chunks: {e}");
         }
@@ -720,17 +726,18 @@ impl Catalogs {
             elevations,
         }
     }
+
+    /// The catalogs gathered from a folder of their own, each once, in `BIOMES` order.
+    pub fn folders(&self) -> impl Iterator<Item = &Arc<Catalog>> {
+        BiomeId::all()
+            .filter(|b| self.biomes[b.index()].biome == *b)
+            .map(|b| &self.biomes[b.index()])
+    }
 }
 
-/// The catalog of a biome (`biome::Biome::name`); a biome without a folder draws from the
-/// default one.
-pub fn catalog(biome: &str) -> Arc<Catalog> {
-    let all = catalogs();
-    all.biomes
-        .get(biome)
-        .or_else(|| all.biomes.get(DEFAULT_BIOME))
-        .cloned()
-        .unwrap_or_default()
+/// The catalog of a biome; a biome without a folder draws from the default one.
+pub fn catalog(biome: BiomeId) -> Arc<Catalog> {
+    catalogs().biomes[biome.index()].clone()
 }
 
 /// A placement transform: quarter turns and mirrors in the horizontal plane, then a shift.
@@ -876,7 +883,7 @@ struct Expander<'a> {
     /// Whether props are placed whole (instanced) rather than built in boxes.
     instance: bool,
     /// The biome whose versions of the props are placed (the catalog's).
-    biome: u8,
+    biome: BiomeId,
 }
 
 impl<'a> Expander<'a> {
@@ -890,7 +897,7 @@ impl<'a> Expander<'a> {
             group: 0,
             in_module: false,
             instance: true,
-            biome: super::props::biome_of(catalog),
+            biome: catalog.biome,
         }
     }
 
@@ -1154,34 +1161,40 @@ pub fn build_module(catalog: &Catalog, name: &str) -> Option<Built> {
 /// deck.
 pub struct Preview {
     pub name: String,
-    pub biome: &'static str,
+    pub biome: BiomeId,
 }
 
 static PREVIEW: OnceLock<Preview> = OnceLock::new();
 
-/// Finds a chunk by `NAME` (in the default biome first, then the others) or `BIOME/NAME`: its
-/// biome, if it exists.
-pub fn find(spec: &str) -> Option<(String, String)> {
+/// Finds a chunk by `NAME` (in the default biome first, then the others by name) or `BIOME/NAME`;
+/// an error says which part is unknown.
+pub fn find(spec: &str) -> Result<Preview, String> {
     let all = catalogs();
     if let Some((b, n)) = spec.split_once('/') {
-        return all
-            .biomes
-            .get(b)
-            .filter(|c| c.chunks.contains_key(n))
-            .map(|_| (b.to_string(), n.to_string()));
+        let biome = BiomeId::named(b).ok_or_else(|| format!("no biome named {b:?}"))?;
+        return if all.biomes[biome.index()].chunks.contains_key(n) {
+            Ok(Preview {
+                name: n.to_string(),
+                biome,
+            })
+        } else {
+            Err(format!("no chunk named {n:?} in the {b} biome"))
+        };
     }
-    let mut names: Vec<&String> = all.biomes.keys().collect();
-    names.sort_by_key(|b| (b.as_str() != DEFAULT_BIOME, b.as_str()));
-    names
-        .into_iter()
-        .find(|b| all.biomes[*b].chunks.contains_key(spec))
-        .map(|b| (b.clone(), spec.to_string()))
+    let mut ids: Vec<BiomeId> = BiomeId::all().collect();
+    ids.sort_by_key(|b| (*b != BiomeId::DEFAULT, b.name()));
+    ids.into_iter()
+        .find(|b| all.biomes[b.index()].chunks.contains_key(spec))
+        .map(|biome| Preview {
+            name: spec.to_string(),
+            biome,
+        })
+        .ok_or_else(|| format!("no chunk named {spec:?}"))
 }
 
 /// Shows only this chunk, in front of the spawn (before anything is generated).
-pub fn set_preview(biome: String, name: String) {
-    let biome: &'static str = Box::leak(biome.into_boxed_str());
-    let _ = PREVIEW.set(Preview { name, biome });
+pub fn set_preview(p: Preview) {
+    let _ = PREVIEW.set(p);
 }
 
 pub fn preview() -> Option<&'static Preview> {
@@ -1218,16 +1231,15 @@ mod tests {
     fn the_catalog_loads_and_builds() {
         let all = catalogs();
         assert!(all.errors.is_empty(), "{:?}", all.errors);
-        assert!(all.biomes.contains_key(DEFAULT_BIOME));
         // Every biome of the map has its collection (its own folder, or the default one).
-        for b in crate::world::biome::BIOMES {
+        for b in BiomeId::all() {
             assert!(
-                !catalog(b.name).chunks.is_empty(),
+                !catalog(b).chunks.is_empty(),
                 "biome {} has no chunks",
-                b.name
+                b.name()
             );
         }
-        for c in all.biomes.values() {
+        for c in all.folders() {
             for ch in c.chunks.values() {
                 let b = build(ch, c, Vec3::ZERO, 0, 1);
                 assert!(b.missing.is_empty(), "{}: missing {:?}", ch.name, b.missing);

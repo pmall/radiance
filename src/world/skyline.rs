@@ -25,7 +25,7 @@ pub fn blocks(seed: u64, (cx, cz): (i32, i32)) -> Vec<(u8, Vec<Block>)> {
                 continue;
             }
             let cat = chunks::catalog(p.biome);
-            let variant = biome::variant_of(biome::biome_at(seed, x, z)) as u8;
+            let variant = biome::biome_at(seed, x, z).index() as u8;
             let blocks = tower::silhouette(&cat, &p, seed);
             match out.iter_mut().find(|(v, _)| *v == variant) {
                 Some((_, b)) => b.extend(blocks),

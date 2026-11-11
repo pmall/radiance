@@ -812,7 +812,7 @@ pub fn grow_lot(seed: u64, lx: i32, lz: i32, blocks: &[Block], blooms: &[Vec3]) 
         dens: 1.0,
         flowers: super::design::profile(floors::START).flowers,
         glow: 0,
-        plants: &biome_at(seed, lx, lz).plants,
+        plants: &biome_at(seed, lx, lz).get().plants,
         solids: &solids,
         min_gap: MIN_FLOWER_GAP,
         trim: false,

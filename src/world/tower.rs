@@ -8,7 +8,7 @@
 
 use glam::{Vec3, vec3};
 
-use super::biome::{self, Biome};
+use super::biome::Biome;
 use super::chunks::{self, Catalog, Part, STORY, Tf, TowerDef};
 use super::floors::{self, START};
 use super::planner::Placement;
@@ -494,7 +494,7 @@ fn push_units(
                         fl as i32,
                         row as i32,
                     ));
-                    let biome = biome::named(p.biome);
+                    let biome = p.biome.get();
                     let accent = if digit > 0 {
                         paint(biome, digit, shift)
                     } else {

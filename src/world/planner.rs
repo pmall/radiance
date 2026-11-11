@@ -32,7 +32,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use super::biome;
+use super::biome::{self, BiomeId};
 pub use super::chunks::Role;
 use super::chunks::{self, Catalog, Chunk};
 use super::city;
@@ -81,7 +81,7 @@ pub const TOWER_CELL: i32 = 2;
 pub struct Placement {
     pub chunk: String,
     /// The biome whose collection the chunk comes from (`chunks::catalog`).
-    pub biome: &'static str,
+    pub biome: BiomeId,
     pub role: Role,
     /// Corner lot of the footprint, and its size in lots (after the turn).
     pub origin: (i32, i32),
@@ -157,8 +157,8 @@ impl Placement {
 }
 
 /// The biome a decision covering a cell is made in: the biome of the cell's middle lot.
-fn biome_of_cell(seed: u64, cx: i32, cz: i32, side: i32) -> &'static str {
-    biome::biome_at(seed, cx * side + side / 2, cz * side + side / 2).name
+fn biome_of_cell(seed: u64, cx: i32, cz: i32, side: i32) -> BiomeId {
+    biome::biome_at(seed, cx * side + side / 2, cz * side + side / 2)
 }
 
 fn zone_fits(chunk: &Chunk, floor: usize) -> bool {
@@ -568,11 +568,11 @@ pub fn hole_at(seed: u64, lx: i32, lz: i32) -> Option<usize> {
 /// The crater always opening in front of the spawn (the player wakes up facing -z), down to the
 /// start floor: a wide shaft of daylight beyond the dark plaza, the first pull upward.
 fn start_crater() -> Option<Placement> {
-    let cat = chunks::catalog(chunks::DEFAULT_BIOME);
+    let cat = chunks::catalog(BiomeId::DEFAULT);
     let c = cat.chunks.get(START_CRATER)?;
     Some(Placement {
         chunk: c.name.clone(),
-        biome: chunks::DEFAULT_BIOME,
+        biome: BiomeId::DEFAULT,
         role: Role::Crater,
         origin: (-c.size.0 / 2, -5 - c.size.1 / 2),
         size: c.size,
@@ -892,7 +892,7 @@ fn towers_of_cell_uncached(seed: u64, cx: i32, cz: i32) -> Vec<Placement> {
             continue;
         }
         let mut rng = Rng::new(hash_coords(seed, x, SALT_TOWER + 1, z));
-        if rng.chance(biome::biome_at(seed, x, z).tower_empty)
+        if rng.chance(biome::biome_at(seed, x, z).get().tower_empty)
             || (low_rise(seed, x, z) && !rng.chance(design::LOW_RISE_TOWERS))
         {
             continue;
@@ -969,7 +969,7 @@ fn filler_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) ->
     if !free {
         return None;
     }
-    let biome = biome::biome_at(seed, lx, lz).name;
+    let biome = biome::biome_at(seed, lx, lz);
     let cat = chunks::catalog(biome);
     let pool = pool(&cat, |c| {
         c.role() == Role::Filler
@@ -1002,7 +1002,7 @@ fn street_at(seed: u64, lx: i32, lz: i32, floor: usize, others: &[Placement]) ->
     {
         return None;
     }
-    let biome = biome::biome_at(seed, lx, lz).name;
+    let biome = biome::biome_at(seed, lx, lz);
     let cat = chunks::catalog(biome);
     let pool = pool(&cat, |c| {
         c.role() == Role::Street && c.size == (1, 1) && zone_fits(c, floor)
@@ -1027,11 +1027,11 @@ fn start_at(lx: i32, lz: i32) -> Option<Placement> {
     if !city::is_plaza(lx, lz) {
         return None;
     }
-    let cat = chunks::catalog(chunks::DEFAULT_BIOME);
+    let cat = chunks::catalog(BiomeId::DEFAULT);
     let c = cat.chunks.get(START_CHUNK)?;
     Some(Placement {
         chunk: c.name.clone(),
-        biome: chunks::DEFAULT_BIOME,
+        biome: BiomeId::DEFAULT,
         role: Role::Block,
         origin: (-1, -1),
         size: c.size,
@@ -1201,7 +1201,7 @@ mod tests {
 
     #[test]
     fn holes_turn_with_their_chunk() {
-        let cat = chunks::catalog(chunks::DEFAULT_BIOME);
+        let cat = chunks::catalog(BiomeId::DEFAULT);
         let Some(c) = cat.chunks.values().find(|c| !c.holes.is_empty()) else {
             return;
         };

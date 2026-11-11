@@ -18,7 +18,9 @@ code implements are in `docs/world.md` (generation), `docs/chunks.md` (hand-writ
   - `floors.rs`: the stack of floors and its zones (depths, middle, canopy).
   - `design.rs`: the floor profiles, every generation number that depends on the floor, and the
     props / points of interest switches.
-  - `biome.rs`: the map's zones and everything a biome sets (`docs/world.md`, "Biomes").
+  - `biome.rs`: the map's zones and everything a biome sets (`docs/world.md`, "Biomes"); code
+    passes a biome around as a `BiomeId` (its place in `BIOMES`), resolved from a name only
+    where names come in (a biome's folder, `--chunk BIOME/NAME`).
   - `chunks.rs`: the chunk and module vocabulary and the catalogs; `chunk_files.rs`: where and how
     their files are stored in `assets/`, read and hot-reloaded; `planner.rs`: which chunk stands
     where (`docs/chunks.md`).
@@ -104,7 +106,7 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Per-biome numbers (bridge chance, plant rates)          | `biome::biome_at`, `Biome`                                                      |
 | Per-biome plant species (shapes, foliage, flowers)      | `biome::Plants`, `pick_species`; read in `growth::Builder` (`bush`,             |
 |                                                         | `hanging_vine`, `climber`, `flower`)                                            |
-| Per-biome props (a biome's module restyles a prop)      | `props::Meshes::load`, `props::biome_of`                                        |
+| Per-biome props (a biome's module restyles a prop)      | `props::Meshes::load`, `Catalog::biome`                                         |
 | Per-biome textures (pixel art of materials and units)   | `biome::Biome::textures` (`pixels::Textures`), `pixels::atlas_pixels`;          |
 |                                                         | `atlasTile` (`shaders/scene.fs`) reads the lot's or prop's biome row            |
 | Per-biome tower wall paints                             | `biome::Palette::paints`; `tower::paint`, `facade` (`shaders/scene.fs`)         |

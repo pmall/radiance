@@ -19,7 +19,7 @@ use std::sync::OnceLock;
 
 use glam::{Mat4, Quat, Vec3, vec3};
 
-use super::biome::BIOMES;
+use super::biome::BiomeId;
 use super::chunks::{self, Catalog};
 
 /// Every prop the city can place.
@@ -124,8 +124,8 @@ pub struct PropMesh {
     pub pole: Option<f32>,
     /// Where the mesh's origin (the footprint's center, on the floor) lies in its module.
     pub base: Vec3,
-    /// The biome whose pixel art it is drawn in (`biome::variant_of`).
-    pub biome: u8,
+    /// The biome whose pixel art it is drawn in.
+    pub biome: BiomeId,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -161,11 +161,15 @@ fn module_verts(cat: &Catalog, name: &str) -> Option<Vec<PropVert>> {
 
 /// A prop's mesh as a catalog builds it, for biome `biome`: from its module there, else (for the
 /// props built here) from code, else empty.
-fn build(d: &Def, cat: &Catalog, biome: u8) -> PropMesh {
+fn build(d: &Def, cat: &Catalog, biome: BiomeId) -> PropMesh {
     let raw = module_verts(cat, d.name)
         .or_else(|| d.built.map(|build| build()))
         .unwrap_or_else(|| {
-            eprintln!("props: no module {:?} for the {} biome", d.name, cat.biome);
+            eprintln!(
+                "props: no module {:?} for the {} biome",
+                d.name,
+                cat.biome.name()
+            );
             Vec::new()
         });
     let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
@@ -197,59 +201,50 @@ fn build(d: &Def, cat: &Catalog, biome: u8) -> PropMesh {
 /// Every biome's props: their meshes, and which one each (prop, biome) uses.
 pub struct Meshes {
     pub list: Vec<PropMesh>,
-    of: HashMap<(Prop, u8), usize>,
+    of: HashMap<(Prop, BiomeId), usize>,
 }
 
 impl Meshes {
-    /// From each biome's catalog (`catalog(i)` for the biome of index `i`, `count` of them).
-    fn load(count: usize, catalog: impl Fn(usize) -> std::sync::Arc<Catalog>) -> Meshes {
+    /// From each biome's catalog.
+    fn load(catalog: impl Fn(BiomeId) -> std::sync::Arc<Catalog>) -> Meshes {
         let mut m = Meshes {
             list: Vec::new(),
             of: HashMap::new(),
         };
-        for i in 0..count {
-            let cat = catalog(i);
+        for b in BiomeId::all() {
+            let cat = catalog(b);
             for d in DEFS {
-                m.of.insert((d.prop, i as u8), m.list.len());
-                m.list.push(build(d, &cat, i as u8));
+                m.of.insert((d.prop, b), m.list.len());
+                m.list.push(build(d, &cat, b));
             }
         }
         m
     }
 
-    /// Index in `list` of a prop's mesh in a biome (the default biome's for an unknown one).
-    pub fn index(&self, prop: Prop, biome: u8) -> usize {
-        self.of
-            .get(&(prop, biome))
-            .or_else(|| self.of.get(&(prop, 0)))
-            .copied()
-            .unwrap_or(0)
+    /// Index in `list` of a prop's mesh in a biome (every biome has every prop).
+    pub fn index(&self, prop: Prop, biome: BiomeId) -> usize {
+        self.of[&(prop, biome)]
     }
 }
 
 /// Every biome's prop meshes (all load on first use).
 pub fn meshes() -> &'static Meshes {
     static MESHES: OnceLock<Meshes> = OnceLock::new();
-    MESHES.get_or_init(|| Meshes::load(BIOMES.len(), |i| chunks::catalog(BIOMES[i].name)))
+    MESHES.get_or_init(|| Meshes::load(chunks::catalog))
 }
 
-/// The mesh of a prop in a biome (`biome::variant_of`).
-pub fn mesh(prop: Prop, biome: u8) -> &'static PropMesh {
+/// The mesh of a prop in a biome.
+pub fn mesh(prop: Prop, biome: BiomeId) -> &'static PropMesh {
     let m = meshes();
     &m.list[m.index(prop, biome)]
-}
-
-/// The biome a catalog's props are drawn in: the biome of that name, or the default one.
-pub fn biome_of(cat: &Catalog) -> u8 {
-    BIOMES.iter().position(|b| b.name == cat.biome).unwrap_or(0) as u8
 }
 
 /// A prop placed in the world.
 #[derive(Clone, Copy, Debug)]
 pub struct Placed {
     pub prop: Prop,
-    /// The biome whose version of the prop this is (`biome::variant_of`).
-    pub biome: u8,
+    /// The biome whose version of the prop this is.
+    pub biome: BiomeId,
     /// Center of the footprint, on the floor.
     pub pos: Vec3,
     /// Rotation about the vertical (radians).
@@ -421,9 +416,9 @@ mod tests {
     fn every_prop_loads_standing_at_the_origin() {
         for (d, b) in DEFS
             .iter()
-            .flat_map(|d| (0..BIOMES.len()).map(move |b| (d, b)))
+            .flat_map(|d| BiomeId::all().map(move |b| (d, b)))
         {
-            let m = mesh(d.prop, b as u8);
+            let m = mesh(d.prop, b);
             assert!(!m.verts.is_empty(), "{:?} has no triangles", d.prop);
             assert!(m.half.x > 0.05 && m.half.z > 0.05, "{:?} is flat", d.prop);
             assert!(
@@ -438,9 +433,10 @@ mod tests {
 
     #[test]
     fn a_biome_restyles_the_props_it_has_modules_for() {
-        let default = chunks::catalog(chunks::DEFAULT_BIOME);
+        let default = chunks::catalog(BiomeId::DEFAULT);
+        let other = BiomeId::all().nth(1).expect("a second biome");
         let mut own = Catalog {
-            biome: "other".into(),
+            biome: other,
             modules: default.modules.clone(),
             ..Catalog::default()
         };
@@ -456,13 +452,29 @@ mod tests {
                 .insert(name.clone(), chunks::Module { name, parts });
         }
         let own = std::sync::Arc::new(own);
-        let m = Meshes::load(2, |i| if i == 0 { default.clone() } else { own.clone() });
+        let m = Meshes::load(|b| {
+            if b == other {
+                own.clone()
+            } else {
+                default.clone()
+            }
+        });
         for d in DEFS {
             let restyled = matches!(d.prop, Prop::Bench | Prop::StreetLight);
-            let (a, b) = (&m.list[m.index(d.prop, 0)], &m.list[m.index(d.prop, 1)]);
+            let (a, b) = (
+                &m.list[m.index(d.prop, BiomeId::DEFAULT)],
+                &m.list[m.index(d.prop, other)],
+            );
             assert_eq!(a.verts != b.verts, restyled, "{:?}", d.prop);
-            assert_eq!((a.biome, b.biome), (0, 1), "drawn in its biome's pixel art");
+            assert_eq!(
+                (a.biome, b.biome),
+                (BiomeId::DEFAULT, other),
+                "drawn in its biome's pixel art"
+            );
         }
-        assert_eq!(m.list[m.index(Prop::Bench, 1)].half, vec3(1.0, 1.0, 0.5));
+        assert_eq!(
+            m.list[m.index(Prop::Bench, other)].half,
+            vec3(1.0, 1.0, 0.5)
+        );
     }
 }

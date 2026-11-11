@@ -250,7 +250,7 @@ pub fn generate(seed: u64, (x, z): LotKey) -> Lot {
         plants: growth.plants,
         props: dressed.props,
         lights: growth.lights,
-        variant: biome::variant_of(biome::biome_at(seed, x, z)) as u8,
+        variant: biome::biome_at(seed, x, z).index() as u8,
     }
 }
 

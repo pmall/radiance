@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use glam::{Vec3, vec3};
 
-use super::biome::biome_at;
+use super::biome::{BiomeId, biome_at};
 use super::chunks;
 use super::floors::{self, START};
 use super::planner::{self, Placement, Role};
@@ -869,7 +869,7 @@ pub fn placements(seed: u64, lx: i32, lz: i32) -> Vec<Placement> {
             chunk: chunks::preview()
                 .map(|p| p.name.clone())
                 .unwrap_or_default(),
-            biome: chunks::preview().map_or(chunks::DEFAULT_BIOME, |p| p.biome),
+            biome: chunks::preview().map_or(BiomeId::DEFAULT, |p| p.biome),
             role: Role::Area,
             origin: (ox, oz),
             size,
@@ -1033,8 +1033,8 @@ pub(super) fn skybridges(seed: u64, lx: i32, lz: i32) -> Vec<Block> {
             return out;
         };
         let biome = biome_at(seed, lx, lz);
-        let cat = chunks::catalog(biome.name);
-        let chance = biome.bridge_chance;
+        let cat = chunks::catalog(biome);
+        let chance = biome.get().bridge_chance;
         let mut rng = Rng::new(hash_coords(seed, lx, SALT_BRIDGE, lz));
         for (nx, nz) in [(lx + 1, lz), (lx, lz + 1)] {
             let (Some(b), Some(pb)) = (tower(seed, nx, nz), planner::tower_at(seed, nx, nz)) else {
@@ -1234,7 +1234,7 @@ fn footbridge_room(seed: u64, lx: i32, lz: i32) -> Vec<Aabb> {
 
 /// This lot's span of its footbridges (`footbridge_span` modules, one per lot crossed).
 fn push_footbridges(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) {
-    let cat = chunks::catalog(biome_at(seed, lx, lz).name);
+    let cat = chunks::catalog(biome_at(seed, lx, lz));
     for f in 1..floors::count() {
         for along_x in bridges_through(seed, lx, lz, f) {
             let o = lot_origin(lx, lz) + Vec3::Y * floors::y(f);

@@ -7,7 +7,7 @@
 
 use glam::{Vec3, vec3};
 
-use super::biome::{biome_at, variant_of};
+use super::biome::biome_at;
 use super::chunks::Mat;
 use super::city::{self, Deck, LOT};
 use super::props::{Placed, Prop};
@@ -109,8 +109,7 @@ pub fn scatter(seed: u64, lx: i32, lz: i32, blocks: &[Block], props: &mut Vec<Pl
         return;
     }
     let biome = biome_at(seed, lx, lz);
-    let variant = variant_of(biome) as u8;
-    let litter = biome.textures.littered / 0.5 * 1.4;
+    let litter = biome.get().textures.littered / 0.5 * 1.4;
     let mut rng = Rng::new(hash_coords(seed, lx, SALT_DEBRIS, lz));
     let o = city::lot_origin(lx, lz);
     let solid: Vec<Aabb> = blocks
@@ -175,7 +174,7 @@ pub fn scatter(seed: u64, lx: i32, lz: i32, blocks: &[Block], props: &mut Vec<Pl
                 for step in 0..3 {
                     let placed = Placed {
                         prop,
-                        biome: variant,
+                        biome,
                         pos: at + foot.out * (off + step as f32 * 0.5) + foot.along * slide,
                         yaw,
                     };

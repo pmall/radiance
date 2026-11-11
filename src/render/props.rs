@@ -111,7 +111,7 @@ pub fn triangles(batches: &[Batch]) -> i32 {
 /// materials in pixel art, with the material in uv2.x; 14 for plain props), its biome's variant
 /// above it (16 per variant, as in `mesh.rs`); the outline id comes from the instance.
 fn upload(prop: &PropMesh) -> ffi::Mesh {
-    let variant = prop.biome as f32 * 16.0;
+    let variant = prop.biome.index() as f32 * 16.0;
     let mut m = MeshData::default();
     for v in &prop.verts {
         m.pos.extend_from_slice(&v.pos.to_array());

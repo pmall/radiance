@@ -212,18 +212,19 @@ fn spawn_player(view: Option<[f32; 5]>, fly: bool) -> Player {
 /// The biome around a point, as its index in `BIOMES` (what the sky is drawn in).
 fn biome_variant(seed: u64, at: Vec3) -> usize {
     let (lx, lz) = world::city::lot_of(at);
-    world::biome::variant_of(world::biome::biome_at(seed, lx, lz))
+    world::biome::biome_at(seed, lx, lz).index()
 }
 
 /// `--catalog`: every biome's chunks and modules, and the files that failed to load.
 fn print_catalog() {
     let all = world::chunks::catalogs();
-    let mut biomes: Vec<_> = all.biomes.values().collect();
-    biomes.sort_by(|a, b| a.biome.cmp(&b.biome));
+    let mut biomes: Vec<_> = all.folders().collect();
+    biomes.sort_by_key(|c| c.biome.name());
     for c in biomes {
         let mut chunks: Vec<_> = c.chunks.values().collect();
         chunks.sort_by(|a, b| a.name.cmp(&b.name));
-        println!("Biome {} (assets/biomes/{}/), chunks:", c.biome, c.biome);
+        let name = c.biome.name();
+        println!("Biome {name} (assets/biomes/{name}/), chunks:");
         for ch in chunks {
             println!(
                 "  {:<24} {:>2}x{:<2} lots  {:?}  labels {:?}  zones {:?}  weight {}  spacing {}",
@@ -274,11 +275,13 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if let Some(name) = args.chunk.clone() {
-        let Some((biome, name)) = world::chunks::find(&name) else {
-            eprintln!("radiance: no chunk named {name:?}; see --catalog");
-            return ExitCode::from(2);
-        };
-        world::chunks::set_preview(biome, name);
+        match world::chunks::find(&name) {
+            Ok(p) => world::chunks::set_preview(p),
+            Err(e) => {
+                eprintln!("radiance: {e}; see --catalog");
+                return ExitCode::from(2);
+            }
+        }
     }
     if let Some(radius) = args.report {
         report::run(seed, radius);
