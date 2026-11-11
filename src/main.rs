@@ -489,8 +489,7 @@ fn main() -> ExitCode {
         blend.update(biome_variant(world.seed, player.pos), dt);
         let sky = Sky::from_cycle(&cycle, &blend);
         if let Some(a) = audio.as_mut() {
-            let day = ((cycle.sun_dir().y + 0.1) / 0.4).clamp(0.0, 1.0);
-            let souls = a.update(dt, player.eye(), player.right(), day, &world);
+            let souls = a.update(dt, player.eye(), player.right(), cycle.daylight(), &world);
             renderer.pulse(&souls);
         }
         let view = View {

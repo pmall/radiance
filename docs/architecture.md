@@ -25,6 +25,7 @@ code implements are in `docs/world.md` (generation), `docs/chunks.md` (hand-writ
     `tower.rs`: tower chunks; `roads.rs`: the road network; `leftovers.rs`: debris and cables;
     `growth.rs`: plants and flowers; `props.rs`: the props placed instanced; `skyline.rs`: the
     far towers beyond the loaded lots.
+  - `finder.rs`: the nearest stairs and crater from the player's floor (the test mode overlay).
 - **Streaming** (`src/stream.rs`): lots within `world::LOAD_RADIUS` of the player are generated
   and meshed on worker threads and uploaded a little per frame; lots past `UNLOAD_RADIUS` are
   dropped.

@@ -8,6 +8,7 @@ use crate::daycycle::DayCycle;
 use crate::player::Player;
 use crate::render::{self, Renderer};
 use crate::world::World;
+use crate::world::finder::{Finder, Found, Way};
 
 pub struct Debug {
     pub show_overlay: bool,
@@ -17,89 +18,18 @@ pub struct Debug {
     finder: Finder,
 }
 
-/// How far the finder looks, in lots around the player (about 1 km). Things beyond the loaded
-/// area exist (the city is a pure function of the seed) but are not drawn until the player gets
-/// closer, so they are marked as such.
-const FIND_RADIUS: i32 = 40;
-
-/// Nearest stairs and crater from the player's lot and floor, recomputed when either changes (or
-/// the seed, or the chunk files).
-#[derive(Default)]
-struct Finder {
-    key: Option<(u64, u64, i32, i32, usize)>,
-    /// (label, target point on the player's floor).
-    found: Vec<(String, glam::Vec3)>,
-}
-
-impl Finder {
-    fn update(&mut self, seed: u64, pos: glam::Vec3) {
-        use crate::world::{city, floors};
-        let (lx, lz) = city::lot_of(pos);
-        let floor = floors::floor_at(pos.y);
-        let key = (seed, crate::world::chunks::generation(), lx, lz, floor);
-        if self.key == Some(key) {
-            return;
-        }
-        self.key = Some(key);
-        let center = |x: i32, z: i32| {
-            glam::vec3(
-                (x as f32 + 0.5) * city::LOT,
-                pos.y,
-                (z as f32 + 0.5) * city::LOT,
-            )
-        };
-        let mut up: Option<(f32, String, glam::Vec3)> = None;
-        let mut down = up.clone();
-        let mut crater = up.clone();
-        let keep = |best: &mut Option<(f32, String, glam::Vec3)>, p: glam::Vec3, label: String| {
-            let d = p.distance_squared(pos);
-            if best.as_ref().is_none_or(|b| d < b.0) {
-                *best = Some((d, label, p));
-            }
-        };
-        // Ring by ring outward; stop once nothing farther out can beat what was found.
-        let done = |best: &Option<(f32, String, glam::Vec3)>, d: i32| {
-            best.as_ref()
-                .is_some_and(|b| b.0.sqrt() < (d as f32 - 0.5) * city::LOT)
-        };
-        for d in 0..=FIND_RADIUS {
-            if done(&up, d) && done(&down, d) && done(&crater, d) {
-                break;
-            }
-            for z in lz - d..=lz + d {
-                for x in lx - d..=lx + d {
-                    if (x - lx).abs().max((z - lz).abs()) != d {
-                        continue;
-                    }
-                    if let Some((lo, hi)) = city::stair(seed, x, z) {
-                        if lo <= floor && floor < hi {
-                            keep(&mut up, center(x, z), format!("stair up to D{hi}"));
-                        }
-                        if lo < floor && floor <= hi {
-                            keep(&mut down, center(x, z), format!("stair down to D{lo}"));
-                        }
-                    }
-                    if let Some(f) = city::crater_at(seed, x, z) {
-                        keep(&mut crater, center(x, z), format!("crater open above D{f}"));
-                    }
-                }
-            }
-        }
+/// A way to another floor as the overlay names it.
+fn way_label(found: &Found) -> String {
+    let label = match found.way {
+        Way::StairUp { to } => format!("stair up to D{to}"),
+        Way::StairDown { to } => format!("stair down to D{to}"),
+        Way::Crater { above } => format!("crater open above D{above}"),
+    };
+    if found.loaded {
+        label
+    } else {
         // Beyond the loaded area: real, but not drawn yet.
-        let loaded = |p: glam::Vec3| {
-            let (x, z) = city::lot_of(p);
-            (x - lx).abs().max((z - lz).abs()) <= crate::world::LOAD_RADIUS
-        };
-        for best in [&mut up, &mut down, &mut crater].into_iter().flatten() {
-            if !loaded(best.2) {
-                best.1.push_str(" (far, not loaded yet)");
-            }
-        }
-        self.found = [up, down, crater]
-            .into_iter()
-            .flatten()
-            .map(|(_, label, p)| (label, p))
-            .collect();
+        format!("{label} (far, not loaded yet)")
     }
 }
 
@@ -241,12 +171,12 @@ impl Debug {
                     .into(),
                 HEADING,
             );
-            if self.finder.found.is_empty() {
+            if self.finder.found().is_empty() {
                 say("  nothing within 1 km".into(), Color::RAYWHITE);
             }
-            for (label, target) in &self.finder.found {
+            for found in self.finder.found() {
                 say(
-                    format!("  {label}: {}", bearing(player, *target)),
+                    format!("  {}: {}", way_label(found), bearing(player, found.at)),
                     Color::RAYWHITE,
                 );
             }
@@ -382,29 +312,5 @@ mod tests {
             all |= e.bit;
         }
         assert_eq!(all, render::FX_ALL);
-    }
-
-    #[test]
-    fn finder_points_to_a_stair_up_and_a_crater_from_the_spawn() {
-        let mut f = Finder::default();
-        f.update(1, glam::vec3(0.0, 1.7, 0.0));
-        for (label, p) in &f.found {
-            println!("{label} at {p}");
-        }
-        assert!(f.found.iter().any(|(l, _)| l.starts_with("stair up")));
-        assert!(f.found.iter().any(|(l, _)| l.starts_with("crater")));
-    }
-
-    #[test]
-    fn finder_finds_a_stair_up_even_from_high_floors() {
-        use crate::world::floors;
-        for floor in 0..floors::count() - 1 {
-            let mut f = Finder::default();
-            f.update(1, glam::vec3(0.0, floors::y(floor) + 0.5, 0.0));
-            assert!(
-                f.found.iter().any(|(l, _)| l.starts_with("stair up")),
-                "no stair up from D{floor} within 1 km"
-            );
-        }
     }
 }

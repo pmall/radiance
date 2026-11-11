@@ -4,6 +4,7 @@ pub mod biome;
 pub mod chunks;
 pub mod city;
 pub mod design;
+pub mod finder;
 pub mod floors;
 pub mod growth;
 pub mod leftovers;

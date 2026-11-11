@@ -52,7 +52,7 @@ o'clock straight ahead).
 
 Test mode (G, on by default) helps find things without changing the city: stairs and craters are
 generated as in the real game, however rare. The overlay gives the distance and clock direction
-of the nearest stair up, stair down and crater within about a kilometer (`FIND_RADIUS`), marked
+of the nearest stair up, stair down and crater within about a kilometer (`world::finder`), marked
 "far, not loaded yet" beyond the loaded lots; the right mouse button makes Wick four times faster.
 
 ## Screenshots, recordings, reference views
