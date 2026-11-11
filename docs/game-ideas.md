@@ -4,15 +4,16 @@ The game's systems, brainstormed and not built yet (story in `docs/story.md`, po
 their lines in `docs/poi-catalog.md`). The render and the atmosphere come first, the game after
 (`docs/vision.md`, "Stages"); the last section lists what the city can take from these ideas now.
 
-## Where the brainstorm departs from the prototype
+## Where the brainstorm departs from the city
 
-| Brainstorm                                                                    | Prototype today                                                     | Note                                                                                                                 |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| A finite stack of many floors, each a finite map; no infinite horizontal city | Infinite, streamed in every horizontal direction, three deck layers | Owner's call: floors are finite (grow toward many); horizontal streaming stays unless it blocks more important work. |
-| Gameplay: POIs, dialogue, radio, credentials, fall damage, endings            | No gameplay, no UI beyond debug tools                               | Next stage.                                                                                                          |
-| Upper floors built after humans vanished, yet the canopy has the most flowers | Canopy has the most flowers (floor profiles, `design.rs`)           | Reconciled in `docs/lore.md`.                                                                                        |
-| Flower notes synthesized in code                                              | Sampled upright piano                                               | Matches the owner's own synth-piano idea (`docs/audio.md`).                                                          |
-| Ambient creaks and breathing textures                                         | Only the hum plays; wind and groans were disliked                   | Owner's decision stands.                                                                                             |
+| Brainstorm                                                                    | City today                                                     | Note                                                                                               |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| A finite stack of many floors, each a finite map; no infinite horizontal city | A finite stack of floors, each streamed endlessly horizontally | Owner's call: floors are finite; endless streaming stays while it costs little (`docs/vision.md`). |
+| Gameplay: POIs, dialogue, radio, credentials, fall damage, endings            | No gameplay, no UI beyond debug tools                          | Next stage.                                                                                        |
+| Upper floors built after humans vanished, yet the canopy has the most flowers | Canopy has the most flowers (floor profiles, `design.rs`)      | Reconciled in `docs/lore.md`.                                                                      |
+| Flower notes synthesized in code                                              | Sampled upright piano                                          | Matches the owner's own synth-piano idea (`docs/audio.md`).                                        |
+| Ambient creaks and breathing textures                                         | Only the hum plays; wind and groans were disliked              | Owner's decision stands.                                                                           |
+| Biomes per height band, some only above or below a floor                      | Biomes are columns through every floor                         | Owner's direction: a biome may evolve by zone instead (`docs/world.md`, "Biomes").                 |
 
 ## Systems (summary)
 
@@ -71,7 +72,7 @@ their lines in `docs/poi-catalog.md`). The render and the atmosphere come first,
 
 Kinds: **anchors** (always placed once, reachable), **ambient** (a random subset per city, each at
 most once), **foreshadowing** (flowers in human places, odd details rather than clues) and
-**decoration** (non-interactive props, see "Set dressing" in `docs/world.md`). Interaction is
+**decoration** (non-interactive props, `docs/poi-catalog.md`, "Decoration"). Interaction is
 look, read or open, and plays a `THINKING` line then a `WICK` line, both added to the context log.
 Data-driven: a POI is a catalog entry, ideally loaded from a data file, not code. Some POIs are
 flower melody targets.
@@ -111,22 +112,23 @@ could not see it.
 - Exact triggers and timing for radio beats and check-ins.
 - How Wick's resistance is felt after the cold stop (dialogue only, or subtle effects on control).
 
-## What the prototype can take now
+## What the city can take now
 
 Candidates for the render, all seed-driven, none needing gameplay:
 
-1. **Craters and sunlight shafts** in the middle and depths: the most striking image in the
-   brainstorm, and it fits the lighting pipeline (a shaft of sun through fog onto lush growth).
-2. **Light-network veins**: glowing roots running down walls and across decks, connecting canopy
-   flowers to the ones below; dark where broken. A visual link between flowers.
-3. **Band character**: older human architecture deep (stone, arches, cobblestones, tram tracks,
-   foundation pillars punching through streets), colder and more regular machine-built structures
-   high, and machine intrusion (columns through roads, struts across facades) growing with height.
-4. **Set dressing** from the decoration lists (`docs/world.md`), so streets read as abandoned
-   rather than empty boxes.
-5. **Foreshadowing tableaux as props**: a flower in an armchair, two flowers on a bench, one in a
-   dead garden, one at a closed door. Silent, no text, pure mood; they fit the lore exactly.
-6. **Flower melody guidance**, the audio side of `docs/guidance-ideas.md`.
+- **Craters and sunlight shafts** in the middle and depths: the most striking image in the
+  brainstorm (in the city: `docs/world.md`, "Structure").
+- **Light-network veins**: glowing roots running down walls and across decks, connecting canopy
+  flowers to the ones below; dark where broken. A visual link between flowers. Not built.
+- **Band character**: older human architecture deep, colder and more regular machine-built
+  structures high, and machine intrusion growing with height (`docs/world.md`, "Band
+  character"; only the old quarter is built).
+- **Set dressing** from the decoration lists (`docs/poi-catalog.md`, "Decoration"), so streets
+  read as abandoned rather than empty boxes (in part: things left behind, `docs/art-direction.md`).
+- **Foreshadowing tableaux as props**: a flower in an armchair, two flowers on a bench, one in a
+  dead garden, one at a closed door. Silent, no text, pure mood (in the city as points of
+  interest, `docs/world.md`).
+- **Flower melody guidance**, the audio side of `docs/guidance-ideas.md`. Not built.
 
 ## Progression shapes the city (owner's ideas, not decisions)
 

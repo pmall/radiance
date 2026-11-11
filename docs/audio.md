@@ -1,47 +1,33 @@
 # Audio
 
-Implemented in `src/audio/`. Sound is for interactive runs only (screenshots and benchmarks are
-silent; `--no-audio` mutes a run, `M` toggles mute in game).
+Implemented in `src/audio/` (each file's doc comment says how). Sound is for interactive runs
+only; the mute switches are in `docs/tools.md`.
 
-- **Souls sing.** Each light flower is a human soul (see `docs/lore.md`). When the player comes
-  within 6.5 m of one in the same open space (not through a deck) it plays a single soft piano note,
-  then stays quiet for 45 s. Notes come from A minor pentatonic, so walking through a cluster plays
-  a gentle, slightly arpeggiated melody (notes of one step are staggered by 0.2 s). Pitch follows
-  height: souls in the depths sing low, souls in the canopy sing high. A soul always sings the same
-  note (a function of seed, lot and index). Volume and stereo pan follow distance and direction. The
-  soul's light swells and fades over a few seconds when it sings.
-- **Piano samples.** CC0 "Upright Piano KW" from FreePats (a living-room upright, mono, one
-  velocity, a sample every minor third from D#2 to C7), pitched by at most two semitones with
-  playback speed. Credits in `assets/audio/README.md`.
-- **Ambience: only the machinery hum plays** (the owner likes it). It is synthesized in code at
-  startup (no samples): detuned bass partials and a low rumble, loud in the depths and quieter up
-  high. Two more layers were tried and removed, both disliked: breathing wind (a swell every 8 s
-  that can sound like pumping) and distant metal groans (the first version, a pulse train through
-  resonances, sounded like an animal growling and was rebuilt). Their code is in `ambient.rs` at
-  commit 5be17dc.
+- **Souls sing.** Each light flower is a human soul (`docs/lore.md`). When the player comes close
+  to one in the same open space (not through a deck), it plays a single soft piano note, then
+  stays quiet for a while. Notes come from a minor pentatonic scale, so walking through a cluster
+  plays a gentle, slightly arpeggiated melody. Pitch follows height: souls in the depths sing low,
+  souls in the canopy sing high. A soul always sings the same note (a function of seed, lot and
+  index). Volume and stereo pan follow distance and direction. The soul's light swells and fades
+  when it sings.
+- **Piano samples.** A CC0 sampled upright piano, pitched by at most two semitones; credits in
+  `assets/audio/README.md`.
+- **Ambience: only the machinery hum plays** (owner: liked). It is synthesized in code at startup,
+  loud in the depths and quieter up high. Breathing wind and distant metal groans were tried and
+  disliked (owner); they stay out.
 - **Reverb** (Freeverb, about a 3 s tail) on the whole mix, so every note rings into the empty city.
-- Tests check the synthesis (no NaN, no clipping, seamless loops), that the reverb decays, and that
-  notes stay in the scale and follow height.
 
 ## Future: a synthesized piano (owner's idea)
 
-The sampled piano is fine for now. Someday the souls' voice should be synthesized, because that makes
-the timbre adjustable on the fly:
+The sampled piano is fine for now. Someday the souls' voice should be synthesized, because that
+makes the timbre adjustable on the fly:
 
 - **Per-biome voice:** brightness, detune, decay and inharmonicity change with the biome (glassy and
   long in one, dull and short in another), blending across zone borders.
-- **Sound as guidance, like the wind in Ghost of Tsushima (owner's direction):** the sound acts as a
-  guiding wind that leads the player toward points of interest in the very large city, with no UI.
-  It reshapes as the player moves toward a place or object (rising pitch or brightness, faster
-  pulse, direction by stereo and muffling). The visual twin would be the existing pollen motes and
-  spores drifting the same way, as the wind does in that game. This needs points of interest to
-  exist first: they must come from the seed (e.g. very tall unfinished towers, soul clusters, the
-  rare rainbow biome, biome borders).
+- **Guidance:** the melodic gradient (`docs/guidance-ideas.md`) wants notes that grow consonant and
+  warm and form a motif near a target, which a synthesized voice makes easier.
 - Suggested approach: modal/additive string model with a short hammer noise burst, possibly layered
   over the recorded attack to keep the realism; runs in an audio-stream callback like the reverb.
   Only `piano.rs` would be replaced. It needs the owner's ears to judge against the recorded notes.
-- The brainstorm (`docs/game-ideas.md`) also wants synthesized flower notes, for its **melodic
-  gradient**: notes grow consonant and warm and form a motif near a target (option 6 in
-  `docs/guidance-ideas.md`). It also imagines voices (a dry inner voice, crackly radio), which
-  come last: very good text to speech (maybe ElevenLabs), once the game and its atmosphere are good
-  (`docs/vision.md`, "Stages").
+
+Voices (a dry inner voice, crackly radio) come last (`docs/vision.md`, "Stages").

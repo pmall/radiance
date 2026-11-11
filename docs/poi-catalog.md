@@ -1,12 +1,10 @@
 # Points of interest catalog: *Last Radiance*
 
-From the owner's brainstorm. Inspiration for a possible narrative game (`docs/game-ideas.md`), not
-in scope for the render prototype. Kept in full because the lines are authored. Covers the three
-deepest floors so far. Placement, callback and audio rules are in `docs/game-ideas.md`; story
-context and dialogue conventions in `docs/story.md`.
-
-For the prototype, the objects themselves (especially the foreshadowing flowers and the
-decoration lists) are the useful part: they are props the seed could place, with no text.
+From the owner's brainstorm, for the game's next stage (`docs/vision.md`, "Stages"); not built
+yet, except the foreshadowing flowers, which stand in the city as silent props
+(`docs/world.md`, "Streets, props and points of interest"). Kept in full because the lines are
+authored. Covers the three deepest floors so far. Placement, callback and audio rules are in
+`docs/game-ideas.md`; story context and dialogue conventions in `docs/story.md`.
 
 ## Floor conventions
 

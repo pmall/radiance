@@ -1,28 +1,27 @@
 # Lore
 
-Told by the owner, then extended in a brainstorm (`docs/story.md`, the *Last Radiance* story). This is the background the game's story rests on, never stated outright
-(the story reveals it slowly, `docs/story.md`); it also guides what the city looks like and sounds like.
+Told by the owner, then extended in a brainstorm. This is the background the game's story rests
+on, never stated outright (the story reveals it slowly, `docs/story.md`); it also guides what the
+city looks like and sounds like.
 
 - **Humanity is long gone.** The city is empty of people for good. Why they disappeared stays a
   mystery.
-- **Machines kept building.** The player is the consciousness of one of them, **Wick**, a search
-  unit: a meta presence inside the machine that Wick cannot explain (see `docs/story.md`). The
-  game's big moment is Wick panicking and breaking the fourth wall to address the player (the
-  "cold stop"). That is why the city keeps getting
-  taller: construction never stopped. In the brainstorm the machines follow one directive, **"no one
-  left in the dark"**, which feeds itself: every new floor lights the floors above and shadows the
-  ones below, which then need more canopy, so more building. The rule can never be satisfied. (Under
-  it, a hidden goal: building toward a machine paradise in the sky, "Nirvanary".)
+- **Machines kept building.** That is why the city keeps getting taller: construction never
+  stopped. The player is the consciousness of one of those machines, **Wick** (`docs/story.md`).
+  In the brainstorm the machines follow one directive, **"no one left in the dark"**, which feeds
+  itself: every new floor lights the floors above and shadows the ones below, which then need more
+  canopy, so more building. The rule can never be satisfied. (Under it, a hidden goal: building
+  toward a machine paradise in the sky, "Nirvanary".)
 - **Each glowing flower is a human soul.** In the brainstorm: every flower grew from a human death,
   so the light of the city is the light of the people who are gone. Flowers are the only light
-  sources, and the note a flower plays when approached (see `docs/audio.md`) is that soul's voice.
+  sources, and the note a flower plays when approached (`docs/audio.md`) is that soul's voice.
 - **Deeper is older.** The lowest floors are the original human city, each layer above built later
   on top of the previous one. The bottom is the original ground (soil, a cut tree stump: the city
   started with a tree cut down to make a home).
 - **Humanity rose with the city.** As machines built upward, people moved up to the new levels and
   abandoned the depths long before the end. So the depths are the oldest and emptiest part. This is
   why there are more flowers (souls) high up than deep down, which is also the biologically accurate
-  direction (sunlight). It matches the flower chances of the floor profiles in `src/world/design.rs` (canopy > middle > depths).
+  direction (sunlight). The floor profiles follow it (`src/world/design.rs`).
 - **Above the last humans, machines built for machines.** The newest floors were built after humans
   vanished. Owner's call: flowers behave like real flowers (they follow sunlight) and are, as a
   metaphor, the souls of the dead, so whether a few grow at the very top is a detail. Leaning: keep
@@ -33,16 +32,15 @@ Told by the owner, then extended in a brainstorm (`docs/story.md`, the *Last Rad
 - **Craters** open where nothing was built above, and sunlight pours down into the dark floors.
 - Plants overgrow everything: nature took the abandoned city back.
 
-## What it means for the graphics (working notes)
+## What it means for the graphics
 
 - Lit windows and neon are the machines' doing: building systems still running on automatic power.
   Keep them plain, cold or warm white, sparse and mechanical, never "someone is home". Neon signs are
-  old advertising still powered.
-- The city is still being built. *(done: some towers end in a bare skeleton of slabs, columns and
-  rebar with a frozen tower crane on top, `src/world/construction.rs`.)* Still possible: scaffolding
-  on walls, stacked materials. Everything stays still (no moving machines on screen, see
-  `docs/vision.md`), as if paused or seen between shifts. Visual reference for the construction
-  front: Bruegel's *Tower of Babel*.
+  old advertising still powered. (The towers have none today: `docs/art-direction.md`.)
+- The city is still being built: some towers end in a bare frame of stories with a frozen tower
+  crane on top. Still possible: scaffolding on walls, stacked materials. Everything stays still
+  (no moving machines on screen), as if paused or seen between shifts. Visual reference for the
+  construction front: Bruegel's *Tower of Babel*.
 - Flowers are souls, so they should feel special next to ordinary plants: they are the only things
   that glow and the only things that sing. Their density follows altitude (many in the canopy, few in
   the depths), not building details.

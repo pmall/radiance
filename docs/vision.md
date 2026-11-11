@@ -14,6 +14,9 @@ good it looks.
 
 ## Stages
 
+The game is the project; it is built in this order (owner). Status and next steps:
+`docs/roadmap.md`.
+
 1. **The city and its atmosphere** (now): generation, the look, light, the flowers and their notes.
    The game must look and feel good before anything else.
 2. **The game** (next): new biomes and points of interest first, then the story, Wick's orders and
@@ -24,18 +27,18 @@ good it looks.
 
 - Launch → seed-generated city → walk through it in first person.
 - The city has real vertical depth: a finite stack of floors, from the original ground to the
-  construction front, each floor vast. It streams endlessly in every horizontal direction today,
-  but endlessness is not a goal: bounded floors are fine if the game needs them.
+  construction front, each floor vast. It streams endlessly in every horizontal direction, but
+  endlessness is not a goal (owner): it stays while it costs little, and floors become bounded if
+  the game needs it.
 - The rendering clearly reads as stylized illustration, not default 3D.
 - Bioluminescent plants light their surroundings and play a soft piano-like note when approached.
 - Time of day evolves continuously through a full day/night cycle.
 - The same seed always produces the same city.
 
-## Guidance (future)
+## Guidance
 
-The city is huge and has no map or markers. The flowers guide the player: near a point of interest their notes
-grow more consonant and form a motif that completes on arrival, never explained (the "melodic
-gradient", chosen by the owner; see `docs/guidance-ideas.md` and `docs/audio.md`).
+The city is huge and has no map or markers. The flowers will guide the player with their notes
+(the melodic gradient, owner's choice: `docs/guidance-ideas.md`).
 
 ## Player
 
@@ -53,3 +56,4 @@ gradient", chosen by the owner; see `docs/guidance-ideas.md` and `docs/audio.md`
 | *Stray*         | Dense, abandoned cyberpunk urban atmosphere         |
 | *No Man's Sky*  | Procedural scale, sense of being small              |
 | *Mirror's Edge* | Clean first-person movement through architecture    |
+| *Nivalis*       | The look of the buildings (`docs/art-direction.md`) |

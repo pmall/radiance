@@ -1,13 +1,57 @@
-# Code map: where each rule lives
+# Architecture
 
-A lookup for the start of a session: which function decides what in the world generation, so a
-bug in a screenshot leads straight to its code. `AGENTS.md` ("Layout") says what each file is;
-this says where each rule is. Keep it current when a rule moves or a new one appears.
+How the parts fit together and where each starts. What a module does in detail is in its doc
+comment (`//!` at the top of each file); this page only orients and points. The design rules the
+code implements are in `docs/world.md` (generation), `docs/chunks.md` (hand-written chunks) and
+`docs/art-direction.md` (the look).
+
+## The parts
+
+- **Main loop** (`src/main.rs`): window, command line, a fixed 120 Hz simulation step, input
+  routing, debug keys (`docs/tools.md`). `src/debug.rs` draws the overlay, `src/report.rs` prints
+  `--report`, `src/recorder.rs` records a run through `ffmpeg`.
+- **Player** (`src/player.rs`): the first-person controller (walk, run, jump, step-up, ledge grab,
+  free-fly), colliding against the world's index (`World::colliders_near`).
+- **Randomness and time** (`src/rng.rs`, `src/daycycle.rs`): the seeded RNG and coordinate hashing
+  every generated thing goes through; the time-of-day clock and sun direction.
+- **World** (`src/world/`): the city as data, generated lot by lot.
+  - `floors.rs`: the stack of floors and its zones (depths, middle, canopy).
+  - `design.rs`: the floor profiles, every generation number that depends on the floor, and the
+    props / points of interest switches.
+  - `biome.rs`: the map's zones and everything a biome sets (`docs/world.md`, "Biomes").
+  - `chunks.rs`: the chunk and module files of `assets/` and their vocabulary; `planner.rs`: which
+    chunk stands where (`docs/chunks.md`).
+  - `city.rs`: builds a lot from the plan (ground, decks, stairs, towers, bridges, chunks);
+    `tower.rs`: tower chunks; `roads.rs`: the road network; `leftovers.rs`: debris and cables;
+    `growth.rs`: plants and flowers; `props.rs`: the props placed instanced; `skyline.rs`: the
+    far towers beyond the loaded lots.
+- **Streaming** (`src/stream.rs`): lots within `world::LOAD_RADIUS` of the player are generated
+  and meshed on worker threads and uploaded a little per frame; lots past `UNLOAD_RADIUS` are
+  dropped.
+- **Render** (`src/render/`, pipeline in `render/mod.rs`): a shadow pass, a scene pass into HDR,
+  normal/id and depth targets (`shaders/scene.*`), a post pass for sky, outlines, fog, grading and
+  grain (`shaders/post.fs`), then additive overlays (particles, halos). Around it:
+  - `lights.rs` bins the flower lights into a camera grid texture, `halos.rs` draws their halos;
+  - `cover.rs` keeps the cover map (which decks stand over each lot, how much sky it sees, its
+    roads), which light, fog and pavement read;
+  - `pixels.rs` draws each biome's pixel-art atlas, `noise.rs` the noise the wear reads,
+    `facades.rs` the towers' written elevations as a texture;
+  - `props.rs` draws props instanced, `skyline.rs` meshes the far skyline off the main thread;
+  - `look.rs` holds the time-of-day palettes and the blend of biome atmospheres.
+- **Shaders** (`shaders/`): GLSL 330, hot-reloaded from disk and embedded as a fallback
+  (`render/shader.rs`); `#include "file"` pulls in a shared file (`INCLUDES`), such as
+  `cover.glsl` or `fade.glsl` (far draws dissolve in a dither instead of cutting). The constants
+  the shaders repeat from the Rust code are checked by tests in `render/mirrors.rs`.
+- **Audio** (`src/audio/`): `piano.rs` the souls' notes, `ambient.rs` the synthesized hum,
+  `reverb.rs` on the master bus. Samples in `assets/audio/`.
+- **Assets** (`assets/`): chunk and module files per biome (`assets/biomes/<biome>/`), shared
+  modules (`assets/modules/`), piano samples. Plain text and samples only; textures are drawn by
+  code.
 
 ## How a lot is built
 
-`world::generate` (on the worker threads of `src/stream.rs` while running) →
-`city::generate_lot_dressed` (cached, `CACHED_LOTS`) → `generate_structure`, in this order:
+`world::generate` (on the worker threads of `src/stream.rs`) → `city::generate_lot_dressed`
+(cached, `CACHED_LOTS`) → `generate_structure`, in this order:
 
 1. Ground, then deck slabs per floor (`deck`; `push_ring_deck` around a stairwell), and what
    hangs under a full slab (`push_underside`).
@@ -74,15 +118,21 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
 | Far skyline: front towers out to 1 km, past loaded lots | `skyline::blocks` (`RADIUS`), `tower::silhouette`; drawn by `render::skyline`,  |
 |                                                         | left out over loaded lots (`uLoaded` in `shaders/scene.fs`)                     |
 | How far over the top deck a front tower rises           | `planner::tower_stories` (a chunk's `rise`, e.g. `tower_spire`)                 |
+| Far draws fading instead of cutting                     | `Fade` (`render/mod.rs`, `shaders/fade.glsl`), `EDGE_FOG` (`uEdgeFog`,          |
+|                                                         | `post.fs`), light fade in `lights::update`                                      |
 
-## Things to know
+## Invariants
 
+- **Deterministic:** same seed, same city. Every random decision goes through `src/rng.rs`, keyed
+  by the seed and coordinates, never by time or global state.
 - **Pure per lot:** every planner and deck answer is a function of seed and lot coordinates, so a
-  lot can ask about its neighbors without generating them. Never make a lot's decision depend on
-  another lot's generated blocks: that is what floated crane jibs (each lot decided on its own).
+  lot can ask about its neighbors without generating them, and lots generate in any order on any
+  thread. A lot's decision never depends on another lot's generated blocks (that is what once
+  left crane jibs floating: each lot decided on its own).
+- **Big chunks belong to the lot holding their center:** each lot builds only its slice; a module
+  spanning several lots stands or gives way as a whole, decided the same way in every lot from
+  the plan alone.
 - **Caches:** the planner caches cell answers (`planner::cached`), `city` memoizes per-lot plan
-  answers (`memo`: `laid`, `unpinched`, `deck`, `bridges_through`) and whole lots. All are keyed by
-  `chunks::generation()`, so hot-reloaded chunks invalidate them. A new neighbor-heavy rule should
-  go through `memo`, or the tests slow down (they went from 1 s to 14 s without it).
-- **Reproducing a screenshot:** the `.txt` beside it holds the `--view ... --shot` command. Render
-  it before and after a fix; `--bench 300` on the same view gives ms/frame (5–6 ms is usual).
+  answers (`memo`: `laid`, `unpinched`, `deck`, `bridges_through`) and whole lots. All are keyed
+  by `chunks::generation()`, so hot-reloaded chunks invalidate them. Neighbor-heavy rules go
+  through `memo`, or the test suite slows down sharply.

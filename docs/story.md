@@ -84,7 +84,7 @@ mistake because they learned from humanity. Visual reference for the constructio
 
 ## Dialogue
 
-Authored, identical in every playthrough. Spoken lines are not in the prototype.
+Authored, identical in every playthrough. Not built yet.
 
 ### Conventions
 

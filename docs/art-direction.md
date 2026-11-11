@@ -1,129 +1,133 @@
 # Art direction
 
-> **Changing:** the owner chose a new target, an abandoned *Nivalis* (box geometry, pixel-art
-> textures, dense modular facades). See `docs/chunks.md`. After its style test: pixel-art materials on
-> hand-written chunks, with the ink outlines and flat light bands kept on (owner); pixel or voxel
-> foliage is a suggestion still open. The sections below describe the procedural
-> look, which the chunks replace step by step.
-
 **Core principle:** stylized 3D that reads like a 2D illustration. Shapes and color carry the image,
 not detail.
 
+## Style target: an abandoned Nivalis
+
+Reference: *Nivalis* (2025), above all a Kowloon-like wall of apartments the owner called the
+"perfect result" for the buildings (screenshots kept by the owner, outside git). What makes that
+look:
+
+- **Everything is built from boxes** with drawn textures: buildings, balconies, signs and props
+  share one visual language.
+- **Repeated modules, varied:** a facade is a grid of apartment units (window, cage, air
+  conditioner, laundry, balcony, awning), each with its own color, following consistent rules.
+- **Density and layers:** small details everywhere, bridges between towers, cables, signs, haze
+  giving depth, warm light against teal shadows.
+
+Ours is that city **abandoned**: the neon dead, the windows dark, the signs still readable but
+unlit, the glowing flowers the only light. Owner: "Pixel art was never a requirement. Cartoonish /
+Nivalis night look was." Textures are drawn at 64 pixels per meter (`pixels::PPM`) toward a painted
+look: flat tones with a narrow dithered seam between them, crisp up close, mip levels blended far
+away so no band shows.
+
+Second reference, for density and spirit: *Mirror's Edge* (a full, dense city with no people:
+punched-window facades, glass curtain walls, big colored accent panels, billboards, rooftops full
+of machinery). Ours is hazier, with night and bioluminescence.
+
+The visual pass that set today's look aimed at five things, which still hold (owner): abandoned,
+not empty; one consistent look for everything; light that composes the image; a city rather than
+a housing estate (`docs/world.md`); biomes recognizable at a glance.
+
 ## Rendering look
 
-- **Cel shading** with 2–3 flat light bands.
-- **Outlines:** black ink from an edge-detection post-process (`shaders/post.fs`), fading into the fog
-  with distance.
-- **Flat or lightly textured surfaces;** a subtle paper or grain overlay is welcome.
+- **Cel shading** with 2–3 flat light bands, kept on (owner, after the style test).
+- **Outlines:** black ink from an edge-detection post-process (`shaders/post.fs`), at every hour
+  and in every biome (owner), fading into the fog with distance.
+- **Paper grain** over the image.
 - **Colored atmospheric fog:** distance fades into tinted gradients rather than gray, creating
   painted depth layers and hiding the draw distance.
 - **Limited palettes** per mood, with strong color grading.
-- **Atmospheric particles:** drifting spores, pollen haze, mist.
-- **Chrome vs. life:** cold reflective metal and neon against soft, glowing organic forms. This
-  contrast is the visual identity.
+- **Atmospheric particles:** drifting spores and pollen, drawn as specks of a few screen pixels;
+  halos have hard steps and a dithered glow, like the textures.
+- **Chrome vs. life:** cold metal and dead neon against soft, glowing organic forms. This contrast
+  is the visual identity.
+- **Nothing pops in** (owner): every far limit fades instead of cutting (fog closing in short of
+  the loaded lots' edge below the top deck, small things and their shadows dissolving in a
+  dither, flower lights and halos fading with distance), and the far skyline's towers stay out of
+  that fog so the far city keeps its layers.
 
-## Architecture and materials
+## Architecture and surfaces
 
-Reference: Mirror's Edge (dense city, no people). Architecture is dressed by block kind in
-`shaders/scene.fs` (procedural so far): tower facades in five window styles (windows between piers,
-ribbons, slits, punched grid, glass curtain wall) with storefronts and neon at street levels, colored
-accent panels and vertical neon signs; paved streets with joints, cracks, dust and lane markings;
-roofs with a parapet, machinery (air conditioners with fans, vents, solar arrays, skylights, pipes),
-antenna masts and backlit billboards, all real blocks (`src/world/roof.rs`) so rooftops can be run
-across; modern street lights (dead, only flowers glow) at the crossroads.
+Each biome draws its own textures for every chunk material, facade unit and city surface
+(`docs/world.md`, "Biomes"). Tower walls are painted from their written elevations, with real
+units in boxes near the decks (`docs/chunks.md`, "Towers"). Surfaces look like a real city, not
+flat boxes: floors like pavement (dust, cracks), buildings like buildings. Streets carry few
+markings (owner: crossings painted everywhere was too much).
 
-Working method, at first: get the look as far as possible with code, then add a layer of real
-photo detail (CC0 concrete, asphalt, wall, metal and foliage, packed in `assets/textures/`). Retired
-in milestone 10: every surface is now the biome's pixel art (`render/pixels.rs`), the plants
-included (pass 5), and the photos and their packing tool are gone (git history keeps them).
+Open (to check with the owner): the abandoned towers have no lit window or neon, so at night the
+flowers are the only light on the facades; `docs/lore.md` allows a few lit windows and signs as the
+machines' doing.
 
-### Props and external assets: consistency rules
+## Props
 
-*(Implemented: `src/world/props.rs`, `assets/modules/props.ron`, `src/render/props.rs`.)*
-
-Two passes with external models were rejected: stylized Kenney kits ("too baby-like"), then
-photoscanned Poly Haven models (realistic, but foreign to the city's look; removed). Props are now
-**box-built modules** written as text, like the chunks (`docs/chunks.md`), in the same pixel-art
-materials, so a bench and the square it stands in come from one hand. The street light alone is
-a smooth mesh built in code (a box pole and arm read poorly). Rules:
+Props are **box-built modules** written as text like the chunks (`docs/chunks.md`), in the same
+materials, so a bench and the square it stands in come from one hand. Two passes with external
+models were rejected by the owner: stylized kits ("too baby-like"), then photoscans (realistic but
+foreign to the city's look). The street light alone is a smooth mesh built in code
+(`world/props.rs`), since a box pole and arm read poorly. Cars and hydrants were judged horrible
+(owner) and there are none.
 
 - **One language:** props use the chunk vocabulary and materials; nothing imported.
-- **Same rendering:** props go through the scene shader like every block: same cel bands,
-  outlines, shadows, fog, grain and flower lights. Drawn instanced, one mesh per prop.
+- **Same rendering:** props go through the scene shader like every block (cel bands, outlines,
+  shadows, fog, grain, flower lights).
 - **Human scale:** real sizes (a bench seat at 0.45 m, an armchair 0.9 m); their size is what
   makes the architecture feel immense.
-- **Seed places, module shapes:** what appears where comes from the seed (`dressing.rs`); a prop
-  gets a simple box for collision (a pole only, for street lights).
-- **Review:** every new prop is checked with `--shot` renders, day and night.
+- **Seed places, module shapes:** what appears where comes from the seed and the chunks' slots
+  (placement rules: `docs/world.md`, "Streets, props and points of interest").
 
 ## Wear: abandoned, not empty
 
-*(Milestone 10, pass 1: `groundWear` and `wallWear` in `shaders/scene.fs`.)* Abandonment is what
-people left and what time did to it, so every surface is worn, drawn on the same pixel grid as
-the textures (64 pixels per meter, ordered dither) in the biome's swatches and by its amounts
-(`Textures`: `dusty`, `littered`, `puddled`, `mossy`, `damp`), and by height: the depths dusty and
-stained, the canopy mossy and strewn with leaves, open sky bringing rain.
+Abandonment is what people left and what time did to it, so every surface is worn, on the same
+pixel grid as the textures, in the biome's swatches and by its amounts (`docs/world.md`,
+"Biomes"), and by height: the depths dusty and stained, the canopy mossy and strewn with leaves,
+open sky bringing rain. Drawn by `groundWear` and `wallWear` in `shaders/scene.fs`.
 
 - **Ground:** damp blotches, long cracks with weeds, dust and sand in drifts, moss in patches, dead
   leaves gathered in the gutters along the curbs, glints of broken glass, puddles with a wet rim
   that mirror the sky, the sun and the flowers' light (the strongest abandoned cue). Road
   markings are worn nearly away.
+- **Standing water stays puddles** (owner): flooded streets were tried in the Grotto and rejected
+  ("if you can't implement it then it is probably a bad idea"), and a puddle never mirrors wholly
+  (the ground shows through), or it reads as a flat slab of sky.
 - **Walls:** a ragged band of grime at the foot, moss in it where it is wet, rain streaks and the
   odd rust streak under every story's ledge, soot under the deck above.
-- **Surfaces in pixel art:** roads (asphalt with patches and sealed cracks, or the biome's
-  stone), sidewalks, curbstones, roofs (tar and gravel) and deck undersides (coffers between
-  beams, water stains, salts) are tiles of the biome's row of the atlas (`render/pixels.rs`), like
-  the chunk materials, so the street and the square share one style.
-- Broad shapes come from a noise texture (`render/noise.rs`), so the wear costs no frame time;
-  single pixels (cracks, leaves, glints) are only worked out up close.
+- **City surfaces:** roads (asphalt with patches and sealed cracks, or the biome's stone),
+  sidewalks, curbstones, roofs and deck undersides are tiles of the biome's textures like the
+  chunk materials, so the street and the square share one style.
 
-## Plants in pixel art
+## Plants
 
-*(Milestone 10, pass 5.)* Plants share the pixels of the city: a leaf, frond or blade is a flat
-cut-out drawn as square cells (64 per meter, the textures' density) in its own leaf coordinates, in a few flat tones of
-its color dithered from a dark root to a light tip, with a lighter midrib and a darker rim, its
-edge ragged where cells of the outer columns are cut away (`pixelLeaf` in `shaders/scene.fs`).
-Fronds are nearly flat, with just enough fold for volume. Flowers stay clean and glowing, since
-they are the light, but in the same cells: each petal is a sprite cut cell by cell to a kite, so
-its outline steps, pale by the bright core, the flower's color further out, a darker rim and a
-pale vein (`pixelPetal`); the core is drawn in world-space cells like the stems.
+Plants share the pixels of the city: a leaf, frond or blade is a flat cut-out drawn in square
+cells at the textures' density, in a few flat tones of its color dithered from a dark root to a
+light tip, with a lighter midrib, a darker rim and a ragged edge (`pixelLeaf` in
+`shaders/scene.fs`). Fronds are nearly flat, with just enough fold for volume. Flowers stay clean
+and glowing, since they are the light, but in the same cells: petals cut to a stepped kite, pale
+by the bright core, a darker rim (`pixelPetal`).
 
 ## Things left behind
 
-*(Milestone 10, pass 3: `src/world/leftovers.rs`.)* Empty becomes abandoned when things lie where
-they fell. By rule, never by hand: debris at the foot of every wall, every 3 m at the floor's
-`debris` chance (dense in the depths, rare at the construction front) and the biome's
-`littered`: what fell from a tower facade (lumps of concrete, a heap of rubble, bricks, a window
-frame, a panel) or was dropped against a low wall (bags, boxes, papers, a tyre), each turned at
-random, never in a road. Weeds (three to five blades from a crack) at the foot of the walls and
-behind the curbs. Cables sag across the streets between towers facing each other, one to four
-per floor, drawn as short boxes that step like pixels.
+Empty becomes abandoned when things lie where they fell. By rule, never by hand
+(`world/leftovers.rs`): debris at the foot of every wall (what fell from a tower facade, or was
+dropped against a low wall), never in a road; weeds at the foot of the walls and behind the curbs;
+cables sagging across the streets between towers facing each other, stepped like pixels.
 
 ## Light under the decks
 
-*(Milestone 10, pass 1.)* Most of the city lies under a deck. There the haze, not the sky, is the
-light: it is brighter than the walls standing in it, so they read as silhouettes against it
-(*Blade Runner*, *Stray*), and it takes a hue per height, the biome's color script
-(`Atmosphere::heights`): cold blue-green in the depths, where every flower stands out, warm amber
-in the middle, gold under the canopy (the Grotto: deep blue, teal, pale aqua). The ambient light
-of surfaces the sky does not reach takes the same hue. At night the haze takes the colors of the
-flowers around the eye, faint where there are few, so walls still stand out in the dark. Under
-the decks the eye adapts a little (the image opens up by a third). Particles are specks of a few
-screen pixels and halos have hard steps and a dithered glow, like the textures.
+Most of the city lies under a deck. There the haze, not the sky, is the light: it is brighter
+than the walls standing in it, so they read as silhouettes against it (*Blade Runner*, *Stray*),
+and it takes a hue per height, the biome's color script (`Atmosphere::heights`): cold blue-green
+in the depths, where every flower stands out, warm amber in the middle, gold under the canopy.
+The ambient light of surfaces the sky does not reach takes the same hue. At night the haze takes
+the colors of the flowers around the eye, faint where there are few, so walls still stand out in
+the dark. Under the decks the eye adapts a little. The depths stay dark (owner: loved as it is).
 
-*(Pass 2.)* Where the sun gets through a hole or a crater into the floors below, it lights the
-haze as beams: the shafts are the haze in the sun that sees little sky (`fogLight` in
-`shaders/post.fs`), brightest looking toward the sun, and the moon makes faint ones at night. The
-deck overhead is a structure, not a flat ceiling: girders along the lot borders, joists between,
-pipe runs from lot to lot, dead lamps on their rods, water dripping to the floor. A flower lights
-the wall it faces further off than the ground around it (a wash up the wall), so the walls show
-where the flowers are.
-
-## Reference views
-
-Every look change is judged on the same images: `python3 tools/lookdev.py LABEL` renders eight
-views at day, dusk and night into `screenshots/lookdev/LABEL/` (a sheet per time of day), to set
-side by side with an earlier label.
+Where the sun gets through a hole or a crater into the floors below, it lights the haze as beams
+(`fogLight` in `shaders/post.fs`), brightest looking toward the sun; the moon makes faint ones at
+night. The deck overhead is a structure, not a flat ceiling: girders along the lot borders,
+joists, pipe runs, dead lamps on their rods, water dripping. A flower lights the wall it faces
+further off than the ground around it, so the walls show where the flowers are.
 
 ## Day/night cycle
 
@@ -131,22 +135,18 @@ Time of day evolves continuously. Sun direction, sky, fog color, palette and gra
 interpolating smoothly between key phases (each biome has its own looks for them, the default
 biome's described here; `docs/world.md`, "Biomes"):
 
-- **Dawn:** cool, pale haze; neon fading, plants dimming.
+- **Dawn:** cool, pale haze; plants dimming.
 - **Day:** warm, hazy layers of chrome and overgrowth fading into ochre or teal fog.
-- **Dusk:** saturated warm-to-violet transition; the first plants and signs light up.
-- **Night:** dark fog; bioluminescence (cyan, green, soft magenta) and neon become the only light.
+- **Dusk:** saturated warm-to-violet transition; the first flowers light up.
+- **Night:** dark fog; the flowers' bioluminescence (cyan, green, soft magenta) is the only light.
 
-Plant glow intensity follows the cycle (faint by day, strongest at night). The full cycle duration
-is a single tweakable parameter, default ≈ 20 minutes.
+Flower glow follows the cycle (faint by day, strongest at night). The full cycle's length is one
+parameter (`daycycle.rs`).
 
 ## Light plants
 
-**Flowers are the light sources, not whole plants.** A bush, vine or climber is foliage; the small
-flowers or buds growing on it emit the light. Each light sits at its flower, takes the flower's
-color, has a visible glowing source (halo) and stays small and tightly tied to it, so the viewer can
-see which flower casts which light.
-
-Light plants are actual light sources affecting their surroundings. There are many small lights, so
-lighting must scale (e.g. clustered/tiled forward or deferred light accumulation). The dev machine
-now has an RTX 3060 (previously an Intel Arrow Lake-U iGPU); still target a smooth framerate on a
-mid-range GPU, and keep the render-scale option for weaker ones.
+**Flowers are the light sources, not whole plants** (owner). A bush, vine or climber is foliage;
+the flowers growing on it emit the light. Each light sits at its flower, takes the flower's color,
+has a visible glowing source (halo) and stays small and tightly tied to it, so the viewer can see
+which flower casts which light. There are many small lights, binned in a camera grid
+(`render/lights.rs`) so the count scales.
