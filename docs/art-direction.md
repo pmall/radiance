@@ -56,10 +56,6 @@ units in boxes near the decks (`docs/chunks.md`, "Towers"). Surfaces look like a
 flat boxes: floors like pavement (dust, cracks), buildings like buildings. Streets carry few
 markings (owner: crossings painted everywhere was too much).
 
-Open (to check with the owner): the abandoned towers have no lit window or neon, so at night the
-flowers are the only light on the facades; `docs/lore.md` allows a few lit windows and signs as the
-machines' doing.
-
 ## Props
 
 Props are **box-built modules** written as text like the chunks (`docs/chunks.md`), in the same

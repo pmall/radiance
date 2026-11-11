@@ -59,7 +59,6 @@ it. Having to fight the type system means the design needs rethinking. In Rust:
 - Expected failures (a missing asset, a malformed chunk file, a bad flag) are `Result`s with a
   message that says what went wrong. No `unwrap` on them. Broken invariants panic, through `expect`
   naming the invariant.
-- Numeric `as` casts only where the value is known to fit.
 - No `#[allow]` without a reason: `#[expect(lint, reason = "...")]`.
 - Every `unsafe` block (raw FFI) starts with a `// SAFETY:` comment stating the invariant it
   relies on.
@@ -130,8 +129,7 @@ decides on the product: "keep going" is not approval of a suggestion the agent m
   scale is the megacity's atmosphere. The city is a finite stack of floors; horizontal endlessness
   is not a goal, and floors may become bounded if that helps the game.
 - **Deterministic**: same seed, same city, so a city can be shared, reported on and tested. All
-  randomness goes through `src/rng.rs`; nothing generated may depend on hash map iteration order or
-  on which worker thread finishes first.
+  randomness goes through `src/rng.rs`.
 - **Surface look is free**: textures, images and other assets, authored or procedural, whichever
   looks best. The seed decides what is placed where; assets only decide how surfaces look. No
   editor: the project stays plain text. Never trade visual quality for avoiding assets.

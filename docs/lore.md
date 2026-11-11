@@ -34,9 +34,7 @@ city looks like and sounds like.
 
 ## What it means for the graphics
 
-- Lit windows and neon are the machines' doing: building systems still running on automatic power.
-  Keep them plain, cold or warm white, sparse and mechanical, never "someone is home". Neon signs are
-  old advertising still powered. (The towers have none today: `docs/art-direction.md`.)
+- No lit window and no neon: the city is abandoned, so at night the flowers are its only light.
 - The city is still being built: some towers end in a bare frame of stories with a frozen tower
   crane on top. Still possible: scaffolding on walls, stacked materials. Everything stays still
   (no moving machines on screen), as if paused or seen between shifts. Visual reference for the
