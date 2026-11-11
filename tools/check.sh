@@ -3,7 +3,7 @@
 #   tools/check.sh fast   format, lint, type-check: ends every turn that changed files
 #   tools/check.sh full   fast, then the tests and the release build: ends every session that
 #                         changed code
-# Clippy warnings are not fatal yet: add `-- -D warnings` once the code has none left.
+# Clippy warnings are fatal: the code has none, and each new one is fixed where it appears.
 set -eu
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -18,7 +18,7 @@ esac
 
 cargo fmt
 dprint fmt
-cargo clippy --all-targets
+cargo clippy --all-targets -- -D warnings
 
 if [ "${1:-fast}" = full ]; then
     cargo test --release

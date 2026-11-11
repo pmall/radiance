@@ -260,19 +260,33 @@ fn network(seed: u64, x0: i32, z0: i32) -> Vec<Roads> {
 mod tests {
     use super::*;
 
-    /// Every road of a window of lots on every floor: the lot it borders, the step across, the
-    /// floor.
-    fn all_roads(seed: u64, r: i32) -> Vec<((i32, i32), (i32, i32), usize)> {
+    /// A road of the network, as the tests walk it.
+    #[derive(Clone, Copy)]
+    struct Road {
+        /// The lot it borders on its -x or -z side.
+        lot: (i32, i32),
+        /// The step across it: (-1, 0) or (0, -1).
+        across: (i32, i32),
+        floor: usize,
+    }
+
+    /// Every road of a window of lots on every floor.
+    fn all_roads(seed: u64, r: i32) -> Vec<Road> {
         let mut out = Vec::new();
         for lz in -r..r {
             for lx in -r..r {
                 let here = roads(seed, lx, lz);
                 for f in 0..floors::count() {
+                    let road = |across| Road {
+                        lot: (lx, lz),
+                        across,
+                        floor: f,
+                    };
                     if here.west >> f & 1 != 0 {
-                        out.push(((lx, lz), (-1, 0), f));
+                        out.push(road((-1, 0)));
                     }
                     if here.south >> f & 1 != 0 {
-                        out.push(((lx, lz), (0, -1), f));
+                        out.push(road((0, -1)));
                     }
                 }
             }
@@ -305,7 +319,12 @@ mod tests {
         for seed in [1, 7] {
             let all = all_roads(seed, 12);
             assert!(all.len() > 1000, "seed {seed}: only {} roads", all.len());
-            for ((lx, lz), (dx, dz), f) in all {
+            for Road {
+                lot: (lx, lz),
+                across: (dx, dz),
+                floor: f,
+            } in all
+            {
                 // The road's corners: lot (lx, lz)'s -x-z corner and the next one along it.
                 let (ex, ez) = (dz.abs(), dx.abs());
                 for (cx, cz) in [(lx, lz), (lx + ex, lz + ez)] {
@@ -331,7 +350,12 @@ mod tests {
     #[test]
     fn every_network_spans_more_than_a_couple_of_blocks() {
         for seed in [1, 7] {
-            for ((lx, lz), _, f) in all_roads(seed, 8) {
+            for Road {
+                lot: (lx, lz),
+                floor: f,
+                ..
+            } in all_roads(seed, 8)
+            {
                 // Walk the network from the road's first corner until it proves wide enough.
                 let start = (lx, lz);
                 let (mut seen, mut todo) = (vec![start], vec![start]);
@@ -370,7 +394,12 @@ mod tests {
             let all = all_roads(seed, 12);
             let ends = all
                 .iter()
-                .filter(|&&((lx, lz), (dx, dz), f)| {
+                .filter(|road| {
+                    let Road {
+                        lot: (lx, lz),
+                        across: (dx, dz),
+                        floor: f,
+                    } = **road;
                     let (ex, ez) = (dz.abs(), dx.abs());
                     // Another road at corner c: two or more meet there.
                     let others = |(x, z): (i32, i32)| {
