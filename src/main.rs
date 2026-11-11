@@ -16,7 +16,7 @@ use daycycle::DayCycle;
 use debug::Debug;
 use player::{Input, Player};
 use render::look::{Blend, PRESET_TIMES, Sky};
-use render::{EFFECTS, Renderer, View};
+use render::{Renderer, View};
 use world::World;
 
 const DEFAULT_SEED: u64 = 1;
@@ -36,7 +36,7 @@ struct Args {
     time: Option<f32>,
     view: Option<[f32; 5]>,
     shot: Option<String>,
-    /// Effect bit mask override (see `render::EFFECTS`), for comparing looks in shots.
+    /// Effect bit mask override (`render::FX_*`, keys in `debug::EFFECT_KEYS`), for comparing looks in shots.
     fx: Option<i32>,
     /// Render this many frames without vsync, print the average frame time and exit.
     bench: Option<u32>,
@@ -309,14 +309,9 @@ fn main() {
         if rl.is_key_pressed(KEY_F2) {
             player.toggle_fly();
         }
-        for (i, key) in [
-            KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F11, KEY_X,
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            if rl.is_key_pressed(key) {
-                renderer.effects ^= EFFECTS[i].0;
+        for e in &debug::EFFECT_KEYS {
+            if rl.is_key_pressed(e.key) {
+                renderer.effects ^= e.bit;
             }
         }
         if rl.is_key_pressed(KEY_F9) {

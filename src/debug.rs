@@ -6,7 +6,7 @@ use sola_raylib::prelude::*;
 
 use crate::daycycle::DayCycle;
 use crate::player::Player;
-use crate::render::{EFFECTS, Renderer};
+use crate::render::{self, Renderer};
 use crate::world::World;
 
 pub struct Debug {
@@ -113,8 +113,40 @@ fn bearing(player: &Player, target: glam::Vec3) -> String {
     format!("{:.0} m at {hour} o'clock", glam::vec2(v.x, v.z).length())
 }
 
-/// Key of each effect in `EFFECTS`, same order as the bindings in `main`.
-const EFFECT_KEYS: [&str; 8] = ["F3", "F4", "F5", "F6", "F7", "F8", "F11", "X"];
+/// A key that switches one render effect on and off.
+pub struct EffectKey {
+    pub key: KeyboardKey,
+    /// The key as the overlay names it.
+    pub label: &'static str,
+    /// The effect's bit (`render::FX_*`).
+    pub bit: i32,
+    /// The effect as the overlay names it.
+    pub name: &'static str,
+}
+
+/// Every effect toggle, in the order the overlay lists them.
+pub const EFFECT_KEYS: [EffectKey; 8] = {
+    use KeyboardKey::*;
+    use render::*;
+    const fn k(key: KeyboardKey, label: &'static str, bit: i32, name: &'static str) -> EffectKey {
+        EffectKey {
+            key,
+            label,
+            bit,
+            name,
+        }
+    }
+    [
+        k(KEY_F3, "F3", FX_OUTLINES, "outlines"),
+        k(KEY_F4, "F4", FX_FOG, "fog"),
+        k(KEY_F5, "F5", FX_CEL, "cel"),
+        k(KEY_F6, "F6", FX_SHADOWS, "shadows"),
+        k(KEY_F7, "F7", FX_GRADING, "grading"),
+        k(KEY_F8, "F8", FX_GRAIN, "grain"),
+        k(KEY_F11, "F11", FX_PARTICLES, "particles"),
+        k(KEY_X, "X", FX_TEXTURE, "texture"),
+    ]
+};
 
 const TITLE_SIZE: i32 = 32;
 const TEXT_SIZE: i32 = 18;
@@ -238,11 +270,10 @@ impl Debug {
             ),
             Color::RAYWHITE,
         );
-        let off: Vec<String> = EFFECTS
+        let off: Vec<String> = EFFECT_KEYS
             .iter()
-            .enumerate()
-            .filter(|(_, (bit, _))| renderer.effects & bit == 0)
-            .map(|(i, (_, name))| format!("{name} ({})", EFFECT_KEYS[i]))
+            .filter(|e| renderer.effects & e.bit == 0)
+            .map(|e| format!("{} ({})", e.name, e.label))
             .collect();
         say(
             if off.is_empty() {
@@ -340,6 +371,17 @@ pub fn save_screenshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_effect_has_one_key() {
+        let mut all = 0;
+        for e in &EFFECT_KEYS {
+            assert_eq!(e.bit.count_ones(), 1, "{}", e.name);
+            assert_eq!(all & e.bit, 0, "{} twice", e.name);
+            all |= e.bit;
+        }
+        assert_eq!(all, render::FX_ALL);
+    }
 
     #[test]
     fn finder_points_to_a_stair_up_and_a_crater_from_the_spawn() {

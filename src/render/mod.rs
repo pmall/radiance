@@ -55,18 +55,6 @@ pub const FX_PARTICLES: i32 = 64;
 pub const FX_TEXTURE: i32 = 128;
 pub const FX_ALL: i32 = 255;
 
-/// Effect bits with their names, for the debug overlay.
-pub const EFFECTS: [(i32, &str); 8] = [
-    (FX_OUTLINES, "outlines"),
-    (FX_FOG, "fog"),
-    (FX_CEL, "cel"),
-    (FX_SHADOWS, "shadows"),
-    (FX_GRADING, "grading"),
-    (FX_GRAIN, "grain"),
-    (FX_PARTICLES, "particles"),
-    (FX_TEXTURE, "texture"),
-];
-
 pub const RENDER_SCALES: [f32; 4] = [0.5, 0.75, 1.0, 1.5];
 
 // Every material map slot the renderer writes is one LoadMaterialDefault allocates (the SAFETY
