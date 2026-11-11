@@ -5,6 +5,7 @@
 
 use super::mesh::MeshData;
 use super::overlay::{Overlay, QUAD};
+use super::shader::shader_file;
 use crate::rng::Rng;
 
 const COUNT: usize = 7000;
@@ -31,8 +32,8 @@ pub fn new() -> Overlay {
         }
     }
     Overlay::new(
-        ("particles.vs", include_str!("../../shaders/particles.vs")),
-        ("particles.fs", include_str!("../../shaders/particles.fs")),
+        shader_file!("particles.vs"),
+        shader_file!("particles.fs"),
         m.upload(),
     )
 }

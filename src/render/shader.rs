@@ -19,11 +19,20 @@ use sola_raylib::ffi;
 
 const SHADER_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/shaders");
 
+/// A file of `shaders/` as `HotShader` and `INCLUDES` take it: (file name, embedded source), from
+/// the name alone.
+macro_rules! shader_file {
+    ($name:literal) => {
+        (
+            $name,
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/shaders/", $name)),
+        )
+    };
+}
+pub(crate) use shader_file;
+
 /// The files shaders may include: name and embedded source.
-const INCLUDES: &[(&str, &str)] = &[
-    ("cover.glsl", include_str!("../../shaders/cover.glsl")),
-    ("fade.glsl", include_str!("../../shaders/fade.glsl")),
-];
+const INCLUDES: &[(&str, &str)] = &[shader_file!("cover.glsl"), shader_file!("fade.glsl")];
 
 pub struct HotShader {
     pub raw: ffi::Shader,

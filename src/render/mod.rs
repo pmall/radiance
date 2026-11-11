@@ -40,7 +40,7 @@ use lights::LightGrid;
 use look::Sky;
 use mesh::{Part, WorldMesh};
 use overlay::Overlay;
-use shader::HotShader;
+use shader::{HotShader, shader_file};
 use shadow::ShadowMap;
 use std::collections::HashMap;
 use targets::SceneTargets;
@@ -270,11 +270,8 @@ fn details_near(
 impl Renderer {
     /// Requires an open window (GL context).
     pub fn new() -> Self {
-        let scene = HotShader::new(
-            Some(("scene.vs", include_str!("../../shaders/scene.vs"))),
-            ("scene.fs", include_str!("../../shaders/scene.fs")),
-        );
-        let post = HotShader::new(None, ("post.fs", include_str!("../../shaders/post.fs")));
+        let scene = HotShader::new(Some(shader_file!("scene.vs")), shader_file!("scene.fs"));
+        let post = HotShader::new(None, shader_file!("post.fs"));
         let shadow = ShadowMap::new();
         // SAFETY: GL call on the window's thread (module doc).
         let mut material = unsafe { ffi::LoadMaterialDefault() };

@@ -4,25 +4,24 @@
 //! A chunk file holds one `Chunk`; a module file holds a list of `Module`s. Coordinates are meters,
 //! local to the chunk (origin at its corner, `y = 0` on the walking surface of its floor). The
 //! world is axis-aligned boxes, so turns are quarter turns. Files are read from disk at run time
-//! and hot-reloaded (`poll`); the seed picks what `Slot`s hold.
+//! and hot-reloaded (`chunk_files`, the one module that knows where and how they are stored); the
+//! seed picks what `Slot`s hold.
 //!
-//! Chunks and modules are grouped by biome: `assets/biomes/<biome>/chunks/` and `.../modules/`,
-//! plus the shared modules of `assets/modules/` (props, street furniture) every biome can use.
+//! Chunks and modules are grouped by biome, plus shared modules (props, street furniture) every
+//! biome can use.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, OnceLock, RwLock};
-use std::time::SystemTime;
+use std::sync::{Arc, OnceLock};
 
 use glam::{Vec3, vec3};
 use serde::Deserialize;
 use sola_raylib::prelude::Color;
 
 use super::Aabb;
+use super::chunk_files::{BiomeFiles, Files};
+pub use super::chunk_files::{catalogs, generation, poll};
 use crate::rng::Rng;
 
-const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets");
 /// Modules may use modules, this deep at most (a guard against a module using itself).
 const MAX_DEPTH: usize = 12;
 
@@ -594,14 +593,6 @@ pub struct Catalog {
     pub modules: HashMap<String, Module>,
 }
 
-/// A biome's own file (`assets/biomes/<name>/biome.ron`, optional).
-#[derive(Deserialize, Default)]
-struct BiomeFile {
-    /// Biomes whose chunks and modules this one also draws from (its own win on a name).
-    #[serde(default)]
-    include: Vec<String>,
-}
-
 /// Biome whose catalog stands in for a biome without a folder.
 pub const DEFAULT_BIOME: &str = "default";
 
@@ -654,105 +645,22 @@ fn assign_elevations(c: &mut Catalog, out: &mut Vec<Elevation>, errors: &mut Vec
     }
 }
 
-/// RON as chunk files are written: optional values without `Some(...)` (`accent: (150, 52, 40)`).
-fn ron_options() -> ron::Options {
-    ron::Options::default().with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME)
-}
-
-fn ron_files(dir: &Path) -> Vec<PathBuf> {
-    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "ron"))
-        .collect();
-    files.sort();
-    files
-}
-
-/// Biome folders under `<root>/biomes/`, sorted.
-fn biome_dirs(root: &Path) -> Vec<PathBuf> {
-    let mut dirs: Vec<PathBuf> = std::fs::read_dir(root.join("biomes"))
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_dir())
-        .collect();
-    dirs.sort();
-    dirs
-}
-
-fn read<T: serde::de::DeserializeOwned>(path: &Path, errors: &mut Vec<String>) -> Option<T> {
-    match std::fs::read_to_string(path)
-        .map_err(|e| e.to_string())
-        .and_then(|s| ron_options().from_str::<T>(&s).map_err(|e| e.to_string()))
-    {
-        Ok(v) => Some(v),
-        Err(e) => {
-            errors.push(format!("{}: {e}", path.display()));
-            None
-        }
-    }
-}
-
-fn read_modules(dir: &Path, errors: &mut Vec<String>) -> HashMap<String, Module> {
-    ron_files(dir)
-        .iter()
-        .filter_map(|p| read::<Vec<Module>>(p, errors))
-        .flatten()
-        .map(|m| (m.name.clone(), m))
-        .collect()
-}
-
 impl Catalogs {
-    fn load() -> Catalogs {
-        Catalogs::load_from(Path::new(ASSETS))
-    }
-
-    /// The catalogs of an assets folder (`assets/`, or a test's own).
-    fn load_from(root: &Path) -> Catalogs {
-        let mut errors = Vec::new();
-        let shared = read_modules(&root.join("modules"), &mut errors);
-        // Each biome's own files first, then the includes resolved.
-        struct Own {
-            include: Vec<String>,
-            chunks: HashMap<String, Chunk>,
-            modules: HashMap<String, Module>,
-        }
-        let mut own: HashMap<String, Own> = HashMap::new();
-        for dir in biome_dirs(root) {
-            let name = dir.file_name().unwrap().to_string_lossy().to_string();
-            let file = dir.join("biome.ron");
-            let include = if file.exists() {
-                read::<BiomeFile>(&file, &mut errors)
-                    .unwrap_or_default()
-                    .include
-            } else {
-                Vec::new()
-            };
-            let chunks = ron_files(&dir.join("chunks"))
-                .iter()
-                .filter_map(|p| read::<Chunk>(p, &mut errors))
-                .map(|c| (c.name.clone(), c))
-                .collect();
-            let modules = read_modules(&dir.join("modules"), &mut errors);
-            own.insert(
-                name,
-                Own {
-                    include,
-                    chunks,
-                    modules,
-                },
-            );
-        }
+    /// The catalogs from the files read (`chunk_files`): each biome's collection gathered over its
+    /// includes, over the shared modules, and the towers' elevations numbered.
+    pub(super) fn assemble(files: Files) -> Catalogs {
+        let Files {
+            shared,
+            biomes: read,
+            mut errors,
+        } = files;
+        let own: HashMap<&str, &BiomeFiles> = read.iter().map(|b| (b.name.as_str(), b)).collect();
         // A biome's whole collection: what it includes (recursively, each once), then its own.
         fn gather<'a>(
             name: &str,
-            own: &'a HashMap<String, Own>,
+            own: &HashMap<&str, &'a BiomeFiles>,
             seen: &mut Vec<String>,
-            out: &mut Vec<&'a Own>,
+            out: &mut Vec<&'a BiomeFiles>,
         ) {
             if seen.iter().any(|s| s == name) {
                 return;
@@ -767,9 +675,8 @@ impl Catalogs {
         }
         let mut biomes = HashMap::new();
         let mut elevations = vec![plain_elevation()];
-        let mut names: Vec<&String> = own.keys().collect();
-        names.sort();
-        for name in names {
+        // In folder order (sorted), which numbers the elevations.
+        for name in read.iter().map(|b| &b.name) {
             let mut layers = Vec::new();
             gather(name, &own, &mut Vec::new(), &mut layers);
             let mut c = Catalog {
@@ -786,13 +693,16 @@ impl Catalogs {
             assign_elevations(&mut c, &mut elevations, &mut errors);
             biomes.insert(name.clone(), Arc::new(c));
         }
-        for (name, o) in &own {
-            for i in o.include.iter().filter(|i| !own.contains_key(*i)) {
-                errors.push(format!("biome {name} includes {i}, which has no folder"));
+        for o in &read {
+            for i in o.include.iter().filter(|i| !own.contains_key(i.as_str())) {
+                errors.push(format!(
+                    "biome {} includes {i}, which has no folder",
+                    o.name
+                ));
             }
         }
         if !biomes.contains_key(DEFAULT_BIOME) {
-            errors.push(format!("no assets/biomes/{DEFAULT_BIOME}/ folder"));
+            errors.push(format!("no {DEFAULT_BIOME} biome folder"));
             biomes.insert(
                 DEFAULT_BIOME.to_string(),
                 Arc::new(Catalog {
@@ -813,16 +723,6 @@ impl Catalogs {
     }
 }
 
-fn store() -> &'static RwLock<Arc<Catalogs>> {
-    static STORE: OnceLock<RwLock<Arc<Catalogs>>> = OnceLock::new();
-    STORE.get_or_init(|| RwLock::new(Arc::new(Catalogs::load())))
-}
-
-/// Every biome's catalog, as currently loaded.
-pub fn catalogs() -> Arc<Catalogs> {
-    store().read().unwrap().clone()
-}
-
 /// The catalog of a biome (`biome::Biome::name`); a biome without a folder draws from the
 /// default one.
 pub fn catalog(biome: &str) -> Arc<Catalog> {
@@ -832,45 +732,6 @@ pub fn catalog(biome: &str) -> Arc<Catalog> {
         .or_else(|| all.biomes.get(DEFAULT_BIOME))
         .cloned()
         .unwrap_or_default()
-}
-
-/// Newest modification time of the catalog's files.
-fn stamp() -> Option<SystemTime> {
-    let root = Path::new(ASSETS);
-    let mut dirs = vec![root.join("modules")];
-    for d in biome_dirs(root) {
-        dirs.extend([d.join("chunks"), d.join("modules"), d.clone()]);
-    }
-    dirs.iter()
-        .flat_map(|d| ron_files(d))
-        .filter_map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
-        .max()
-}
-
-/// Reloads the catalog if a file changed on disk. Returns true when it did (the world must then be
-/// generated again).
-pub fn poll() -> bool {
-    static LAST: RwLock<Option<SystemTime>> = RwLock::new(None);
-    let now = stamp();
-    let mut last = LAST.write().unwrap();
-    if last.is_none() {
-        *last = now;
-        return false;
-    }
-    if *last == now {
-        return false;
-    }
-    *last = now;
-    *store().write().unwrap() = Arc::new(Catalogs::load());
-    GENERATION.fetch_add(1, Ordering::Relaxed);
-    true
-}
-
-static GENERATION: AtomicU64 = AtomicU64::new(0);
-
-/// Bumped on every reload, so caches built from the catalog know when to start over.
-pub fn generation() -> u64 {
-    GENERATION.load(Ordering::Relaxed)
 }
 
 /// A placement transform: quarter turns and mirrors in the horizontal plane, then a shift.
@@ -1339,37 +1200,6 @@ pub fn preview_footprint() -> Option<((i32, i32), (i32, i32))> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn biomes_include_other_biomes() {
-        let root = std::env::temp_dir().join(format!("radiance-biomes-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        let write = |path: &str, text: &str| {
-            let p = root.join(path);
-            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-            std::fs::write(p, text).unwrap();
-        };
-        let chunk = |name: &str| {
-            format!("Chunk(name: \"{name}\", size: (1, 1), parts: [Module(name: \"post\")])")
-        };
-        write("modules/a.ron", "[Module(name: \"post\", parts: [])]");
-        write("biomes/default/chunks/house.ron", &chunk("house"));
-        write("biomes/rust/biome.ron", "(include: [\"default\"])");
-        write("biomes/rust/chunks/scrap.ron", &chunk("scrap"));
-        write(
-            "biomes/rust/modules/m.ron",
-            "[Module(name: \"post\", parts: [Box(at: (0.0, 0.0, 0.0), size: (1.0, 1.0, 1.0), mat: Rust)])]",
-        );
-        let all = Catalogs::load_from(&root);
-        let _ = std::fs::remove_dir_all(&root);
-        assert!(all.errors.is_empty(), "{:?}", all.errors);
-        let (d, r) = (&all.biomes["default"], &all.biomes["rust"]);
-        assert!(d.chunks.contains_key("house") && !d.chunks.contains_key("scrap"));
-        assert!(r.chunks.contains_key("house") && r.chunks.contains_key("scrap"));
-        // The biome's own module wins over the shared one of the same name.
-        assert!(d.modules["post"].parts.is_empty());
-        assert_eq!(r.modules["post"].parts.len(), 1);
-    }
 
     #[test]
     fn transforms_compose() {

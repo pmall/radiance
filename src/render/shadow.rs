@@ -9,7 +9,7 @@ use glam::camera::rh::view::look_at_mat4;
 use glam::{Mat4, Vec3, vec3};
 use sola_raylib::ffi;
 
-use super::shader::HotShader;
+use super::shader::{HotShader, shader_file};
 use super::targets::texture;
 use super::{Bounded, Fade, IDENTITY, v3};
 
@@ -32,10 +32,7 @@ impl ShadowMap {
     pub fn new() -> Self {
         use ffi::rlFramebufferAttachTextureType::RL_ATTACHMENT_TEXTURE2D as TEX2D;
         use ffi::rlFramebufferAttachType::*;
-        let shader = HotShader::new(
-            Some(("shadow.vs", include_str!("../../shaders/shadow.vs"))),
-            ("shadow.fs", include_str!("../../shaders/shadow.fs")),
-        );
+        let shader = HotShader::new(Some(shader_file!("shadow.vs")), shader_file!("shadow.fs"));
         // SAFETY: GL call on the window's thread (module doc).
         let mut material = unsafe { ffi::LoadMaterialDefault() };
         material.shader = shader.raw;

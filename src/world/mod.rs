@@ -1,6 +1,7 @@
 //! World geometry and generation: the city skeleton plus a spatial index for collision.
 
 pub mod biome;
+mod chunk_files;
 pub mod chunks;
 pub mod city;
 pub mod design;

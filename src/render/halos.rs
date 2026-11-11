@@ -12,6 +12,7 @@ use sola_raylib::ffi;
 use super::lights::MAX_LIGHTS;
 use super::mesh::MeshData;
 use super::overlay::{Overlay, QUAD};
+use super::shader::shader_file;
 
 pub fn new(light_texture: ffi::Texture2D) -> Overlay {
     let mut m = MeshData::default();
@@ -22,8 +23,8 @@ pub fn new(light_texture: ffi::Texture2D) -> Overlay {
         }
     }
     let halos = Overlay::new(
-        ("halos.vs", include_str!("../../shaders/halos.vs")),
-        ("halos.fs", include_str!("../../shaders/halos.fs")),
+        shader_file!("halos.vs"),
+        shader_file!("halos.fs"),
         m.upload(),
     );
     // SAFETY: slot 2 is below MAX_MATERIAL_MAPS (12), the maps LoadMaterialDefault allocates.

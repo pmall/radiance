@@ -1,14 +1,15 @@
 //! The constants the shaders repeat from the Rust code (GLSL cannot read them), checked here so a
 //! change on one side without the other fails the tests instead of drawing a wrong picture.
 
+use super::shader::shader_file;
 use super::{FX_CEL, FX_FOG, FX_GRADING, FX_GRAIN, FX_OUTLINES, FX_TEXTURE, cover, lights, pixels};
 use crate::world::biome::{MAX_BIOMES, PALETTE_VEC3S};
 use crate::world::{city, floors};
 
-const SCENE_FS: &str = include_str!("../../shaders/scene.fs");
-const POST_FS: &str = include_str!("../../shaders/post.fs");
-const HALOS_VS: &str = include_str!("../../shaders/halos.vs");
-const COVER_GLSL: &str = include_str!("../../shaders/cover.glsl");
+const SCENE_FS: &str = shader_file!("scene.fs").1;
+const POST_FS: &str = shader_file!("post.fs").1;
+const HALOS_VS: &str = shader_file!("halos.vs").1;
+const COVER_GLSL: &str = shader_file!("cover.glsl").1;
 
 /// The value written after `decl = ` (e.g. `const int LW`) in a shader, up to the `;`.
 fn value<'a>(file: &str, src: &'a str, decl: &str) -> &'a str {

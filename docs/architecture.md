@@ -19,8 +19,9 @@ code implements are in `docs/world.md` (generation), `docs/chunks.md` (hand-writ
   - `design.rs`: the floor profiles, every generation number that depends on the floor, and the
     props / points of interest switches.
   - `biome.rs`: the map's zones and everything a biome sets (`docs/world.md`, "Biomes").
-  - `chunks.rs`: the chunk and module files of `assets/` and their vocabulary; `planner.rs`: which
-    chunk stands where (`docs/chunks.md`).
+  - `chunks.rs`: the chunk and module vocabulary and the catalogs; `chunk_files.rs`: where and how
+    their files are stored in `assets/`, read and hot-reloaded; `planner.rs`: which chunk stands
+    where (`docs/chunks.md`).
   - `city.rs`: builds a lot from the plan (ground, decks, stairs, towers, bridges, chunks);
     `tower.rs`: tower chunks; `roads.rs`: the road network; `leftovers.rs`: debris and cables;
     `growth.rs`: plants and flowers; `props.rs`: the props placed instanced; `skyline.rs`: the
@@ -40,9 +41,9 @@ code implements are in `docs/world.md` (generation), `docs/chunks.md` (hand-writ
   - `props.rs` draws props instanced, `skyline.rs` meshes the far skyline off the main thread;
   - `look.rs` holds the time-of-day palettes and the blend of biome atmospheres.
 - **Shaders** (`shaders/`): GLSL 330, hot-reloaded from disk and embedded as a fallback
-  (`render/shader.rs`); `#include "file"` pulls in a shared file (`INCLUDES`), such as
-  `cover.glsl` or `fade.glsl` (far draws dissolve in a dither instead of cutting). The constants
-  the shaders repeat from the Rust code are checked by tests in `render/mirrors.rs`.
+  (`render/shader.rs`, `shader_file!`); `#include "file"` pulls in a shared file (`INCLUDES`),
+  such as `cover.glsl` or `fade.glsl` (far draws dissolve in a dither instead of cutting). The
+  constants the shaders repeat from the Rust code are checked by tests in `render/mirrors.rs`.
 - **Audio** (`src/audio/`): `piano.rs` the souls' notes, `ambient.rs` the synthesized hum,
   `reverb.rs` on the master bus. Samples in `assets/audio/`.
 - **Assets** (`assets/`): chunk and module files per biome (`assets/biomes/<biome>/`), shared
@@ -135,5 +136,5 @@ Plants come after, from the finished blocks (`growth::grow_lot`).
   the plan alone.
 - **Caches:** the planner caches cell answers (`planner::cached`), `city` memoizes per-lot plan
   answers (`memo`: `laid`, `unpinched`, `deck`, `bridges_through`) and whole lots. All are keyed
-  by `chunks::generation()`, so hot-reloaded chunks invalidate them. Neighbor-heavy rules go
+  by `chunk_files::generation()`, so hot-reloaded chunks invalidate them. Neighbor-heavy rules go
   through `memo`, or the test suite slows down sharply.
