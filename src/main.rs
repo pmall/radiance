@@ -9,6 +9,8 @@ mod rng;
 mod stream;
 mod world;
 
+use std::process::ExitCode;
+
 use glam::{Vec2, Vec3, vec3};
 use sola_raylib::prelude::*;
 
@@ -29,14 +31,23 @@ const SCRUB_SPEED: f32 = 0.08;
 /// Seconds between two checks of the chunk files for edits (a scan of their folders).
 const CHUNK_POLL: f32 = 0.5;
 
-/// Command line: `radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] [--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay] [--floors N] [--no-props] [--no-pois] [--report [radius]] [--chunk NAME] [--catalog]`.
-/// `--shot` renders a few frames, saves a screenshot and exits (for checking looks headlessly).
+/// How to call the game, printed with `--help` and after a bad command line.
+const USAGE: &str = "usage: radiance [seed] [--time T] [--view x,y,z,yaw,pitch] [--shot out.png] \
+[--fx mask] [--bench frames] [--no-audio] [--record-for seconds] [--overlay] [--floors N] \
+[--no-props] [--no-pois] [--report [radius]] [--chunk NAME] [--catalog]";
+
+/// The command line (`USAGE`). `--shot` renders a few frames, saves a screenshot and exits (for
+/// checking looks headlessly).
+#[derive(Debug, Default)]
 struct Args {
-    seed: u64,
+    /// The city's seed (`DEFAULT_SEED` when not given).
+    seed: Option<u64>,
+    /// Time of day, 0 midnight to 1 the next.
     time: Option<f32>,
     view: Option<[f32; 5]>,
     shot: Option<String>,
-    /// Effect bit mask override (`render::FX_*`, keys in `debug::EFFECT_KEYS`), for comparing looks in shots.
+    /// Effect bit mask override (`render::FX_*`, keys in `debug::EFFECT_KEYS`), for comparing
+    /// looks in shots.
     fx: Option<i32>,
     /// Render this many frames without vsync, print the average frame time and exit.
     bench: Option<u32>,
@@ -57,63 +68,98 @@ struct Args {
     chunk: Option<String>,
     /// List the chunk catalog and exit.
     catalog: bool,
+    /// Print `USAGE` and exit.
+    help: bool,
 }
 
-fn parse_args() -> Args {
-    let mut args = Args {
-        seed: DEFAULT_SEED,
-        time: None,
-        view: None,
-        shot: None,
-        fx: None,
-        bench: None,
-        no_audio: false,
-        record_for: None,
-        overlay: false,
-        floors: None,
-        no_props: false,
-        no_pois: false,
-        report: None,
-        chunk: None,
-        catalog: false,
-    };
-    let mut it = std::env::args().skip(1).peekable();
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--time" => args.time = it.next().and_then(|s| s.parse().ok()),
-            "--shot" => args.shot = it.next(),
-            "--no-audio" => args.no_audio = true,
-            "--overlay" => args.overlay = true,
-            "--floors" => args.floors = it.next().and_then(|s| s.parse().ok()),
-            "--no-props" => args.no_props = true,
-            "--no-pois" => args.no_pois = true,
-            "--chunk" => args.chunk = it.next(),
-            "--catalog" => args.catalog = true,
+/// Lots around the spawn `--report` covers when no radius follows it.
+const REPORT_RADIUS: i32 = 5;
+
+/// A flag's value parsed as `T` and accepted by `ok`, else an error saying the flag takes `what`.
+fn parse<T: std::str::FromStr>(
+    flag: &str,
+    v: String,
+    what: &str,
+    ok: impl Fn(&T) -> bool,
+) -> Result<T, String> {
+    v.parse()
+        .ok()
+        .filter(ok)
+        .ok_or_else(|| format!("{flag} takes {what}, not {v:?}"))
+}
+
+/// Reads the command line (without the program name). A bad one says what is wrong.
+fn parse_args(words: impl IntoIterator<Item = String>) -> Result<Args, String> {
+    let mut args = Args::default();
+    let mut it = words.into_iter().peekable();
+    while let Some(word) = it.next() {
+        let flag = word.as_str();
+        let mut value = || it.next().ok_or_else(|| format!("{flag} needs a value"));
+        match flag {
+            "--time" => {
+                let range = "a time of day from 0 to 1";
+                args.time = Some(parse(flag, value()?, range, |t: &f32| {
+                    (0.0..=1.0).contains(t)
+                })?);
+            }
+            "--shot" => args.shot = Some(value()?),
+            "--chunk" => args.chunk = Some(value()?),
+            "--floors" => {
+                let (lo, hi) = (world::floors::MIN, world::floors::MAX);
+                let what = format!("a number of floors from {lo} to {hi}");
+                args.floors = Some(parse(flag, value()?, &what, |n| (lo..=hi).contains(n))?);
+            }
+            "--record-for" => {
+                let what = "a number of seconds above 0";
+                args.record_for = Some(parse(flag, value()?, what, |s: &f32| *s > 0.0)?);
+            }
+            "--bench" => {
+                args.bench = Some(parse(flag, value()?, "a number of frames above 0", |n| {
+                    *n > 0
+                })?);
+            }
+            "--fx" => {
+                let what = format!("an effect mask from 0 to {}", render::FX_ALL);
+                let all = |m: &i32| (0..=render::FX_ALL).contains(m);
+                args.fx = Some(parse(flag, value()?, &what, all)?);
+            }
+            "--view" => {
+                let v = value()?;
+                let numbers: Result<Vec<f32>, _> = v.split(',').map(str::parse).collect();
+                let what = "five numbers x,y,z,yaw,pitch";
+                args.view = Some(
+                    numbers
+                        .ok()
+                        .and_then(|n| <[f32; 5]>::try_from(n).ok())
+                        .ok_or_else(|| format!("--view takes {what}, not {v:?}"))?,
+                );
+            }
             "--report" => {
-                args.report = Some(5);
-                if let Some(r) = it.peek().and_then(|s| s.parse().ok()) {
-                    args.report = Some(r);
+                // The radius is optional: only a number after the flag is taken as one.
+                let radius = it.peek().and_then(|w| w.parse().ok());
+                if radius.is_some() {
                     it.next();
                 }
+                args.report = Some(radius.unwrap_or(REPORT_RADIUS));
             }
-            "--record-for" => args.record_for = it.next().and_then(|s| s.parse().ok()),
-            "--bench" => args.bench = it.next().and_then(|s| s.parse().ok()),
-            "--fx" => args.fx = it.next().and_then(|s| s.parse().ok()),
-            "--view" => {
-                let v: Vec<f32> = it
-                    .next()
-                    .map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect())
-                    .unwrap_or_default();
-                args.view = v.try_into().ok();
-            }
+            "--no-audio" => args.no_audio = true,
+            "--overlay" => args.overlay = true,
+            "--no-props" => args.no_props = true,
+            "--no-pois" => args.no_pois = true,
+            "--catalog" => args.catalog = true,
+            "--help" | "-h" => args.help = true,
+            _ if flag.starts_with('-') => return Err(format!("unknown flag {flag}")),
             _ => {
-                if let Ok(s) = a.parse() {
-                    args.seed = s;
+                if args.seed.is_some() {
+                    return Err(format!("a second seed: {flag}"));
                 }
+                args.seed = Some(word.parse().map_err(|_| {
+                    format!("{word:?} is neither a flag nor a seed (a whole number from 0)")
+                })?);
             }
         }
     }
-    args
+    Ok(args)
 }
 
 fn random_seed() -> u64 {
@@ -207,25 +253,36 @@ fn print_catalog() {
     }
 }
 
-fn main() {
-    let args = parse_args();
+fn main() -> ExitCode {
+    let args = match parse_args(std::env::args().skip(1)) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("radiance: {e}\n{USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    if args.help {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    let seed = args.seed.unwrap_or(DEFAULT_SEED);
     world::floors::init(args.floors.unwrap_or(world::floors::DEFAULT_COUNT));
     world::design::set_props(!args.no_props);
     world::design::set_pois(!args.no_pois);
     if args.catalog {
         print_catalog();
-        return;
+        return ExitCode::SUCCESS;
     }
     if let Some(name) = args.chunk.clone() {
         let Some((biome, name)) = world::chunks::find(&name) else {
-            eprintln!("no chunk named {name:?}; see --catalog");
-            return;
+            eprintln!("radiance: no chunk named {name:?}; see --catalog");
+            return ExitCode::from(2);
         };
         world::chunks::set_preview(biome, name);
     }
     if let Some(radius) = args.report {
-        report::run(args.seed, radius);
-        return;
+        report::run(seed, radius);
+        return ExitCode::SUCCESS;
     }
 
     let (mut rl, thread) = sola_raylib::init()
@@ -249,7 +306,7 @@ fn main() {
     let mut bench_start = None;
 
     let mut player = spawn_player(args.view, args.shot.is_some() || args.bench.is_some());
-    let mut world = World::new(args.seed);
+    let mut world = World::new(seed);
     let mut renderer = Renderer::new();
     if let Some(fx) = args.fx {
         renderer.effects = fx;
@@ -259,7 +316,7 @@ fn main() {
     renderer.sync_skyline(world.seed, player.pos, true);
     // Sound only for interactive runs: screenshots and benchmarks stay silent.
     let mut audio = if args.shot.is_none() && args.bench.is_none() && !args.no_audio {
-        audio::Audio::new(args.seed)
+        audio::Audio::new(seed)
     } else {
         None
     };
@@ -269,6 +326,8 @@ fn main() {
     let mut accumulator = 0.0;
     let mut chunk_poll = 0.0;
     let mut frame = 0u32;
+    // What the process exits with: a `--shot` or `--record-for` that fails says so.
+    let mut exit = ExitCode::SUCCESS;
     // Recording (V): `start_recording` is picked up after the next draw, when the screen size is
     // known; finished files are written in the background.
     let mut recorder: Option<recorder::Recorder> = None;
@@ -471,6 +530,7 @@ fn main() {
                     eprintln!("recording failed: {e}");
                     toast = Some((format!("recording failed: {e}"), 8.0));
                     if args.record_for.is_some() {
+                        exit = ExitCode::FAILURE;
                         break 'run;
                     }
                 }
@@ -510,7 +570,10 @@ fn main() {
         if let Some(path) = &args.shot
             && frame == 5
         {
-            debug::export_screen(std::path::Path::new(path));
+            if let Err(e) = debug::export_screen(std::path::Path::new(path)) {
+                eprintln!("radiance: could not save the shot to {path}: {e}");
+                exit = ExitCode::FAILURE;
+            }
             break;
         }
 
@@ -553,7 +616,10 @@ fn main() {
                 Ok(result) => {
                     match result {
                         Ok(path) => println!("RECORDED {}", path.display()),
-                        Err(e) => eprintln!("recording failed: {e}"),
+                        Err(e) => {
+                            eprintln!("recording failed: {e}");
+                            exit = ExitCode::FAILURE;
+                        }
                     }
                     break;
                 }
@@ -562,6 +628,50 @@ fn main() {
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             }
+        }
+    }
+    exit
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(line: &str) -> Result<Args, String> {
+        parse_args(line.split_whitespace().map(String::from))
+    }
+
+    #[test]
+    fn a_shot_command_reads_back() {
+        // As screenshot notes and tools/lookdev.py write it.
+        let a = parse("7 --time 0.7400 --view -96.00,36.00,72.00,0.0,-5.0 --fx 255 --shot out.png")
+            .unwrap();
+        assert_eq!(a.seed, Some(7));
+        assert_eq!(a.time, Some(0.74));
+        assert_eq!(a.view, Some([-96.0, 36.0, 72.0, 0.0, -5.0]));
+        assert_eq!((a.fx, a.shot.as_deref()), (Some(255), Some("out.png")));
+        let a = parse("--report --floors 9").unwrap();
+        assert_eq!((a.report, a.floors), (Some(REPORT_RADIUS), Some(9)));
+        assert_eq!(parse("--report 3 12").unwrap().report, Some(3));
+        assert_eq!(parse("--report 3 12").unwrap().seed, Some(12));
+    }
+
+    #[test]
+    fn a_bad_command_line_is_refused() {
+        for bad in [
+            "--view 1,2,3",
+            "--view 1,2,3,4,x",
+            "--time noon",
+            "--time 2",
+            "--floors 99",
+            "--bench 0",
+            "--fx 256",
+            "--shot",
+            "--frobnicate",
+            "seven",
+            "1 2",
+        ] {
+            assert!(parse(bad).is_err(), "{bad:?} was accepted");
         }
     }
 }

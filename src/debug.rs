@@ -313,11 +313,10 @@ impl Debug {
     }
 }
 
-/// Writes the screen as drawn so far to an image file. Returns whether it was written.
-pub fn export_screen(path: &std::path::Path) -> bool {
-    let Ok(c) = std::ffi::CString::new(path.to_string_lossy().as_bytes()) else {
-        return false;
-    };
+/// Writes the screen as drawn so far to an image file.
+pub fn export_screen(path: &std::path::Path) -> std::io::Result<()> {
+    let c = std::ffi::CString::new(path.to_string_lossy().as_bytes())
+        .map_err(|_| std::io::Error::other("the path holds a NUL byte"))?;
     // SAFETY: called while drawing, the window open; `c` outlives the export, and the image is
     // unloaded once.
     unsafe {
@@ -326,8 +325,12 @@ pub fn export_screen(path: &std::path::Path) -> bool {
         let img = sola_raylib::ffi::LoadImageFromScreen();
         let ok = sola_raylib::ffi::ExportImage(img, c.as_ptr());
         sola_raylib::ffi::UnloadImage(img);
-        ok
+        if !ok {
+            // raylib logs why; a missing folder is the usual cause.
+            return Err(std::io::Error::other("raylib could not write the image"));
+        }
     }
+    Ok(())
 }
 
 /// Folder of the P screenshots (gitignored).
@@ -349,9 +352,7 @@ pub fn save_screenshot(
         .find(|p| !p.with_extension("png").exists())
         .expect("a free screenshot name");
     let png = base.with_extension("png");
-    if !export_screen(&png) {
-        return Err(std::io::Error::other("could not write the image"));
-    }
+    export_screen(&png)?;
     let p = player.pos;
     let (yaw, pitch) = (player.yaw.to_degrees(), player.pitch.to_degrees());
     let view = format!("{:.2},{:.2},{:.2},{yaw:.1},{pitch:.1}", p.x, p.y, p.z);

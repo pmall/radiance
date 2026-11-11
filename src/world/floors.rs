@@ -14,6 +14,8 @@ use std::sync::OnceLock;
 
 /// Floors when `init` is not called.
 pub const DEFAULT_COUNT: usize = 9;
+/// Fewest floors: the depths up to the start floor, then a middle and a canopy.
+pub const MIN: usize = START + 3;
 /// Most floors the shaders and the cover map can handle.
 pub const MAX: usize = 16;
 /// Height between two floors' walking surfaces, in meters.
@@ -25,7 +27,7 @@ static COUNT: OnceLock<usize> = OnceLock::new();
 
 /// Sets the number of floors for this run (before anything is generated).
 pub fn init(count: usize) {
-    let count = count.clamp(START + 3, MAX);
+    let count = count.clamp(MIN, MAX);
     let _ = COUNT.set(count);
 }
 
@@ -137,7 +139,7 @@ mod tests {
 
     #[test]
     fn zones_hold_for_any_floor_count() {
-        for n in START + 3..=MAX {
+        for n in MIN..=MAX {
             let zones: Vec<Zone> = (0..n).map(|f| zone_in(n, f)).collect();
             // Depths, then middle, then canopy, each present, in that order.
             assert_eq!(zones[0], Zone::Depths);
