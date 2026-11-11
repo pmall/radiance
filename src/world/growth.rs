@@ -10,13 +10,12 @@
 use std::collections::HashMap;
 
 use glam::{Vec3, vec3};
-use sola_raylib::prelude::Color;
 
 use super::biome::{Climber, Plants, Vine, biome_at, pick_color, pick_species};
 use super::city::LOT;
 use super::design::{MAX_FLOWERS_PER_LOT, MIN_FLOWER_GAP};
 use super::floors;
-use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert};
+use super::{Aabb, Block, BlockKind, Light, NO_UV, PlantVert, Rgba};
 use crate::rng::{Rng, hash_coords, mix64};
 
 const SALT_GROWTH: i32 = 3;
@@ -34,9 +33,9 @@ const MIN_WALL: f32 = 6.0;
 /// Slabs thinner than this count as decks and bridges, which vines hang from.
 const MAX_SLAB: f32 = 3.0;
 
-fn shade(c: Color, k: f32) -> Color {
+fn shade(c: Rgba, k: f32) -> Rgba {
     let f = |v: u8| (v as f32 * k).clamp(0.0, 255.0) as u8;
-    Color::new(f(c.r), f(c.g), f(c.b), c.a)
+    Rgba::new(f(c.r), f(c.g), f(c.b), c.a)
 }
 
 struct Builder<'a> {
@@ -85,18 +84,18 @@ impl Builder<'_> {
     }
 
     /// A flower color from the biome's palette.
-    fn flower_color(&mut self) -> Color {
+    fn flower_color(&mut self) -> Rgba {
         let [r, g, b] = pick_color(self.plants.flowers, self.rng);
-        Color::new(r, g, b, 255)
+        Rgba::new(r, g, b, 255)
     }
 
     /// Leaf or stem color of the current plant, from the biome's foliage.
-    fn foliage(&mut self) -> Color {
+    fn foliage(&mut self) -> Rgba {
         let p = self.plants;
         let j = self.rng.range_i(-p.jitter, p.jitter + 1);
         let [r, g, b] = pick_color(p.foliage, self.rng);
         let c = |v: u8| (v as i32 + j).clamp(0, 255) as u8;
-        Color::new(c(r), c(g), c(b), 255)
+        Rgba::new(c(r), c(g), c(b), 255)
     }
 
     /// Whether `p` lies strictly inside a block grown by `margin` (a point on a block's own
@@ -116,7 +115,7 @@ impl Builder<'_> {
     /// A flower in the biome's shape: petals around a bright core, plus the point light that sits
     /// at it and takes its color. `axis` is the way the flower faces. Skipped once the lot's light
     /// budget is spent. Whether it grew.
-    fn flower(&mut self, center: Vec3, radius: f32, color: Color, axis: Vec3) -> bool {
+    fn flower(&mut self, center: Vec3, radius: f32, color: Rgba, axis: Vec3) -> bool {
         let shape = &self.plants.flower;
         let radius = radius * shape.size;
         let at = center + axis * radius * 0.4;
@@ -163,7 +162,7 @@ impl Builder<'_> {
             self.quad2_uv(q[0], q[1], q[2], q[3], color, uv);
         }
         self.leaf_px = saved_px;
-        let core = Color::new(
+        let core = Rgba::new(
             ((color.r as u16 + 255) / 2) as u8,
             ((color.g as u16 + 255) / 2) as u8,
             ((color.b as u16 + 255) / 2) as u8,
@@ -201,11 +200,11 @@ impl Builder<'_> {
         true
     }
 
-    fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color) {
+    fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Rgba) {
         self.tri_uv(a, b, c, n, color, [NO_UV; 3]);
     }
 
-    fn tri_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Color, uv: [[f32; 2]; 3]) {
+    fn tri_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, color: Rgba, uv: [[f32; 2]; 3]) {
         for (p, uv) in [a, b, c].into_iter().zip(uv) {
             // Leaf coordinates carry the leaf's size in pixels (`PlantVert::uv`).
             let uv = if uv[0] >= 0.0 {
@@ -225,12 +224,12 @@ impl Builder<'_> {
     }
 
     /// A quad visible from both sides.
-    fn quad2(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Color) {
+    fn quad2(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Rgba) {
         self.quad2_uv(a, b, c, d, color, [NO_UV; 4]);
     }
 
     /// A quad visible from both sides, with leaf coordinates at its corners.
-    fn quad2_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Color, uv: [[f32; 2]; 4]) {
+    fn quad2_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Rgba, uv: [[f32; 2]; 4]) {
         let n = (b - a).cross(c - a).normalize_or_zero();
         if n == Vec3::ZERO {
             return;
@@ -242,7 +241,7 @@ impl Builder<'_> {
     }
 
     /// A triangle facing away from `inside`.
-    fn tri_out(&mut self, a: Vec3, b: Vec3, c: Vec3, inside: Vec3, color: Color) {
+    fn tri_out(&mut self, a: Vec3, b: Vec3, c: Vec3, inside: Vec3, color: Rgba) {
         let mut n = (b - a).cross(c - a).normalize_or_zero();
         if n == Vec3::ZERO {
             return;
@@ -257,7 +256,7 @@ impl Builder<'_> {
     }
 
     /// A strip along `points`, `side` giving the width direction, tapering from `w0` to `w1`.
-    fn ribbon(&mut self, points: &[Vec3], side: Vec3, w0: f32, w1: f32, color: Color) {
+    fn ribbon(&mut self, points: &[Vec3], side: Vec3, w0: f32, w1: f32, color: Rgba) {
         let n = points.len();
         for i in 0..n.saturating_sub(1) {
             let t0 = i as f32 / (n - 1) as f32;
@@ -290,7 +289,7 @@ impl Builder<'_> {
 
     /// A diamond leaf pointing along `dir`, `width` wide on each side (relative to its size).
     /// Dropped if it would touch a block.
-    fn leaf(&mut self, base: Vec3, dir: Vec3, size: f32, width: f32, color: Color) {
+    fn leaf(&mut self, base: Vec3, dir: Vec3, size: f32, width: f32, color: Rgba) {
         let side = dir.cross(Vec3::Y).normalize_or_zero() * size * width;
         let lift = Vec3::Y * size * 0.12;
         let mid = base + dir * size * 0.45 + lift;
@@ -316,7 +315,7 @@ impl Builder<'_> {
     }
 
     /// A low-poly ellipsoid.
-    fn blob(&mut self, center: Vec3, radii: Vec3, color: Color) {
+    fn blob(&mut self, center: Vec3, radii: Vec3, color: Rgba) {
         const RINGS: usize = 4;
         const SEGS: usize = 7;
         let mut verts = [[Vec3::ZERO; SEGS]; RINGS - 1];
@@ -358,7 +357,7 @@ impl Builder<'_> {
     }
 
     /// A double-sided triangle.
-    fn tri2_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, color: Color, uv: [[f32; 2]; 3]) {
+    fn tri2_uv(&mut self, a: Vec3, b: Vec3, c: Vec3, color: Rgba, uv: [[f32; 2]; 3]) {
         let n = (b - a).cross(c - a).normalize_or_zero();
         if n == Vec3::ZERO {
             return;
@@ -383,7 +382,7 @@ impl Builder<'_> {
         len: f32,
         w: f32,
         droop: (f32, f32),
-        color: Color,
+        color: Rgba,
     ) -> Option<Vec3> {
         const SEGS: usize = 3;
         let h = vec3(yaw.cos(), 0.0, yaw.sin());

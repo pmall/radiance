@@ -17,14 +17,13 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use glam::{Vec3, vec3};
-use sola_raylib::prelude::Color;
 
 use super::biome::biome_at;
 use super::chunks;
 use super::floors::{self, START};
 use super::planner::{self, Placement, Role};
 use super::props::Placed;
-use super::{Aabb, Block, BlockKind};
+use super::{Aabb, Block, BlockKind, Rgba};
 use crate::rng::{Rng, hash_coords};
 
 /// Side of a square lot.
@@ -85,11 +84,11 @@ pub fn lot_of(p: Vec3) -> (i32, i32) {
 
 /// A gray between `lo` and `hi`, drifting slightly cool or warm so neighboring slabs and towers do
 /// not read as one mass.
-pub fn tint(rng: &mut Rng, lo: i32, hi: i32) -> Color {
+pub fn tint(rng: &mut Rng, lo: i32, hi: i32) -> Rgba {
     let s = rng.range_i(lo, hi);
     let warm = rng.range_i(-8, 9);
     let c = |v: i32| v.clamp(0, 255) as u8;
-    Color::new(c(s + warm), c(s + 6), c(s + 14 - warm), 255)
+    Rgba::new(c(s + warm), c(s + 6), c(s + 14 - warm), 255)
 }
 
 /// The floor above which nothing is built on this lot, if it lies in a crater's shape
@@ -379,7 +378,7 @@ fn generate_lot_uncached(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>) -> D
     out.extend(dressed.props.iter().map(|p| Block {
         kind: BlockKind::Prop,
         aabb: p.aabb(),
-        color: Color::new(0, 0, 0, 255),
+        color: Rgba::new(0, 0, 0, 255),
     }));
     dressed
 }
@@ -398,7 +397,7 @@ fn generate_structure(seed: u64, lx: i32, lz: i32, out: &mut Vec<Block>, dressed
             vec3(mid.x, floors::bottom() - 1.0, mid.z),
             vec3(LOT, 2.0, LOT),
         ),
-        color: Color::new(44, 48, 58, 255),
+        color: Rgba::new(44, 48, 58, 255),
     });
 
     // Deck slabs, lighter higher up.
@@ -808,7 +807,7 @@ impl Pieces {
                 out.push(Block {
                     kind: BlockKind::Collider,
                     aabb: p.aabb(),
-                    color: Color::new(0, 0, 0, 255),
+                    color: Rgba::new(0, 0, 0, 255),
                 });
             }
         }
@@ -1293,7 +1292,7 @@ fn well(seed: u64, lx: i32, lz: i32) -> (f32, f32) {
 
 /// A lot-sized deck with a rectangular hole of half size `hole` (x, z) in the middle, as four
 /// slabs.
-fn push_ring_deck(mid: Vec3, top: f32, hole: (f32, f32), color: Color, out: &mut Vec<Block>) {
+fn push_ring_deck(mid: Vec3, top: f32, hole: (f32, f32), color: Rgba, out: &mut Vec<Block>) {
     let half = LOT * 0.5;
     let y = top - DECK_THICKNESS * 0.5;
     let mut slab = |x0: f32, x1: f32, z0: f32, z1: f32| {
@@ -1314,9 +1313,9 @@ fn push_ring_deck(mid: Vec3, top: f32, hole: (f32, f32), color: Color, out: &mut
 
 /// A switchback stair from height `bottom` up to `top`, centered on `mid`.
 fn push_switchback_stair(mid: Vec3, along_x: bool, bottom: f32, top: f32, out: &mut Vec<Block>) {
-    let stone = Color::new(176, 150, 112, 255);
-    let steel = Color::new(70, 76, 88, 255);
-    let wall = Color::new(150, 150, 156, 255);
+    let stone = Rgba::new(176, 150, 112, 255);
+    let steel = Rgba::new(70, 76, 88, 255);
+    let wall = Rgba::new(150, 150, 156, 255);
     let flights = ((top - bottom) / (FLIGHT_STEPS as f32 * TARGET_RISE))
         .round()
         .max(1.0) as usize;
@@ -1324,7 +1323,7 @@ fn push_switchback_stair(mid: Vec3, along_x: bool, bottom: f32, top: f32, out: &
     let tread = FLIGHT_RUN / FLIGHT_STEPS as f32;
     let half_run = FLIGHT_RUN * 0.5;
     // A box from stair coordinates: u along the flights, w across them.
-    let mut push = |u: (f32, f32), w: (f32, f32), y: (f32, f32), kind: BlockKind, color: Color| {
+    let mut push = |u: (f32, f32), w: (f32, f32), y: (f32, f32), kind: BlockKind, color: Rgba| {
         let (x, z) = if along_x { (u, w) } else { (w, u) };
         out.push(Block {
             kind,
@@ -1503,7 +1502,7 @@ fn push_movement_course(lx: i32, lz: i32, out: &mut Vec<Block>) {
         out.push(Block {
             kind: BlockKind::Course,
             aabb: Aabb::from_center(c, vec3(3.0, *h, 3.0)),
-            color: Color::new(200, 110, 160, 255),
+            color: Rgba::new(200, 110, 160, 255),
         });
     }
 }

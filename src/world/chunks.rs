@@ -15,11 +15,10 @@ use std::sync::{Arc, OnceLock};
 
 use glam::{Vec3, vec3};
 use serde::Deserialize;
-use sola_raylib::prelude::Color;
 
-use super::Aabb;
 use super::chunk_files::{BiomeFiles, Files};
 pub use super::chunk_files::{catalogs, generation, poll};
+use super::{Aabb, Rgba};
 use crate::rng::Rng;
 
 /// Modules may use modules, this deep at most (a guard against a module using itself).
@@ -67,8 +66,8 @@ impl Mat {
     }
 
     /// Base color (sRGB), which the shader details.
-    pub fn color(self) -> Color {
-        let c = |r, g, b| Color::new(r, g, b, 255);
+    pub fn color(self) -> Rgba {
+        let c = |r, g, b| Rgba::new(r, g, b, 255);
         match self {
             Mat::Stone => c(168, 160, 146),
             Mat::StoneDark => c(98, 96, 94),

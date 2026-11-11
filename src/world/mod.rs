@@ -18,7 +18,22 @@ pub mod tower;
 use std::collections::HashMap;
 
 use glam::Vec3;
-use sola_raylib::prelude::Color;
+
+/// A colour of the world (sRGB bytes), which the mesher writes as is into the vertex colours.
+/// The world's own type, so that generation does not depend on the renderer's library.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rgba {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl Rgba {
+    pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Aabb {
@@ -114,7 +129,7 @@ pub enum BlockKind {
 #[derive(Clone, Copy)]
 pub struct Block {
     pub aabb: Aabb,
-    pub color: Color,
+    pub color: Rgba,
     pub kind: BlockKind,
 }
 
@@ -141,7 +156,7 @@ pub type LotKey = (i32, i32);
 pub struct PlantVert {
     pub pos: Vec3,
     pub normal: Vec3,
-    pub color: Color,
+    pub color: Rgba,
     /// Outline id, 1..=255.
     pub id: u8,
     /// Emission strength, 0..=255; scaled by the time of day in the shader.

@@ -402,14 +402,13 @@ fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::{Block, BlockKind};
-    use sola_raylib::prelude::Color;
+    use crate::world::{Block, BlockKind, Rgba};
 
     #[test]
     fn a_long_fall_lands_on_the_highest_block_hit() {
         let block = |min: Vec3, max: Vec3| Block {
             aabb: Aabb { min, max },
-            color: Color::new(0, 0, 0, 255),
+            color: Rgba::new(0, 0, 0, 255),
             kind: BlockKind::Course,
         };
         // A curb listed before the deck it stands on: falling fast, one step crosses both tops.
